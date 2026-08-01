@@ -1,6 +1,5 @@
+import { Program, Shift } from '@prisma/client'
 import { readFile, writeFile } from 'node:fs/promises'
-
-import { Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import {
@@ -36,6 +35,7 @@ interface DugsiStudent {
 interface SheetMatch {
   sheetName: string
   dbName: string | null
+  profileId?: string | null
   confidence: MatchConfidence
   score: number
   className?: string | null
@@ -56,10 +56,6 @@ interface TabReport {
   needsReview: SheetMatch[]
 }
 
-function classKey(name: string, shift: Shift): string {
-  return `${name}|${shift}`
-}
-
 async function loadSnapshot(path: string): Promise<AttendanceRosterSnapshot> {
   const raw = await readFile(path, 'utf8')
   return JSON.parse(raw) as AttendanceRosterSnapshot
@@ -67,7 +63,7 @@ async function loadSnapshot(path: string): Promise<AttendanceRosterSnapshot> {
 
 async function loadDugsiStudents(): Promise<DugsiStudent[]> {
   const profiles = await prisma.programProfile.findMany({
-    where: { program: 'DUGSI_PROGRAM' },
+    where: { program: Program.DUGSI_PROGRAM },
     select: {
       id: true,
       person: { select: { id: true, name: true } },
@@ -130,12 +126,15 @@ function reconcileTab(
     const aliasTarget = CONFIRMED_ALIASES[sheetName]
     if (aliasTarget) {
       const canonical = normalizeName(aliasTarget)
-      const student = allStudents.find((s) => normalizeName(s.name) === canonical)
+      const student = allStudents.find(
+        (s) => normalizeName(s.name) === canonical
+      )
       if (student) {
         matchedProfileIds.add(student.profileId)
         const hit: SheetMatch = {
           sheetName,
           dbName: student.name,
+          profileId: student.profileId,
           confidence: 'exact',
           score: 1,
           className: student.className,
@@ -163,6 +162,7 @@ function reconcileTab(
         report.matched.push({
           sheetName,
           dbName: inClass.matchName,
+          profileId: inClass.match.profileId,
           confidence: inClass.confidence,
           score: inClass.score,
         })
@@ -178,6 +178,7 @@ function reconcileTab(
       const hit: SheetMatch = {
         sheetName,
         dbName: global.matchName,
+        profileId: global.match.profileId,
         confidence: global.confidence,
         score: global.score,
         className: global.match.className,
@@ -240,7 +241,9 @@ function printTab(r: TabReport): void {
   }
 
   if (r.inSheetNotInDb.length) {
-    console.log(`\n  ✗ in sheet, NO DUGSI match in DB (${r.inSheetNotInDb.length})`)
+    console.log(
+      `\n  ✗ in sheet, NO DUGSI match in DB (${r.inSheetNotInDb.length})`
+    )
     for (const name of r.inSheetNotInDb) console.log(`    - ${name}`)
   }
 
@@ -254,7 +257,9 @@ function printTab(r: TabReport): void {
   if (r.needsReview.length) {
     console.log(`\n  ? needs manual review (${r.needsReview.length})`)
     for (const m of r.needsReview) {
-      const guess = m.dbName ? ` (closest: ${m.dbName}, ${m.score.toFixed(2)})` : ''
+      const guess = m.dbName
+        ? ` (closest: ${m.dbName}, ${m.score.toFixed(2)})`
+        : ''
       console.log(`    - ${m.sheetName}${guess}`)
     }
   }
@@ -279,14 +284,17 @@ async function main() {
     printTab(report)
   }
 
-  // Global: DUGSI students never matched by any sheet name.
-  const matchedNames = new Set<string>()
+  // Global: DUGSI students never matched by any sheet name. Keyed by profileId
+  // (not name) so duplicate names, e.g. two "Khalid Ibrahim", don't false-negative.
+  const matchedProfileIds = new Set<string>()
   for (const r of reports) {
     for (const m of [...r.matched, ...r.inSheetNotInClass]) {
-      if (m.dbName) matchedNames.add(m.dbName)
+      if (m.profileId) matchedProfileIds.add(m.profileId)
     }
   }
-  const notInAnySheet = allStudents.filter((s) => !matchedNames.has(s.name))
+  const notInAnySheet = allStudents.filter(
+    (s) => !matchedProfileIds.has(s.profileId)
+  )
 
   console.log(
     `\n=== GLOBAL: DUGSI students not found on ANY attendance tab (${notInAnySheet.length}/${allStudents.length}) ===`

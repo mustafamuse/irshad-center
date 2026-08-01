@@ -1,7 +1,14 @@
-import { Gender, Program, Shift, GuardianRole, EnrollmentStatus } from '@prisma/client'
+import {
+  Gender,
+  Program,
+  Shift,
+  GuardianRole,
+  EnrollmentStatus,
+} from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
+
 import { runScript } from './lib/run-script'
 
 /**
@@ -137,10 +144,19 @@ async function classId(name: string, shift: Shift): Promise<string | null> {
 }
 
 async function resolve(reg: Registration): Promise<Resolved> {
-  const base = { reg, targetClassId: '', action: 'ERROR' as Resolved['action'], note: '' }
+  const base = {
+    reg,
+    targetClassId: '',
+    action: 'ERROR' as Resolved['action'],
+    note: '',
+  }
 
   const tId = await classId(reg.target.name, reg.target.shift)
-  if (!tId) return { ...base, note: `target class ${reg.target.name}/${reg.target.shift} not found` }
+  if (!tId)
+    return {
+      ...base,
+      note: `target class ${reg.target.name}/${reg.target.shift} not found`,
+    }
   base.targetClassId = tId
 
   if (reg.guardianPersonId) {
@@ -148,7 +164,11 @@ async function resolve(reg: Registration): Promise<Resolved> {
       where: { id: reg.guardianPersonId },
       select: { id: true },
     })
-    if (!guardian) return { ...base, note: `guardian person ${reg.guardianPersonId} not found` }
+    if (!guardian)
+      return {
+        ...base,
+        note: `guardian person ${reg.guardianPersonId} not found`,
+      }
   }
 
   // Idempotency: an existing DUGSI profile matching (name, dob) means already
@@ -157,18 +177,34 @@ async function resolve(reg: Registration): Promise<Resolved> {
     const existing = await prisma.programProfile.findFirst({
       where: {
         program: Program.DUGSI_PROGRAM,
-        person: { name: reg.name, dateOfBirth: new Date(`${reg.dob}T00:00:00.000Z`) },
+        person: {
+          name: reg.name,
+          dateOfBirth: new Date(`${reg.dob}T00:00:00.000Z`),
+        },
       },
       select: { id: true },
     })
-    if (existing) return { ...base, action: 'skip-already-there', note: 'already registered' }
+    if (existing)
+      return {
+        ...base,
+        action: 'skip-already-there',
+        note: 'already registered',
+      }
   }
 
-  return { ...base, action: 'create', note: reg.guardianPersonId ? 'create + guardian link' : 'create' }
+  return {
+    ...base,
+    action: 'create',
+    note: reg.guardianPersonId ? 'create + guardian link' : 'create',
+  }
 }
 
 async function main() {
-  console.log(APPLY ? '*** APPLY MODE — WRITING ***\n' : '--- DRY RUN (pass --apply to write) ---\n')
+  console.log(
+    APPLY
+      ? '*** APPLY MODE — WRITING ***\n'
+      : '--- DRY RUN (pass --apply to write) ---\n'
+  )
 
   // Validate the static config up front (fail loud on a malformed entry).
   for (const reg of REGISTRATIONS) RegistrationSchema.parse(reg)
@@ -179,12 +215,16 @@ async function main() {
   for (const r of resolved) {
     const tag = r.action === 'ERROR' ? '❌ ERROR' : r.action
     const dobTag = r.reg.dob ?? 'DOB MISSING'
-    console.log(`[${tag}] ${r.reg.name} (${dobTag}) → ${r.reg.target.name}/${r.reg.target.shift}  ${r.note}`)
+    console.log(
+      `[${tag}] ${r.reg.name} (${dobTag}) → ${r.reg.target.name}/${r.reg.target.shift}  ${r.note}`
+    )
   }
 
   const errors = resolved.filter((r) => r.action === 'ERROR')
   if (errors.length) {
-    throw new Error(`${errors.length} registration(s) failed to resolve — aborting (no writes).`)
+    throw new Error(
+      `${errors.length} registration(s) failed to resolve — aborting (no writes).`
+    )
   }
 
   const toCreate = resolved.filter((r) => r.action === 'create')
@@ -196,21 +236,30 @@ async function main() {
 
   if (!APPLY) {
     if (missingDob.length) {
-      console.log(`\nDOB still needed for: ${missingDob.join(', ')}. Fill each entry's dob before --apply.`)
+      console.log(
+        `\nDOB still needed for: ${missingDob.join(', ')}. Fill each entry's dob before --apply.`
+      )
     }
-    console.log('\nDry run complete. Re-run with --apply to perform the writes.')
+    console.log(
+      '\nDry run complete. Re-run with --apply to perform the writes.'
+    )
     return
   }
 
   if (missingDob.length) {
-    throw new Error(`Cannot apply: DOB missing for ${missingDob.join(', ')}. Fill each dob then re-run.`)
+    throw new Error(
+      `Cannot apply: DOB missing for ${missingDob.join(', ')}. Fill each dob then re-run.`
+    )
   }
 
   await prisma.$transaction(async (tx) => {
     for (const r of toCreate) {
       const { reg } = r
       const person = await tx.person.create({
-        data: { name: reg.name, dateOfBirth: new Date(`${reg.dob}T00:00:00.000Z`) },
+        data: {
+          name: reg.name,
+          dateOfBirth: new Date(`${reg.dob}T00:00:00.000Z`),
+        },
         select: { id: true },
       })
       const profile = await tx.programProfile.create({
@@ -226,7 +275,11 @@ async function main() {
         select: { id: true },
       })
       await tx.dugsiClassEnrollment.create({
-        data: { programProfileId: profile.id, classId: r.targetClassId, isActive: true },
+        data: {
+          programProfileId: profile.id,
+          classId: r.targetClassId,
+          isActive: true,
+        },
       })
       if (reg.guardianPersonId) {
         await tx.guardianRelationship.create({
@@ -240,7 +293,9 @@ async function main() {
     }
   })
 
-  console.log(`\n✅ Registered ${toCreate.length} student(s) in one transaction.`)
+  console.log(
+    `\n✅ Registered ${toCreate.length} student(s) in one transaction.`
+  )
 }
 
 runScript(main, { cleanup: () => prisma.$disconnect() })

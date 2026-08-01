@@ -1,6 +1,7 @@
 import { Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+
 import { runScript } from './lib/run-script'
 
 /**
@@ -26,10 +27,18 @@ import { runScript } from './lib/run-script'
  */
 
 const APPLY = process.argv.includes('--apply')
+const FORCE = process.argv.includes('--force')
 
 const TARGET_SPREADSHEET_ID = '1Qu6al9SCV6W2rWNHx1jRdjF4YJa5c6Vjq0j7BUNk2Ig'
 
-const FIXED_HEADERS = ['Name', 'Juz Category', 'Lesson', 'Behavior', 'Present', 'Overall']
+const FIXED_HEADERS = [
+  'Name',
+  'Juz Category',
+  'Lesson',
+  'Behavior',
+  'Present',
+  'Overall',
+]
 const NAME_COL_INDEX = 0 // A
 const PRESENT_COL_INDEX = 4 // E
 const OVERALL_COL_INDEX = 5 // F
@@ -44,7 +53,20 @@ const FIRST_DATA_ROW = 2 // 0-based; 1-based row 3
 const RANGE_START = { y: 2026, m: 6, d: 1 }
 const RANGE_END = { y: 2026, m: 12, d: 31 }
 
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
 
 // Hard-block protection: only this account may edit locked ranges.
 const OWNER_EMAIL = 'umpp101@gmail.com'
@@ -108,7 +130,12 @@ function weekendDays(): WeekendDay[] {
     if (day === 6 || day === 0) {
       const mm = String(cur.getMonth() + 1).padStart(2, '0')
       const dd = String(cur.getDate()).padStart(2, '0')
-      out.push({ label: `${mm}/${dd} ${day === 6 ? 'Sa' : 'Su'}`, month: cur.getMonth() + 1, year: cur.getFullYear(), isSat: day === 6 })
+      out.push({
+        label: `${mm}/${dd} ${day === 6 ? 'Sa' : 'Su'}`,
+        month: cur.getMonth() + 1,
+        year: cur.getFullYear(),
+        isSat: day === 6,
+      })
     }
     cur.setDate(cur.getDate() + 1)
   }
@@ -147,7 +174,9 @@ async function buildPlan(): Promise<TabPlan[]> {
       select: {
         students: {
           where: { isActive: true },
-          select: { programProfile: { select: { person: { select: { name: true } } } } },
+          select: {
+            programProfile: { select: { person: { select: { name: true } } } },
+          },
         },
       },
     })
@@ -160,16 +189,32 @@ async function buildPlan(): Promise<TabPlan[]> {
   return plans
 }
 
-async function sheetsApi(method: string, path: string, body?: unknown): Promise<Record<string, unknown>> {
+async function sheetsApi(
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<Record<string, unknown>> {
   const token = process.env.GOOGLE_ACCESS_TOKEN
-  if (!token) throw new Error('GOOGLE_ACCESS_TOKEN not set (run: export GOOGLE_ACCESS_TOKEN=$(python3 $GWS_AUTH))')
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  })
+  if (!token)
+    throw new Error(
+      'GOOGLE_ACCESS_TOKEN not set (run: export GOOGLE_ACCESS_TOKEN=$(python3 $GWS_AUTH))'
+    )
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets${path}`,
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    }
+  )
   const json = (await res.json()) as Record<string, unknown>
-  if (!res.ok) throw new Error(`Sheets API ${method} ${path} failed (${res.status}): ${JSON.stringify(json)}`)
+  if (!res.ok)
+    throw new Error(
+      `Sheets API ${method} ${path} failed (${res.status}): ${JSON.stringify(json)}`
+    )
   return json
 }
 
@@ -182,13 +227,23 @@ interface SheetMeta {
 }
 
 type Color = { red: number; green: number; blue: number }
-type GridRange = { startRowIndex?: number; endRowIndex?: number; startColumnIndex?: number; endColumnIndex?: number }
+type GridRange = {
+  startRowIndex?: number
+  endRowIndex?: number
+  startColumnIndex?: number
+  endColumnIndex?: number
+}
 
 /** repeatCell helper that sets a precise set of cell-format aspects. */
 function styleCells(
   sheetId: number,
   range: GridRange,
-  opts: { bg?: Color; bold?: boolean; textColor?: Color; hAlign?: 'LEFT' | 'CENTER' | 'RIGHT' }
+  opts: {
+    bg?: Color
+    bold?: boolean
+    textColor?: Color
+    hAlign?: 'LEFT' | 'CENTER' | 'RIGHT'
+  }
 ) {
   const fmt: Record<string, unknown> = {}
   const fields: string[] = []
@@ -207,13 +262,25 @@ function styleCells(
     fmt.horizontalAlignment = opts.hAlign
     fields.push('userEnteredFormat.horizontalAlignment')
   }
-  return { repeatCell: { range: { sheetId, ...range }, cell: { userEnteredFormat: fmt }, fields: fields.join(',') } }
+  return {
+    repeatCell: {
+      range: { sheetId, ...range },
+      cell: { userEnteredFormat: fmt },
+      fields: fields.join(','),
+    },
+  }
 }
 
 function noteCell(sheetId: number, row: number, col: number, note: string) {
   return {
     repeatCell: {
-      range: { sheetId, startRowIndex: row, endRowIndex: row + 1, startColumnIndex: col, endColumnIndex: col + 1 },
+      range: {
+        sheetId,
+        startRowIndex: row,
+        endRowIndex: row + 1,
+        startColumnIndex: col,
+        endColumnIndex: col + 1,
+      },
       cell: { note },
       fields: 'note',
     },
@@ -223,33 +290,71 @@ function noteCell(sheetId: number, row: number, col: number, note: string) {
 function lockRange(sheetId: number, range: GridRange, description: string) {
   return {
     addProtectedRange: {
-      protectedRange: { range: { sheetId, ...range }, description, warningOnly: false, editors: { users: [OWNER_EMAIL] } },
+      protectedRange: {
+        range: { sheetId, ...range },
+        description,
+        warningOnly: false,
+        editors: { users: [OWNER_EMAIL] },
+      },
     },
   }
 }
 
-function numberCondRule(sheetId: number, range: GridRange, type: string, value: string, color: Color) {
+function numberCondRule(
+  sheetId: number,
+  range: GridRange,
+  type: string,
+  value: string,
+  color: Color
+) {
   return {
     addConditionalFormatRule: {
       index: 0,
-      rule: { ranges: [{ sheetId, ...range }], booleanRule: { condition: { type, values: [{ userEnteredValue: value }] }, format: { backgroundColor: color } } },
+      rule: {
+        ranges: [{ sheetId, ...range }],
+        booleanRule: {
+          condition: { type, values: [{ userEnteredValue: value }] },
+          format: { backgroundColor: color },
+        },
+      },
     },
   }
 }
 
-function textEqRule(sheetId: number, range: GridRange, text: string, color: Color) {
+function textEqRule(
+  sheetId: number,
+  range: GridRange,
+  text: string,
+  color: Color
+) {
   return {
     addConditionalFormatRule: {
       index: 0,
-      rule: { ranges: [{ sheetId, ...range }], booleanRule: { condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: text }] }, format: { backgroundColor: color } } },
+      rule: {
+        ranges: [{ sheetId, ...range }],
+        booleanRule: {
+          condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: text }] },
+          format: { backgroundColor: color },
+        },
+      },
     },
   }
 }
 
-function colWidth(sheetId: number, startCol: number, endCol: number, px: number) {
+function colWidth(
+  sheetId: number,
+  startCol: number,
+  endCol: number,
+  px: number
+) {
   return {
     updateDimensionProperties: {
-      range: { sheetId, dimension: 'COLUMNS', startIndex: startCol, endIndex: endCol },
+      range: {
+        sheetId,
+        dimension: 'COLUMNS',
+        startIndex: startCol,
+        endIndex: endCol,
+      },
       properties: { pixelSize: px },
       fields: 'pixelSize',
     },
@@ -259,14 +364,66 @@ function colWidth(sheetId: number, startCol: number, endCol: number, px: number)
 /** Fixed-column cells for one student row (1-based sheet row). */
 function fixedCells(name: string, row: number, lastDateCol: string): string[] {
   const dr = `${colLetter(FIRST_DATE_COL_INDEX)}${row}:${lastDateCol}${row}`
-  return [name, '', '', '', `=COUNTIF(${dr},"P")`, `=IF(COUNTA(${dr})=0,"",COUNTIF(${dr},"P")/COUNTA(${dr}))`]
+  return [
+    name,
+    '',
+    '',
+    '',
+    `=COUNTIF(${dr},"P")`,
+    `=IF(COUNTA(${dr})=0,"",COUNTIF(${dr},"P")/COUNTA(${dr}))`,
+  ]
 }
 
-const META_FIELDS = 'sheets.properties(sheetId,title),sheets.conditionalFormats,sheets.protectedRanges(protectedRangeId),sheets.bandedRanges(bandedRangeId),sheets.tables(tableId)'
+const META_FIELDS =
+  'sheets.properties(sheetId,title),sheets.conditionalFormats,sheets.protectedRanges(protectedRangeId),sheets.bandedRanges(bandedRangeId),sheets.tables(tableId)'
 
 async function fetchMeta(): Promise<Map<string, SheetMeta>> {
-  const meta = await sheetsApi('GET', `/${TARGET_SPREADSHEET_ID}?fields=${META_FIELDS}`)
-  return new Map((meta.sheets as SheetMeta[]).map((s) => [s.properties.title, s]))
+  const meta = await sheetsApi(
+    'GET',
+    `/${TARGET_SPREADSHEET_ID}?fields=${META_FIELDS}`
+  )
+  return new Map(
+    (meta.sheets as SheetMeta[]).map((s) => [s.properties.title, s])
+  )
+}
+
+interface BatchGetResponse {
+  valueRanges?: { values?: string[][] }[]
+}
+
+/** Batch-reads each tab's date-cell region and returns tabs containing any P/A/S mark. */
+async function findTabsWithMarks(
+  plans: TabPlan[],
+  lastDateCol: string
+): Promise<string[]> {
+  const withRoster = plans.filter((p) => p.roster.length > 0)
+  if (!withRoster.length) return []
+
+  const params = new URLSearchParams({ majorDimension: 'ROWS' })
+  for (const p of withRoster) {
+    const firstRow = FIRST_DATA_ROW + 1 // 1-based first student row
+    const lastRow = firstRow + p.roster.length - 1
+    params.append(
+      'ranges',
+      `'${p.title}'!${colLetter(FIRST_DATE_COL_INDEX)}${firstRow}:${lastDateCol}${lastRow}`
+    )
+  }
+
+  const res = (await sheetsApi(
+    'GET',
+    `/${TARGET_SPREADSHEET_ID}/values:batchGet?${params.toString()}`
+  )) as BatchGetResponse
+  const valueRanges = res.valueRanges ?? []
+
+  const affected: string[] = []
+  withRoster.forEach((p, i) => {
+    const rows = valueRanges[i]?.values ?? []
+    const hasMark = rows.some((row) =>
+      row.some((cell) => ATTENDANCE_OPTIONS.includes((cell ?? '').trim()))
+    )
+    if (hasMark) affected.push(p.title)
+  })
+  return affected
 }
 
 async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
@@ -275,18 +432,38 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
   const lastDateCol = colLetter(FIRST_DATE_COL_INDEX + days.length - 1)
   const headerRow = [...FIXED_HEADERS, ...days.map((d) => d.label)]
 
+  if (!FORCE) {
+    const affected = await findTabsWithMarks(plans, lastDateCol)
+    if (affected.length) {
+      throw new Error(
+        `Refusing to clear tabs with existing attendance marks: ${affected.join(', ')}. ` +
+          'This would erase live teacher-entered P/A/S data. Pass --force to overwrite anyway.'
+      )
+    }
+  }
+
   let byTitle = await fetchMeta()
   // Tables block cell-merges and own their own conditional formats; delete them in
   // a standalone batch first, then re-read so CF/banding/protected counts are fresh.
-  const tableDeletes = plans.flatMap((p) => (byTitle.get(p.title)!.tables ?? []).map((t) => ({ deleteTable: { tableId: t.tableId } })))
+  const tableDeletes = plans.flatMap((p) =>
+    (byTitle.get(p.title)!.tables ?? []).map((t) => ({
+      deleteTable: { tableId: t.tableId },
+    }))
+  )
   if (tableDeletes.length) {
-    await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}:batchUpdate`, { requests: tableDeletes })
+    await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}:batchUpdate`, {
+      requests: tableDeletes,
+    })
     byTitle = await fetchMeta()
   }
 
   // Values (USER_ENTERED so formulas evaluate).
   for (const p of plans) {
-    await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}/values/${encodeURIComponent(`'${p.title}'!A1:ZZ1000`)}:clear`, {})
+    await sheetsApi(
+      'POST',
+      `/${TARGET_SPREADSHEET_ID}/values/${encodeURIComponent(`'${p.title}'!A1:ZZ1000`)}:clear`,
+      {}
+    )
   }
   await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}/values:batchUpdate`, {
     valueInputOption: 'USER_ENTERED',
@@ -294,10 +471,22 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
       const band: string[] = Array(totalCols).fill('')
       band[0] = `${p.className} — ${p.shift === Shift.MORNING ? 'AM' : 'PM'}`
       for (const b of bands) band[FIRST_DATE_COL_INDEX + b.start] = b.label
-      const students = p.roster.map((name, i) => fixedCells(name, FIRST_DATA_ROW + 1 + i, lastDateCol))
+      const students = p.roster.map((name, i) =>
+        fixedCells(name, FIRST_DATA_ROW + 1 + i, lastDateCol)
+      )
       const lastStudent = FIRST_DATA_ROW + p.roster.length // 1-based last student row
-      const avg = ['Class average', '', '', '', `=SUM(E${FIRST_DATA_ROW + 1}:E${lastStudent})`, `=IFERROR(AVERAGE(F${FIRST_DATA_ROW + 1}:F${lastStudent}),"")`]
-      return { range: `'${p.title}'!A1`, values: [band, headerRow, ...students, avg] }
+      const avg = [
+        'Class average',
+        '',
+        '',
+        '',
+        `=SUM(E${FIRST_DATA_ROW + 1}:E${lastStudent})`,
+        `=IFERROR(AVERAGE(F${FIRST_DATA_ROW + 1}:F${lastStudent}),"")`,
+      ]
+      return {
+        range: `'${p.title}'!A1`,
+        values: [band, headerRow, ...students, avg],
+      }
     }),
   })
 
@@ -312,8 +501,15 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
     // 1. Freeze header rows + the fixed columns.
     requests.push({
       updateSheetProperties: {
-        properties: { sheetId, gridProperties: { frozenRowCount: 2, frozenColumnCount: FIXED_HEADERS.length } },
-        fields: 'gridProperties.frozenRowCount,gridProperties.frozenColumnCount',
+        properties: {
+          sheetId,
+          gridProperties: {
+            frozenRowCount: 2,
+            frozenColumnCount: FIXED_HEADERS.length,
+          },
+        },
+        fields:
+          'gridProperties.frozenRowCount,gridProperties.frozenColumnCount',
       },
     })
     // 2. Column widths: narrow dates, wider Name.
@@ -321,69 +517,249 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
     requests.push(colWidth(sheetId, NAME_COL_INDEX, NAME_COL_INDEX + 1, 170))
 
     // Clear then re-create merges for the month band.
-    requests.push({ unmergeCells: { range: { sheetId, startRowIndex: 0, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: totalCols } } })
-    requests.push({ mergeCells: { range: { sheetId, startRowIndex: BAND_ROW, endRowIndex: BAND_ROW + 1, startColumnIndex: 0, endColumnIndex: FIXED_HEADERS.length }, mergeType: 'MERGE_ALL' } })
+    requests.push({
+      unmergeCells: {
+        range: {
+          sheetId,
+          startRowIndex: 0,
+          endRowIndex: 2,
+          startColumnIndex: 0,
+          endColumnIndex: totalCols,
+        },
+      },
+    })
+    requests.push({
+      mergeCells: {
+        range: {
+          sheetId,
+          startRowIndex: BAND_ROW,
+          endRowIndex: BAND_ROW + 1,
+          startColumnIndex: 0,
+          endColumnIndex: FIXED_HEADERS.length,
+        },
+        mergeType: 'MERGE_ALL',
+      },
+    })
     for (const b of bands) {
-      requests.push({ mergeCells: { range: { sheetId, startRowIndex: BAND_ROW, endRowIndex: BAND_ROW + 1, startColumnIndex: FIRST_DATE_COL_INDEX + b.start, endColumnIndex: FIRST_DATE_COL_INDEX + b.end + 1 }, mergeType: 'MERGE_ALL' } })
+      requests.push({
+        mergeCells: {
+          range: {
+            sheetId,
+            startRowIndex: BAND_ROW,
+            endRowIndex: BAND_ROW + 1,
+            startColumnIndex: FIRST_DATE_COL_INDEX + b.start,
+            endColumnIndex: FIRST_DATE_COL_INDEX + b.end + 1,
+          },
+          mergeType: 'MERGE_ALL',
+        },
+      })
     }
 
     // Drop stacking artifacts from prior runs.
-    for (let i = (sm.conditionalFormats?.length ?? 0) - 1; i >= 0; i--) requests.push({ deleteConditionalFormatRule: { sheetId, index: i } })
-    for (const br of sm.bandedRanges ?? []) requests.push({ deleteBanding: { bandedRangeId: br.bandedRangeId } })
-    for (const pr of sm.protectedRanges ?? []) requests.push({ deleteProtectedRange: { protectedRangeId: pr.protectedRangeId } })
+    for (let i = (sm.conditionalFormats?.length ?? 0) - 1; i >= 0; i--)
+      requests.push({ deleteConditionalFormatRule: { sheetId, index: i } })
+    for (const br of sm.bandedRanges ?? [])
+      requests.push({ deleteBanding: { bandedRangeId: br.bandedRangeId } })
+    for (const pr of sm.protectedRanges ?? [])
+      requests.push({
+        deleteProtectedRange: { protectedRangeId: pr.protectedRangeId },
+      })
 
     // Data validation: clear the whole grid (incl. header rows + any stale validation
     // left by a prior layout), then set the P/A/S dropdown on date cells only.
-    requests.push({ setDataValidation: { range: { sheetId, startRowIndex: 0, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: totalCols } } })
     requests.push({
       setDataValidation: {
-        range: { sheetId, startRowIndex: FIRST_DATA_ROW, endRowIndex: dataEnd, startColumnIndex: FIRST_DATE_COL_INDEX, endColumnIndex: totalCols },
-        rule: { condition: { type: 'ONE_OF_LIST', values: ATTENDANCE_OPTIONS.map((v) => ({ userEnteredValue: v })) }, showCustomUi: true, strict: true },
+        range: {
+          sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1000,
+          startColumnIndex: 0,
+          endColumnIndex: totalCols,
+        },
+      },
+    })
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId,
+          startRowIndex: FIRST_DATA_ROW,
+          endRowIndex: dataEnd,
+          startColumnIndex: FIRST_DATE_COL_INDEX,
+          endColumnIndex: totalCols,
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: ATTENDANCE_OPTIONS.map((v) => ({ userEnteredValue: v })),
+          },
+          showCustomUi: true,
+          strict: true,
+        },
       },
     })
 
     // Number format + alignment.
     requests.push({
       repeatCell: {
-        range: { sheetId, startRowIndex: FIRST_DATA_ROW, endRowIndex: avgEnd, startColumnIndex: OVERALL_COL_INDEX, endColumnIndex: OVERALL_COL_INDEX + 1 },
-        cell: { userEnteredFormat: { numberFormat: { type: 'PERCENT', pattern: '0%' } } },
+        range: {
+          sheetId,
+          startRowIndex: FIRST_DATA_ROW,
+          endRowIndex: avgEnd,
+          startColumnIndex: OVERALL_COL_INDEX,
+          endColumnIndex: OVERALL_COL_INDEX + 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            numberFormat: { type: 'PERCENT', pattern: '0%' },
+          },
+        },
         fields: 'userEnteredFormat.numberFormat',
       },
     })
-    requests.push(styleCells(sheetId, { startRowIndex: HEADER_ROW, endRowIndex: avgEnd, startColumnIndex: FIRST_DATE_COL_INDEX, endColumnIndex: totalCols }, { hAlign: 'CENTER' }))
+    requests.push(
+      styleCells(
+        sheetId,
+        {
+          startRowIndex: HEADER_ROW,
+          endRowIndex: avgEnd,
+          startColumnIndex: FIRST_DATE_COL_INDEX,
+          endColumnIndex: totalCols,
+        },
+        { hAlign: 'CENTER' }
+      )
+    )
 
     // Header styling: month band, fixed headers, date headers (Sat base; Sun overridden).
-    requests.push(styleCells(sheetId, { startRowIndex: BAND_ROW, endRowIndex: BAND_ROW + 1, startColumnIndex: 0, endColumnIndex: totalCols }, { bg: BAND_BG, bold: true, textColor: WHITE, hAlign: 'CENTER' }))
-    requests.push(styleCells(sheetId, { startRowIndex: HEADER_ROW, endRowIndex: HEADER_ROW + 1, startColumnIndex: 0, endColumnIndex: FIXED_HEADERS.length }, { bg: HEADER_BG, bold: true, textColor: WHITE, hAlign: 'CENTER' }))
-    requests.push(styleCells(sheetId, { startRowIndex: HEADER_ROW, endRowIndex: HEADER_ROW + 1, startColumnIndex: FIRST_DATE_COL_INDEX, endColumnIndex: totalCols }, { bg: SAT_HDR, bold: true, textColor: DARK_TEXT, hAlign: 'CENTER' }))
+    requests.push(
+      styleCells(
+        sheetId,
+        {
+          startRowIndex: BAND_ROW,
+          endRowIndex: BAND_ROW + 1,
+          startColumnIndex: 0,
+          endColumnIndex: totalCols,
+        },
+        { bg: BAND_BG, bold: true, textColor: WHITE, hAlign: 'CENTER' }
+      )
+    )
+    requests.push(
+      styleCells(
+        sheetId,
+        {
+          startRowIndex: HEADER_ROW,
+          endRowIndex: HEADER_ROW + 1,
+          startColumnIndex: 0,
+          endColumnIndex: FIXED_HEADERS.length,
+        },
+        { bg: HEADER_BG, bold: true, textColor: WHITE, hAlign: 'CENTER' }
+      )
+    )
+    requests.push(
+      styleCells(
+        sheetId,
+        {
+          startRowIndex: HEADER_ROW,
+          endRowIndex: HEADER_ROW + 1,
+          startColumnIndex: FIRST_DATE_COL_INDEX,
+          endColumnIndex: totalCols,
+        },
+        { bg: SAT_HDR, bold: true, textColor: DARK_TEXT, hAlign: 'CENTER' }
+      )
+    )
     days.forEach((d, i) => {
       if (!d.isSat) {
         const c = FIRST_DATE_COL_INDEX + i
-        requests.push(styleCells(sheetId, { startRowIndex: HEADER_ROW, endRowIndex: HEADER_ROW + 1, startColumnIndex: c, endColumnIndex: c + 1 }, { bg: SUN_HDR }))
+        requests.push(
+          styleCells(
+            sheetId,
+            {
+              startRowIndex: HEADER_ROW,
+              endRowIndex: HEADER_ROW + 1,
+              startColumnIndex: c,
+              endColumnIndex: c + 1,
+            },
+            { bg: SUN_HDR }
+          )
+        )
       }
     })
 
     // Legend notes.
-    requests.push(noteCell(sheetId, HEADER_ROW, PRESENT_COL_INDEX, 'Count of P (present) marks across all dates.'))
-    requests.push(noteCell(sheetId, HEADER_ROW, OVERALL_COL_INDEX, '% of marked days present (S counts as absent). Green >=85%, yellow >=70%, red <70%.'))
-    requests.push(noteCell(sheetId, HEADER_ROW, FIRST_DATE_COL_INDEX, 'Mark each session: P = Present, A = Absent, S = Sick/excused (counts as absent).'))
+    requests.push(
+      noteCell(
+        sheetId,
+        HEADER_ROW,
+        PRESENT_COL_INDEX,
+        'Count of P (present) marks across all dates.'
+      )
+    )
+    requests.push(
+      noteCell(
+        sheetId,
+        HEADER_ROW,
+        OVERALL_COL_INDEX,
+        '% of marked days present (S counts as absent). Green >=85%, yellow >=70%, red <70%.'
+      )
+    )
+    requests.push(
+      noteCell(
+        sheetId,
+        HEADER_ROW,
+        FIRST_DATE_COL_INDEX,
+        'Mark each session: P = Present, A = Absent, S = Sick/excused (counts as absent).'
+      )
+    )
 
     // Conditional formats: mark colors (text) + Overall bands (numeric).
-    const markRange = { startRowIndex: FIRST_DATA_ROW, endRowIndex: dataEnd, startColumnIndex: FIRST_DATE_COL_INDEX, endColumnIndex: totalCols }
+    const markRange = {
+      startRowIndex: FIRST_DATA_ROW,
+      endRowIndex: dataEnd,
+      startColumnIndex: FIRST_DATE_COL_INDEX,
+      endColumnIndex: totalCols,
+    }
     requests.push(textEqRule(sheetId, markRange, 'P', MARK_P))
     requests.push(textEqRule(sheetId, markRange, 'A', MARK_A))
     requests.push(textEqRule(sheetId, markRange, 'S', MARK_S))
-    const overallRange = { startRowIndex: FIRST_DATA_ROW, endRowIndex: dataEnd, startColumnIndex: OVERALL_COL_INDEX, endColumnIndex: OVERALL_COL_INDEX + 1 }
-    requests.push(numberCondRule(sheetId, overallRange, 'NUMBER_LESS', '0.7', RED))
-    requests.push(numberCondRule(sheetId, overallRange, 'NUMBER_GREATER_THAN_EQ', '0.7', YELLOW))
-    requests.push(numberCondRule(sheetId, overallRange, 'NUMBER_GREATER_THAN_EQ', '0.85', GREEN))
+    const overallRange = {
+      startRowIndex: FIRST_DATA_ROW,
+      endRowIndex: dataEnd,
+      startColumnIndex: OVERALL_COL_INDEX,
+      endColumnIndex: OVERALL_COL_INDEX + 1,
+    }
+    requests.push(
+      numberCondRule(sheetId, overallRange, 'NUMBER_LESS', '0.7', RED)
+    )
+    requests.push(
+      numberCondRule(
+        sheetId,
+        overallRange,
+        'NUMBER_GREATER_THAN_EQ',
+        '0.7',
+        YELLOW
+      )
+    )
+    requests.push(
+      numberCondRule(
+        sheetId,
+        overallRange,
+        'NUMBER_GREATER_THAN_EQ',
+        '0.85',
+        GREEN
+      )
+    )
 
     // Zebra banding on student rows.
     if (rows > 0) {
       requests.push({
         addBanding: {
           bandedRange: {
-            range: { sheetId, startRowIndex: FIRST_DATA_ROW, endRowIndex: dataEnd, startColumnIndex: 0, endColumnIndex: totalCols },
+            range: {
+              sheetId,
+              startRowIndex: FIRST_DATA_ROW,
+              endRowIndex: dataEnd,
+              startColumnIndex: 0,
+              endColumnIndex: totalCols,
+            },
             rowProperties: { firstBandColor: WHITE, secondBandColor: ZEBRA },
           },
         },
@@ -391,74 +767,232 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
     }
 
     // Class-average row styling + top border.
-    requests.push(styleCells(sheetId, { startRowIndex: dataEnd, endRowIndex: avgEnd, startColumnIndex: 0, endColumnIndex: totalCols }, { bg: AVG_BG, bold: true }))
-    requests.push({ updateBorders: { range: { sheetId, startRowIndex: dataEnd, endRowIndex: avgEnd, startColumnIndex: 0, endColumnIndex: totalCols }, top: { style: 'SOLID_MEDIUM', color: HEADER_BG } } })
+    requests.push(
+      styleCells(
+        sheetId,
+        {
+          startRowIndex: dataEnd,
+          endRowIndex: avgEnd,
+          startColumnIndex: 0,
+          endColumnIndex: totalCols,
+        },
+        { bg: AVG_BG, bold: true }
+      )
+    )
+    requests.push({
+      updateBorders: {
+        range: {
+          sheetId,
+          startRowIndex: dataEnd,
+          endRowIndex: avgEnd,
+          startColumnIndex: 0,
+          endColumnIndex: totalCols,
+        },
+        top: { style: 'SOLID_MEDIUM', color: HEADER_BG },
+      },
+    })
 
     // Protect header + Name + formula columns (incl. the average row).
-    requests.push(lockRange(sheetId, { startRowIndex: 0, endRowIndex: HEADER_ROW + 1, startColumnIndex: 0, endColumnIndex: totalCols }, 'Header (locked)'))
-    requests.push(lockRange(sheetId, { startRowIndex: FIRST_DATA_ROW, endRowIndex: avgEnd, startColumnIndex: NAME_COL_INDEX, endColumnIndex: NAME_COL_INDEX + 1 }, 'Name (locked)'))
-    requests.push(lockRange(sheetId, { startRowIndex: FIRST_DATA_ROW, endRowIndex: avgEnd, startColumnIndex: PRESENT_COL_INDEX, endColumnIndex: PRESENT_COL_INDEX + 1 }, 'Present formula (locked)'))
-    requests.push(lockRange(sheetId, { startRowIndex: FIRST_DATA_ROW, endRowIndex: avgEnd, startColumnIndex: OVERALL_COL_INDEX, endColumnIndex: OVERALL_COL_INDEX + 1 }, 'Overall formula (locked)'))
+    requests.push(
+      lockRange(
+        sheetId,
+        {
+          startRowIndex: 0,
+          endRowIndex: HEADER_ROW + 1,
+          startColumnIndex: 0,
+          endColumnIndex: totalCols,
+        },
+        'Header (locked)'
+      )
+    )
+    requests.push(
+      lockRange(
+        sheetId,
+        {
+          startRowIndex: FIRST_DATA_ROW,
+          endRowIndex: avgEnd,
+          startColumnIndex: NAME_COL_INDEX,
+          endColumnIndex: NAME_COL_INDEX + 1,
+        },
+        'Name (locked)'
+      )
+    )
+    requests.push(
+      lockRange(
+        sheetId,
+        {
+          startRowIndex: FIRST_DATA_ROW,
+          endRowIndex: avgEnd,
+          startColumnIndex: PRESENT_COL_INDEX,
+          endColumnIndex: PRESENT_COL_INDEX + 1,
+        },
+        'Present formula (locked)'
+      )
+    )
+    requests.push(
+      lockRange(
+        sheetId,
+        {
+          startRowIndex: FIRST_DATA_ROW,
+          endRowIndex: avgEnd,
+          startColumnIndex: OVERALL_COL_INDEX,
+          endColumnIndex: OVERALL_COL_INDEX + 1,
+        },
+        'Overall formula (locked)'
+      )
+    )
   }
   await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}:batchUpdate`, { requests })
 }
 
 /** Build / refresh the cross-class Summary tab. */
 async function applySummary(plans: TabPlan[]) {
-  let meta = await sheetsApi('GET', `/${TARGET_SPREADSHEET_ID}?fields=sheets.properties(sheetId,title),sheets.conditionalFormats,sheets.bandedRanges(bandedRangeId)`)
+  let meta = await sheetsApi(
+    'GET',
+    `/${TARGET_SPREADSHEET_ID}?fields=sheets.properties(sheetId,title),sheets.conditionalFormats,sheets.bandedRanges(bandedRangeId)`
+  )
   let sheets = meta.sheets as SheetMeta[]
   let sm = sheets.find((s) => s.properties.title === SUMMARY_TAB)
   if (!sm) {
-    await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}:batchUpdate`, { requests: [{ addSheet: { properties: { title: SUMMARY_TAB, index: 0 } } }] })
-    meta = await sheetsApi('GET', `/${TARGET_SPREADSHEET_ID}?fields=sheets.properties(sheetId,title),sheets.conditionalFormats,sheets.bandedRanges(bandedRangeId)`)
+    await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}:batchUpdate`, {
+      requests: [
+        { addSheet: { properties: { title: SUMMARY_TAB, index: 0 } } },
+      ],
+    })
+    meta = await sheetsApi(
+      'GET',
+      `/${TARGET_SPREADSHEET_ID}?fields=sheets.properties(sheetId,title),sheets.conditionalFormats,sheets.bandedRanges(bandedRangeId)`
+    )
     sheets = meta.sheets as SheetMeta[]
     sm = sheets.find((s) => s.properties.title === SUMMARY_TAB)!
   }
   const sheetId = sm.properties.sheetId
 
-  await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}/values/${encodeURIComponent(`'${SUMMARY_TAB}'!A1:Z1000`)}:clear`, {})
+  await sheetsApi(
+    'POST',
+    `/${TARGET_SPREADSHEET_ID}/values/${encodeURIComponent(`'${SUMMARY_TAB}'!A1:Z1000`)}:clear`,
+    {}
+  )
 
   const headerRow = ['Class', 'Shift', 'Students', 'Avg Attendance']
   const classRows = plans.map((p) => {
     const last = FIRST_DATA_ROW + p.roster.length // 1-based last student row in that tab
-    return [p.className, p.shift === Shift.MORNING ? 'AM' : 'PM', p.roster.length, `=IFERROR(AVERAGE('${p.title}'!F${FIRST_DATA_ROW + 1}:F${last}),"")`]
+    return [
+      p.className,
+      p.shift === Shift.MORNING ? 'AM' : 'PM',
+      p.roster.length,
+      `=IFERROR(AVERAGE('${p.title}'!F${FIRST_DATA_ROW + 1}:F${last}),"")`,
+    ]
   })
   const firstClass = 3 // 1-based (row 1 title, row 2 header, row 3+ classes)
   const lastClass = firstClass + plans.length - 1
   const totalStudents = plans.reduce((n, p) => n + p.roster.length, 0)
-  const totalRow = ['All classes', '', totalStudents, `=IFERROR(AVERAGE(D${firstClass}:D${lastClass}),"")`]
+  const totalRow = [
+    'All classes',
+    '',
+    totalStudents,
+    `=IFERROR(AVERAGE(D${firstClass}:D${lastClass}),"")`,
+  ]
   await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}/values:batchUpdate`, {
     valueInputOption: 'USER_ENTERED',
-    data: [{ range: `'${SUMMARY_TAB}'!A1`, values: [['Dugsi Attendance Summary'], headerRow, ...classRows, totalRow] }],
+    data: [
+      {
+        range: `'${SUMMARY_TAB}'!A1`,
+        values: [
+          ['Dugsi Attendance Summary'],
+          headerRow,
+          ...classRows,
+          totalRow,
+        ],
+      },
+    ],
   })
 
   const avgCol = 3 // D
   const totalRowIdx = 2 + plans.length // 0-based index of totalRow
   const requests: object[] = [
-    { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 2 } }, fields: 'gridProperties.frozenRowCount' } },
+    {
+      updateSheetProperties: {
+        properties: { sheetId, gridProperties: { frozenRowCount: 2 } },
+        fields: 'gridProperties.frozenRowCount',
+      },
+    },
     colWidth(sheetId, 0, 1, 170),
     colWidth(sheetId, avgCol, avgCol + 1, 130),
-    styleCells(sheetId, { startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 }, { bold: true }),
-    styleCells(sheetId, { startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 4 }, { bg: HEADER_BG, bold: true, textColor: WHITE, hAlign: 'CENTER' }),
-    styleCells(sheetId, { startRowIndex: totalRowIdx, endRowIndex: totalRowIdx + 1, startColumnIndex: 0, endColumnIndex: 4 }, { bg: AVG_BG, bold: true }),
+    styleCells(
+      sheetId,
+      {
+        startRowIndex: 0,
+        endRowIndex: 1,
+        startColumnIndex: 0,
+        endColumnIndex: 4,
+      },
+      { bold: true }
+    ),
+    styleCells(
+      sheetId,
+      {
+        startRowIndex: 1,
+        endRowIndex: 2,
+        startColumnIndex: 0,
+        endColumnIndex: 4,
+      },
+      { bg: HEADER_BG, bold: true, textColor: WHITE, hAlign: 'CENTER' }
+    ),
+    styleCells(
+      sheetId,
+      {
+        startRowIndex: totalRowIdx,
+        endRowIndex: totalRowIdx + 1,
+        startColumnIndex: 0,
+        endColumnIndex: 4,
+      },
+      { bg: AVG_BG, bold: true }
+    ),
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 2, endRowIndex: totalRowIdx + 1, startColumnIndex: avgCol, endColumnIndex: avgCol + 1 },
-        cell: { userEnteredFormat: { numberFormat: { type: 'PERCENT', pattern: '0%' }, horizontalAlignment: 'CENTER' } },
-        fields: 'userEnteredFormat.numberFormat,userEnteredFormat.horizontalAlignment',
+        range: {
+          sheetId,
+          startRowIndex: 2,
+          endRowIndex: totalRowIdx + 1,
+          startColumnIndex: avgCol,
+          endColumnIndex: avgCol + 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            numberFormat: { type: 'PERCENT', pattern: '0%' },
+            horizontalAlignment: 'CENTER',
+          },
+        },
+        fields:
+          'userEnteredFormat.numberFormat,userEnteredFormat.horizontalAlignment',
       },
     },
   ]
-  for (let i = (sm.conditionalFormats?.length ?? 0) - 1; i >= 0; i--) requests.push({ deleteConditionalFormatRule: { sheetId, index: i } })
-  const avgRange = { startRowIndex: 2, endRowIndex: totalRowIdx, startColumnIndex: avgCol, endColumnIndex: avgCol + 1 }
+  for (let i = (sm.conditionalFormats?.length ?? 0) - 1; i >= 0; i--)
+    requests.push({ deleteConditionalFormatRule: { sheetId, index: i } })
+  const avgRange = {
+    startRowIndex: 2,
+    endRowIndex: totalRowIdx,
+    startColumnIndex: avgCol,
+    endColumnIndex: avgCol + 1,
+  }
   requests.push(numberCondRule(sheetId, avgRange, 'NUMBER_LESS', '0.7', RED))
-  requests.push(numberCondRule(sheetId, avgRange, 'NUMBER_GREATER_THAN_EQ', '0.7', YELLOW))
-  requests.push(numberCondRule(sheetId, avgRange, 'NUMBER_GREATER_THAN_EQ', '0.85', GREEN))
+  requests.push(
+    numberCondRule(sheetId, avgRange, 'NUMBER_GREATER_THAN_EQ', '0.7', YELLOW)
+  )
+  requests.push(
+    numberCondRule(sheetId, avgRange, 'NUMBER_GREATER_THAN_EQ', '0.85', GREEN)
+  )
   await sheetsApi('POST', `/${TARGET_SPREADSHEET_ID}:batchUpdate`, { requests })
 }
 
 async function main() {
-  console.log(APPLY ? '*** APPLY MODE — REPLACING WORKBOOK CONTENTS ***\n' : '--- DRY RUN (pass --apply to write) ---\n')
+  console.log(
+    APPLY
+      ? '*** APPLY MODE — REPLACING WORKBOOK CONTENTS ***\n'
+      : '--- DRY RUN (pass --apply to write) ---\n'
+  )
 
   const plans = await buildPlan()
   const days = weekendDays()
@@ -468,7 +1002,9 @@ async function main() {
   let total = 0
   for (const p of plans) {
     total += p.roster.length
-    console.log(`[${p.title}]  ${p.className}/${p.shift}  (${p.roster.length} students)`)
+    console.log(
+      `[${p.title}]  ${p.className}/${p.shift}  (${p.roster.length} students)`
+    )
   }
   console.log(
     `\n${plans.length} class tabs + Summary, ${total} students. ${days.length} weekend cols (${days[0].label} … ${days[days.length - 1].label}, cols ${colLetter(FIRST_DATE_COL_INDEX)}:${lastDateCol}).` +
@@ -477,17 +1013,23 @@ async function main() {
   )
 
   if (!APPLY) {
-    console.log('\nDry run complete. Re-run with --apply to write into the existing workbook.')
+    console.log(
+      '\nDry run complete. Re-run with --apply to write into the existing workbook.'
+    )
     return
   }
 
   const byTitle = await fetchMeta()
-  for (const p of plans) if (!byTitle.has(p.title)) throw new Error(`tab "${p.title}" not found in target workbook`)
+  for (const p of plans)
+    if (!byTitle.has(p.title))
+      throw new Error(`tab "${p.title}" not found in target workbook`)
 
   await applyTabs(plans, days)
   await applySummary(plans)
 
-  console.log(`\n✅ Replaced ${plans.length} class tabs + Summary. URL: https://docs.google.com/spreadsheets/d/${TARGET_SPREADSHEET_ID}/edit`)
+  console.log(
+    `\n✅ Replaced ${plans.length} class tabs + Summary. URL: https://docs.google.com/spreadsheets/d/${TARGET_SPREADSHEET_ID}/edit`
+  )
 }
 
 runScript(main, { cleanup: () => prisma.$disconnect() })

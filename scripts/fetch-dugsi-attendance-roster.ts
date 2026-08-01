@@ -33,7 +33,10 @@ async function main() {
 
   const params = new URLSearchParams({ majorDimension: 'ROWS' })
   for (const { tab } of TAB_MAPPINGS) {
-    params.append('ranges', `'${tab.replace(/'/g, "''")}'!${STUDENT_NAME_RANGE}`)
+    params.append(
+      'ranges',
+      `'${tab.replace(/'/g, "''")}'!${STUDENT_NAME_RANGE}`
+    )
   }
 
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${ATTENDANCE_SHEET_ID}/values:batchGet?${params.toString()}`
@@ -70,8 +73,14 @@ async function main() {
   await writeFile(ROSTER_SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2))
 
   console.log(`Wrote ${ROSTER_SNAPSHOT_PATH}`)
+  const rangeCeiling = Number(STUDENT_NAME_RANGE.match(/\d+$/)?.[0] ?? 0) - 1 // header row excluded
   for (const { tab, students } of snapshot.tabs) {
     console.log(`  ${tab}: ${students.length} students`)
+    if (rangeCeiling > 0 && students.length >= rangeCeiling) {
+      console.warn(
+        `  ⚠ WARNING: "${tab}" returned ${students.length} names, filling STUDENT_NAME_RANGE (${STUDENT_NAME_RANGE}). The tab may be truncated — raise the range.`
+      )
+    }
   }
 }
 

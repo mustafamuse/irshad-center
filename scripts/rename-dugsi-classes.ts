@@ -1,6 +1,7 @@
 import { Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+
 import { runScript } from './lib/run-script'
 
 /**
@@ -56,47 +57,80 @@ async function findClass(name: string, shift: Shift) {
 }
 
 async function resolve(r: Rename): Promise<Resolved> {
-  const base = { rename: r, classId: null as string | null, action: 'ERROR' as Resolved['action'], note: '' }
+  const base = {
+    rename: r,
+    classId: null as string | null,
+    action: 'ERROR' as Resolved['action'],
+    note: '',
+  }
 
   const source = await findClass(r.from.name, r.from.shift)
   if (source) {
     // A different class already at the target (name, shift) would collide.
     const collision = await findClass(r.to, r.from.shift)
     if (collision && collision.id !== source.id) {
-      return { ...base, note: `target ${r.to}/${r.from.shift} already exists on another class` }
+      return {
+        ...base,
+        note: `target ${r.to}/${r.from.shift} already exists on another class`,
+      }
     }
-    return { ...base, classId: source.id, action: 'rename', note: `${r.from.name} → ${r.to}` }
+    return {
+      ...base,
+      classId: source.id,
+      action: 'rename',
+      note: `${r.from.name} → ${r.to}`,
+    }
   }
 
   // Source missing → maybe already renamed (idempotency).
   const target = await findClass(r.to, r.from.shift)
   if (target) {
-    return { ...base, classId: target.id, action: 'skip-already-named', note: `already ${r.to}/${r.from.shift}` }
+    return {
+      ...base,
+      classId: target.id,
+      action: 'skip-already-named',
+      note: `already ${r.to}/${r.from.shift}`,
+    }
   }
-  return { ...base, note: `source class ${r.from.name}/${r.from.shift} not found` }
+  return {
+    ...base,
+    note: `source class ${r.from.name}/${r.from.shift} not found`,
+  }
 }
 
 async function main() {
-  console.log(APPLY ? '*** APPLY MODE — WRITING ***\n' : '--- DRY RUN (pass --apply to write) ---\n')
+  console.log(
+    APPLY
+      ? '*** APPLY MODE — WRITING ***\n'
+      : '--- DRY RUN (pass --apply to write) ---\n'
+  )
 
   const resolved: Resolved[] = []
   for (const r of RENAMES) resolved.push(await resolve(r))
 
   for (const r of resolved) {
     const tag = r.action === 'ERROR' ? '❌ ERROR' : r.action
-    console.log(`[${tag}] ${r.rename.from.name}/${r.rename.from.shift} → ${r.rename.to}  ${r.note}`)
+    console.log(
+      `[${tag}] ${r.rename.from.name}/${r.rename.from.shift} → ${r.rename.to}  ${r.note}`
+    )
   }
 
   const errors = resolved.filter((r) => r.action === 'ERROR')
   if (errors.length) {
-    throw new Error(`${errors.length} rename(s) failed to resolve — aborting (no writes).`)
+    throw new Error(
+      `${errors.length} rename(s) failed to resolve — aborting (no writes).`
+    )
   }
 
   const toWrite = resolved.filter((r) => r.action === 'rename')
-  console.log(`\nResolved ${resolved.length}; ${toWrite.length} to rename; ${resolved.length - toWrite.length} already named.`)
+  console.log(
+    `\nResolved ${resolved.length}; ${toWrite.length} to rename; ${resolved.length - toWrite.length} already named.`
+  )
 
   if (!APPLY) {
-    console.log('\nDry run complete. Re-run with --apply to perform the renames.')
+    console.log(
+      '\nDry run complete. Re-run with --apply to perform the renames.'
+    )
     return
   }
 
