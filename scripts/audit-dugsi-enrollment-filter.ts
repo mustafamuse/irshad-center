@@ -15,38 +15,41 @@
  *   set -a && source .env.local && set +a && bunx tsx scripts/audit-dugsi-enrollment-filter.ts
  */
 
+import { EnrollmentStatus, Program, SubscriptionStatus } from '@prisma/client'
+
 import { prisma } from '@/lib/db'
 
 import { runScript } from './lib/run-script'
 
-const DUGSI = 'DUGSI_PROGRAM' as const
-
 async function main() {
   const totalDugsiProfiles = await prisma.programProfile.count({
-    where: { program: DUGSI },
+    where: { program: Program.DUGSI_PROGRAM },
   })
 
   const ruleA = await prisma.programProfile.count({
-    where: { program: DUGSI, status: { not: 'WITHDRAWN' } },
+    where: {
+      program: Program.DUGSI_PROGRAM,
+      status: { not: EnrollmentStatus.WITHDRAWN },
+    },
   })
 
   const ruleB = await prisma.programProfile.count({
     where: {
-      program: DUGSI,
+      program: Program.DUGSI_PROGRAM,
       enrollments: {
-        some: { status: { not: 'WITHDRAWN' }, endDate: null },
+        some: { status: { not: EnrollmentStatus.WITHDRAWN }, endDate: null },
       },
     },
   })
 
   const ruleC = await prisma.programProfile.count({
     where: {
-      program: DUGSI,
-      status: { not: 'WITHDRAWN' },
+      program: Program.DUGSI_PROGRAM,
+      status: { not: EnrollmentStatus.WITHDRAWN },
       assignments: {
         some: {
           isActive: true,
-          subscription: { status: 'active' },
+          subscription: { status: SubscriptionStatus.active },
         },
       },
     },
@@ -59,8 +62,8 @@ async function main() {
   const familyCounts = await prisma.programProfile.groupBy({
     by: ['familyReferenceId'],
     where: {
-      program: DUGSI,
-      status: { not: 'WITHDRAWN' },
+      program: Program.DUGSI_PROGRAM,
+      status: { not: EnrollmentStatus.WITHDRAWN },
       familyReferenceId: { not: null },
     },
     _count: { id: true },
@@ -72,30 +75,33 @@ async function main() {
   )
   const ruleD = await prisma.programProfile.count({
     where: {
-      program: DUGSI,
-      status: { not: 'WITHDRAWN' },
+      program: Program.DUGSI_PROGRAM,
+      status: { not: EnrollmentStatus.WITHDRAWN },
       familyReferenceId: { in: Array.from(familiesWithSiblings) },
     },
   })
 
   // Cross-cutting diagnostics
   const profileWithdrawn = await prisma.programProfile.count({
-    where: { program: DUGSI, status: 'WITHDRAWN' },
+    where: {
+      program: Program.DUGSI_PROGRAM,
+      status: EnrollmentStatus.WITHDRAWN,
+    },
   })
   const enrollmentWithdrawn = await prisma.enrollment.count({
     where: {
-      programProfile: { program: DUGSI },
-      status: 'WITHDRAWN',
+      programProfile: { program: Program.DUGSI_PROGRAM },
+      status: EnrollmentStatus.WITHDRAWN,
     },
   })
 
   // Drift: profile NOT WITHDRAWN but only-withdrawn enrollment row(s)
   const driftProfileActiveEnrollmentDead = await prisma.programProfile.count({
     where: {
-      program: DUGSI,
-      status: { not: 'WITHDRAWN' },
+      program: Program.DUGSI_PROGRAM,
+      status: { not: EnrollmentStatus.WITHDRAWN },
       enrollments: {
-        none: { status: { not: 'WITHDRAWN' }, endDate: null },
+        none: { status: { not: EnrollmentStatus.WITHDRAWN }, endDate: null },
       },
     },
   })
@@ -104,17 +110,20 @@ async function main() {
   const ghostClassEnrollments = await prisma.dugsiClassEnrollment.count({
     where: {
       isActive: true,
-      programProfile: { status: 'WITHDRAWN' },
+      programProfile: { status: EnrollmentStatus.WITHDRAWN },
     },
   })
 
   // Drift: profile WITHDRAWN but Stripe sub still active
   const withdrawnButPaying = await prisma.programProfile.count({
     where: {
-      program: DUGSI,
-      status: 'WITHDRAWN',
+      program: Program.DUGSI_PROGRAM,
+      status: EnrollmentStatus.WITHDRAWN,
       assignments: {
-        some: { isActive: true, subscription: { status: 'active' } },
+        some: {
+          isActive: true,
+          subscription: { status: SubscriptionStatus.active },
+        },
       },
     },
   })

@@ -4,7 +4,12 @@
  * Links existing Stripe subscriptions to re-registered students.
  *
  * Usage:
- *   npx tsx scripts/reconcile-subscriptions.ts --dugsi-only # Dugsi only
+ *   npx tsx scripts/reconcile-subscriptions.ts [--dugsi-only] [--mahad-only] [--dry-run]
+ *
+ * Options:
+ *   --dugsi-only  Process Dugsi subscriptions only
+ *   --mahad-only  Process Mahad subscriptions only
+ *   --dry-run     Preview matches without linking
  *
  * Output:
  *   - Console: Progress and summary
@@ -13,6 +18,7 @@
 
 import * as fs from 'fs'
 
+import { prisma } from '@/lib/db'
 import {
   getAllOrphanedSubscriptions,
   getPotentialStudentMatches,
@@ -295,4 +301,4 @@ async function main() {
   }
 }
 
-runScript(main)
+runScript(main, { cleanup: () => prisma.$disconnect() })
