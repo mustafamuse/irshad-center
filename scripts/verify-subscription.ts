@@ -48,7 +48,8 @@ async function main() {
     stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId)
   } catch (error) {
     throw new Error(
-      `Failed to fetch subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to fetch subscription: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
     )
   }
 

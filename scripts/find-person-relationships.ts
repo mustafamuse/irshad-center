@@ -2,14 +2,17 @@ import { prisma } from '@/lib/db'
 
 import { runScript } from './lib/run-script'
 
-async function findPersonRelationships() {
-  const args = process.argv.slice(2)
-  const idx = args.indexOf('--name')
-  if (idx === -1 || idx + 1 >= args.length) {
-    throw new Error('Usage: find-person-relationships.ts --name <name>')
-  }
-  const nameFilter = args[idx + 1]
+const args = process.argv.slice(2)
+const idx = args.indexOf('--name')
 
+if (idx === -1 || idx + 1 >= args.length) {
+  console.error('Usage: find-person-relationships.ts --name <name>')
+  process.exit(1)
+}
+
+const nameFilter = args[idx + 1]
+
+async function findPersonRelationships() {
   const person = await prisma.person.findFirst({
     where: {
       name: {

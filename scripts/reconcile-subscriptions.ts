@@ -4,7 +4,7 @@
  * Links existing Stripe subscriptions to re-registered students.
  *
  * Usage:
- *   npx tsx scripts/reconcile-subscriptions.ts --dugsi-only # Dugsi only
+ *   npx tsx scripts/reconcile-subscriptions.ts --dry-run    # Preview without writing
  *
  * Output:
  *   - Console: Progress and summary
