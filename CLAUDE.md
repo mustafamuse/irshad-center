@@ -1,20 +1,5 @@
 # Irshad Center - Claude Code Rules
 
-## Stack
-
-- Next.js 15.3.0 (App Router, Server Components)
-- Prisma 6.16.2 + PostgreSQL
-- TypeScript 5.9.0 (strict mode)
-- Stripe (dual accounts: Mahad + Dugsi)
-- Vitest + React Testing Library
-- Bun (package manager)
-- Pino logging + Axiom log aggregation + Sentry error tracking
-- shadcn/ui + Tailwind CSS
-- Zod + react-hook-form
-- Zustand state management
-
----
-
 ## Git Operations
 
 - If git push fails with auth errors, stop immediately and tell the user to run `gh auth setup-git` or check SSH keys
@@ -77,14 +62,6 @@ Claude should refuse to write code violating these rules.
 
 ## Workflow Patterns
 
-### Workflow skills (loaded on demand, not always-on)
-
-- `/autopr` — autonomous PR pipeline (implement → typecheck → test → commit → push → `/create-pr`)
-- `/swarm` — parallel agent fan-out for refactors touching 3+ independent files
-- `/feature-gan` — three-agent harness (Planner/Generator/Evaluator) for non-trivial features
-- `/notes` — bootstrap NOTES.md to externalize state for long tasks
-- `/babysit` — handle PR review comments, rebase on main, shepherd toward merge
-
 ### PR Creation
 
 All PRs use the `/create-pr` command. Do not use any other PR format.
@@ -107,13 +84,6 @@ For long-running PR shepherding, use the `/babysit` skill on a loop:
 ```
 
 It auto-rebases on main, addresses safe bot review comments per the policy in `babysit/SKILL.md`, and reports human-review items without auto-addressing them. Never auto-merges.
-
----
-
-## Domain Invariants
-
-- **vCard export `skippedDuplicate` is contact-level, not family-level.** It counts each record that resolves to an already-seen contact (a bridge merge of 3 families into 1 contact yields `skippedDuplicate = 2`). Mahad omits `skippedDuplicate` entirely (the field is `undefined`, not `0`) because it has no cross-contact dedup. Do not rename this field to `skippedFamilies` or repurpose it for family-level counts.
-- **vCard export family-key is a superset of `getFamilyKey()`.** The inline grouping in `_generateDugsiVCardContent` adds phone as a tertiary fallback and normalizes email. Do not replace it with a call to `getFamilyKey()` — they have intentionally different semantics. Phone-only families would silently break.
 
 ---
 
