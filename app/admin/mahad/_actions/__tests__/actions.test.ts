@@ -64,6 +64,7 @@ const {
   mockLoggerWarn,
   mockLogError,
   mockStripeSessionCreate,
+  mockStripeSubscriptionsList,
   mockBillingAssignmentFindMany,
   mockBillingAssignmentFindFirst,
   mockPrismaDeleteMany,
@@ -92,6 +93,7 @@ const {
   mockLoggerWarn: vi.fn(),
   mockLogError: vi.fn(),
   mockStripeSessionCreate: vi.fn(),
+  mockStripeSubscriptionsList: vi.fn(),
   mockBillingAssignmentFindMany: vi.fn(),
   mockBillingAssignmentFindFirst: vi.fn(),
   mockPersonUpdate: vi.fn(),
@@ -182,6 +184,9 @@ vi.mock('@/lib/stripe-mahad', () => ({
       sessions: {
         create: (...args: unknown[]) => mockStripeSessionCreate(...args),
       },
+    },
+    subscriptions: {
+      list: (...args: unknown[]) => mockStripeSubscriptionsList(...args),
     },
   })),
 }))
@@ -892,6 +897,7 @@ describe('generatePaymentLinkWithOverrideAction', () => {
     mockGetProfileForPaymentLink.mockResolvedValue(VALID_PROFILE_FIXTURE)
     mockBillingAssignmentFindFirst.mockResolvedValue(null)
     mockBillingAccountFindFirst.mockResolvedValue(null)
+    mockStripeSubscriptionsList.mockResolvedValue({ data: [] })
     mockStripeSessionCreate.mockResolvedValue({
       id: 'sess_test',
       url: 'https://checkout.stripe.com/test',
@@ -940,6 +946,93 @@ describe('generatePaymentLinkWithOverrideAction', () => {
     expect(mockStripeSessionCreate).not.toHaveBeenCalledWith(
       expect.objectContaining({ customer_email: expect.any(String) })
     )
+  })
+
+  it('should block when Stripe has a live subscription the DB does not know about', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue({
+      stripeCustomerIdMahad: 'cus_existing123',
+    })
+    mockStripeSubscriptionsList.mockResolvedValue({
+      data: [{ id: 'sub_orphan', status: 'active' }],
+    })
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.serverError).toContain('not linked in the database')
+    expect(mockStripeSessionCreate).not.toHaveBeenCalled()
+  })
+
+  it('should ignore canceled Stripe subscriptions in the live-subscription check', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue({
+      stripeCustomerIdMahad: 'cus_existing123',
+    })
+    mockStripeSubscriptionsList.mockResolvedValue({
+      data: [{ id: 'sub_old', status: 'canceled' }],
+    })
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/test')
+  })
+
+  it('should skip the Stripe check when no customer is stored', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue(null)
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/test')
+    expect(mockStripeSubscriptionsList).not.toHaveBeenCalled()
+  })
+
+  it('should proceed when the stored customer is stale during verification', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue({
+      stripeCustomerIdMahad: 'cus_deleted',
+    })
+    mockStripeSubscriptionsList.mockRejectedValue(
+      Object.assign(new Error('No such customer'), {
+        type: 'StripeInvalidRequestError',
+        code: 'resource_missing',
+        param: 'customer',
+      })
+    )
+    mockStripeSessionCreate
+      .mockRejectedValueOnce(
+        Object.assign(new Error('No such customer'), {
+          type: 'StripeInvalidRequestError',
+          code: 'resource_missing',
+          param: 'customer',
+        })
+      )
+      .mockResolvedValueOnce({
+        id: 'sess_fallback',
+        url: 'https://checkout.stripe.com/fallback',
+      })
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/fallback')
+  })
+
+  it('should fail when the Stripe verification call errors', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue({
+      stripeCustomerIdMahad: 'cus_existing123',
+    })
+    mockStripeSubscriptionsList.mockRejectedValue(new Error('network down'))
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.serverError).toContain('Could not verify')
+    expect(mockStripeSessionCreate).not.toHaveBeenCalled()
   })
 
   it('should use customer_email when no existing BillingAccount customer', async () => {

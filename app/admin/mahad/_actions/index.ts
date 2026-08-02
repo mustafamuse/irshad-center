@@ -28,6 +28,7 @@ import {
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
@@ -776,11 +777,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       )
     }
 
-    // 8. Guard: block if this profile already has a live subscription.
-    // Intentionally scoped to the current profile only — post-deletion recovery
-    // (new profile, no BillingAssignment) correctly bypasses this guard so admins
-    // can re-link students whose profiles were wiped. In that case the old Stripe
-    // subscription must be canceled manually after the new one is set up.
+    // 8. Guard: block if this profile already has a live subscription in the DB.
     if (await hasLiveMahadSubscription(profileId)) {
       throw new ActionError(
         'This student already has an active Mahad subscription. Cancel it before generating a new link.',
@@ -791,7 +788,61 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
     // 9. Reuse existing Stripe customer if one exists (avoids duplicate customers after profile deletion)
     const existingCustomerId = await getMahadStripeCustomerId(profile.personId)
 
-    // 10. Validate app URL configuration
+    const stripe = getMahadStripeClient()
+
+    // 10. Guard: verify with Stripe directly. The DB guard above cannot see
+    // subscriptions whose local records were deleted (post-deletion recovery),
+    // but Stripe can — a live subscription there means the family is already
+    // paying, so the fix is re-linking it, not a second checkout. Residual gap:
+    // if the Person row itself was deleted, BillingAccount cascades away and no
+    // customer ID survives to check — that case still needs /admin/link-subscriptions.
+    if (existingCustomerId) {
+      try {
+        const stripeSubscriptions = await stripe.subscriptions.list({
+          customer: existingCustomerId,
+          limit: 100,
+        })
+        if (stripeSubscriptions.has_more) {
+          throw new ActionError(
+            'This customer has too many Stripe subscriptions to verify safely. Review them in the Stripe dashboard before generating a new link.',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        }
+        const liveInStripe = stripeSubscriptions.data.filter((sub) =>
+          (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(sub.status)
+        )
+        if (liveInStripe.length > 0) {
+          logger.warn(
+            {
+              profileId,
+              existingCustomerId,
+              stripeSubscriptionIds: liveInStripe.map((sub) => sub.id),
+            },
+            'Live Stripe subscription found with no matching DB record'
+          )
+          throw new ActionError(
+            'Stripe already has a live subscription for this student that is not linked in the database. Re-link it via Link Subscriptions or cancel it in Stripe before generating a new link.',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        }
+      } catch (error) {
+        if (error instanceof ActionError) throw error
+        if (!isStaleStripeCustomer(error)) {
+          await logError(
+            logger,
+            error,
+            'Stripe subscription verification failed',
+            { profileId, existingCustomerId }
+          )
+          throw new ActionError(
+            'Could not verify existing subscriptions in Stripe. Please try again.',
+            ERROR_CODES.SERVER_ERROR
+          )
+        }
+      }
+    }
+
+    // 11. Validate app URL configuration
     const appUrl = process.env.NEXT_PUBLIC_APP_URL
     if (!appUrl) {
       throw new ActionError(
@@ -800,7 +851,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       )
     }
 
-    // 11. Get validated product ID
+    // 12. Get validated product ID
     const { productId } = getMahadKeys()
     if (!productId) {
       throw new ActionError(
@@ -809,8 +860,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       )
     }
 
-    // 12. Create Stripe checkout session
-    const stripe = getMahadStripeClient()
+    // 13. Create Stripe checkout session
     const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
     // Calculate and validate billing_cycle_anchor if start date provided

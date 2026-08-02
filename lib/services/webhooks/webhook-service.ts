@@ -248,15 +248,23 @@ export async function handleSubscriptionCreated(
       subscriptionMetadata.billingType as StudentBillingType
     )
 
-    if (
-      priceAmount !== expectedRate &&
-      subscriptionMetadata.isOverride !== 'true'
-    ) {
+    // Overrides are validated against finalRate (the override-inclusive amount)
+    // so tampering is still detected; legacy override subs without finalRate
+    // metadata cannot be validated and are skipped.
+    const isOverride = subscriptionMetadata.isOverride === 'true'
+    const parsedFinalRate = parseInt(subscriptionMetadata.finalRate ?? '', 10)
+    const overrideRate = Number.isFinite(parsedFinalRate)
+      ? parsedFinalRate
+      : null
+    const rateToMatch = isOverride ? overrideRate : expectedRate
+
+    if (rateToMatch !== null && priceAmount !== rateToMatch) {
       logger.warn(
         {
           subscriptionId: subscription.id,
           stripeAmount: priceAmount,
-          expectedRate,
+          expectedRate: rateToMatch,
+          isOverride,
           graduationStatus: subscriptionMetadata.graduationStatus,
           paymentFrequency: subscriptionMetadata.paymentFrequency,
           billingType: subscriptionMetadata.billingType,
