@@ -24,7 +24,10 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
+import {
+  ACTIVE_BILLING_ASSIGNMENT_WHERE,
+  LIVE_SUBSCRIPTION_STATUSES,
+} from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { normalizePhone } from '@/lib/types/person'
@@ -1141,18 +1144,31 @@ export async function getProfileForPaymentLink(
   })
 }
 
-export async function setProfileBillingDefaults(
+export async function hasLiveMahadSubscription(
   profileId: string,
-  defaults: {
-    graduationStatus: GraduationStatus
-    billingType: StudentBillingType
-    paymentFrequency: PaymentFrequency
-  },
   client: DatabaseClient = prisma
 ) {
-  const { count } = await client.programProfile.updateMany({
-    where: { id: profileId },
-    data: defaults,
+  const assignment = await client.billingAssignment.findFirst({
+    where: {
+      programProfileId: profileId,
+      isActive: true,
+      subscription: {
+        status: { in: LIVE_SUBSCRIPTION_STATUSES },
+        stripeAccountType: 'MAHAD',
+      },
+    },
+    select: { id: true },
   })
-  return count > 0
+  return assignment !== null
+}
+
+export async function getMahadStripeCustomerId(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  const account = await client.billingAccount.findFirst({
+    where: { personId, accountType: 'MAHAD' },
+    select: { stripeCustomerIdMahad: true },
+  })
+  return account?.stripeCustomerIdMahad ?? null
 }

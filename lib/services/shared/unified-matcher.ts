@@ -44,8 +44,8 @@ export interface UnifiedMatchResult {
   > | null
   /** The matched person ID (for guardians without billing accounts) */
   personId: string | null
-  /** How the match was made (phone, email, or guardian) */
-  matchMethod: 'phone' | 'email' | 'guardian' | null
+  /** How the match was made */
+  matchMethod: 'metadata' | 'phone' | 'email' | 'guardian' | null
   /** Validated email address from the session */
   validatedEmail: string | null
   /** Account type (MAHAD, DUGSI, etc.) */
@@ -74,6 +74,15 @@ export class UnifiedMatcher {
   ): Promise<UnifiedMatchResult> {
     // Try matching strategies in order of preference
 
+    // 0. Try by session.metadata.profileId (admin-generated links — most authoritative)
+    const metadataResult = await this.findBySessionMetadata(
+      session,
+      accountType
+    )
+    if (metadataResult.programProfile) {
+      return metadataResult
+    }
+
     // 1. Try by email from custom field (most reliable)
     const customEmailResult = await this.findByCustomEmail(session, accountType)
     if (customEmailResult.programProfile) {
@@ -88,6 +97,75 @@ export class UnifiedMatcher {
 
     // 3. Try by payer email (might be guardian)
     return this.findByPayerEmail(session, accountType)
+  }
+
+  private async findBySessionMetadata(
+    session: Stripe.Checkout.Session,
+    accountType: StripeAccountType
+  ): Promise<UnifiedMatchResult> {
+    const profileId = session.metadata?.profileId
+    if (!profileId) {
+      return {
+        billingAccount: null,
+        programProfile: null,
+        personId: null,
+        matchMethod: null,
+        validatedEmail: null,
+        accountType,
+      }
+    }
+
+    const program = accountType === 'MAHAD' ? 'MAHAD_PROGRAM' : 'DUGSI_PROGRAM'
+    const profile = await Sentry.startSpan(
+      {
+        name: 'matcher.find_profile_by_metadata_id',
+        op: 'db.query',
+        attributes: { profile_id: profileId },
+      },
+      async () =>
+        prisma.programProfile.findFirst({ where: { id: profileId, program } })
+    )
+
+    if (!profile) {
+      logger.warn(
+        { profileId, accountType },
+        'metadata.profileId found but no matching profile'
+      )
+      return {
+        billingAccount: null,
+        programProfile: null,
+        personId: null,
+        matchMethod: null,
+        validatedEmail: null,
+        accountType,
+      }
+    }
+
+    const billingAccount = await Sentry.startSpan(
+      {
+        name: 'matcher.find_billing_account_by_person',
+        op: 'db.query',
+        attributes: { person_id: profile.personId },
+      },
+      async () =>
+        prisma.billingAccount.findFirst({
+          where: { personId: profile.personId, accountType },
+        })
+    )
+
+    logger.info(
+      { profileId, accountType },
+      'Matched by session metadata profileId'
+    )
+
+    return {
+      billingAccount,
+      programProfile: profile,
+      personId: profile.personId,
+      matchMethod: 'metadata',
+      validatedEmail: null,
+      accountType,
+    }
   }
 
   /**

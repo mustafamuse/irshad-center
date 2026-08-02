@@ -248,6 +248,123 @@ describe('handleSubscriptionCreated - Rate Validation', () => {
       )
     })
 
+    it('does not warn when override amount matches finalRate', async () => {
+      const subscription = createMockSubscription({
+        metadata: {
+          profileId: 'profile-123',
+          personId: 'person-456',
+          studentName: 'Test Student',
+          graduationStatus: 'NON_GRADUATE',
+          paymentFrequency: 'MONTHLY',
+          billingType: 'FULL_TIME',
+          calculatedRate: '12000',
+          finalRate: '10000',
+          isOverride: 'true',
+        },
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_test',
+              object: 'subscription_item',
+              price: {
+                id: 'price_test',
+                object: 'price',
+                unit_amount: 10000,
+                currency: 'usd',
+              } as unknown as Stripe.Price,
+            } as unknown as Stripe.SubscriptionItem,
+          ],
+        } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+      })
+
+      await handleSubscriptionCreated(subscription, 'MAHAD')
+
+      expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'Rate mismatch: Stripe amount differs from expected calculated rate'
+      )
+    })
+
+    it('warns when override amount differs from finalRate', async () => {
+      const subscription = createMockSubscription({
+        metadata: {
+          profileId: 'profile-123',
+          personId: 'person-456',
+          studentName: 'Test Student',
+          graduationStatus: 'NON_GRADUATE',
+          paymentFrequency: 'MONTHLY',
+          billingType: 'FULL_TIME',
+          calculatedRate: '12000',
+          finalRate: '10000',
+          isOverride: 'true',
+        },
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_test',
+              object: 'subscription_item',
+              price: {
+                id: 'price_test',
+                object: 'price',
+                unit_amount: 9000,
+                currency: 'usd',
+              } as unknown as Stripe.Price,
+            } as unknown as Stripe.SubscriptionItem,
+          ],
+        } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+      })
+
+      await handleSubscriptionCreated(subscription, 'MAHAD')
+
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stripeAmount: 9000,
+          expectedRate: 10000,
+          isOverride: true,
+        }),
+        'Rate mismatch: Stripe amount differs from expected calculated rate'
+      )
+    })
+
+    it('skips rate mismatch check for legacy overrides without finalRate', async () => {
+      const subscription = createMockSubscription({
+        metadata: {
+          profileId: 'profile-123',
+          personId: 'person-456',
+          studentName: 'Test Student',
+          graduationStatus: 'NON_GRADUATE',
+          paymentFrequency: 'MONTHLY',
+          billingType: 'FULL_TIME',
+          calculatedRate: '12000',
+          isOverride: 'true',
+        },
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_test',
+              object: 'subscription_item',
+              price: {
+                id: 'price_test',
+                object: 'price',
+                unit_amount: 9000,
+                currency: 'usd',
+              } as unknown as Stripe.Price,
+            } as unknown as Stripe.SubscriptionItem,
+          ],
+        } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+      })
+
+      await handleSubscriptionCreated(subscription, 'MAHAD')
+
+      expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'Rate mismatch: Stripe amount differs from expected calculated rate'
+      )
+    })
+
     it('logs warning when recalculated rate differs from metadata rate', async () => {
       const subscription = createMockSubscription()
 
