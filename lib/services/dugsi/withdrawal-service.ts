@@ -1,11 +1,13 @@
-import { EnrollmentStatus } from '@prisma/client'
+import { EnrollmentStatus, Prisma } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   deactivateBillingAssignmentsForProfiles,
+  getActiveBillingAssignmentsForProfiles,
   reactivateBillingAssignmentsForProfiles,
+  updateBillingAssignmentAmount,
   updateSubscriptionAmount,
 } from '@/lib/db/queries/billing'
 import {
@@ -30,6 +32,7 @@ import {
   logInfo,
   logWarning,
 } from '@/lib/logger'
+import { calculateSplitAmounts } from '@/lib/services/shared/billing-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { isValidStatusTransition } from '@/lib/types/enrollment'
 import {
@@ -38,9 +41,11 @@ import {
   getRateTierDescription,
   getStripeInterval,
 } from '@/lib/utils/dugsi-tuition'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 import {
   findFamilySubscription,
+  findLiveFamilySubscriptionIds,
   handleBillingDivergence,
 } from './billing-helpers'
 
@@ -49,6 +54,10 @@ const logger = createServiceLogger('dugsi-withdrawal')
 const WITHDRAWABLE_STATUSES: EnrollmentStatus[] = ['REGISTERED', 'ENROLLED']
 
 const WITHDRAWAL_REASON = 'Withdrawn by admin'
+
+const withdrawalTransactionOptions = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+}
 
 export interface WithdrawChildrenResult {
   success: boolean
@@ -81,15 +90,31 @@ export async function withdrawChildren(
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChildren', op: 'function' },
     async () => {
+      // Per-child rate math assumes one live subscription covers the family.
+      // Legacy families can have siblings split across subscriptions — those
+      // must be consolidated first or the wrong subscription gets repriced.
+      const liveSubscriptionIds =
+        await findLiveFamilySubscriptionIds(familyReferenceId)
+      if (liveSubscriptionIds.length > 1) {
+        throw new ActionError(
+          'This family has multiple active subscriptions. Consolidate billing before withdrawing children.',
+          ERROR_CODES.ACTIVE_SUBSCRIPTION,
+          undefined,
+          409
+        )
+      }
+
       const subscription = await findFamilySubscription(familyReferenceId)
 
       const now = new Date()
 
       // Profiles are read and counted inside the transaction so a concurrent
       // withdrawal of other children in the same family cannot produce a
-      // stale remainingCount (and therefore a wrong Stripe rate).
-      const { profilesToWithdraw, remainingProfiles, withdrawnEnrollments } =
-        await prisma.$transaction(async (tx) => {
+      // stale remainingCount (and therefore a wrong Stripe rate). Serializable
+      // isolation makes two overlapping withdrawals of different siblings
+      // conflict instead of both computing rates from the same snapshot.
+      const runWithdrawalTransaction = () =>
+        prisma.$transaction(async (tx) => {
           const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
             familyReferenceId,
             DUGSI_PROGRAM,
@@ -144,6 +169,35 @@ export async function withdrawChildren(
 
           await deactivateBillingAssignmentsForProfiles(profileIds, now, tx)
 
+          // Re-split the new tier rate across the surviving assignments so
+          // assignment sums keep matching the subscription amount.
+          const assignmentRollbacks: { id: string; amount: number }[] = []
+          if (subscription && remaining.length > 0) {
+            const remainingAssignments =
+              await getActiveBillingAssignmentsForProfiles(
+                remaining.map((p) => p.id),
+                subscription.id,
+                tx
+              )
+            if (remainingAssignments.length > 0) {
+              const splits = calculateSplitAmounts(
+                calculateDugsiRate(remaining.length),
+                remainingAssignments.length
+              )
+              for (let i = 0; i < remainingAssignments.length; i++) {
+                assignmentRollbacks.push({
+                  id: remainingAssignments[i].id,
+                  amount: remainingAssignments[i].amount,
+                })
+                await updateBillingAssignmentAmount(
+                  remainingAssignments[i].id,
+                  splits[i],
+                  tx
+                )
+              }
+            }
+          }
+
           const enrollmentStates: EnrollmentRollbackState[] = []
           for (const profileId of profileIds) {
             const activeEnrollment = await getActiveEnrollment(profileId, tx)
@@ -173,8 +227,31 @@ export async function withdrawChildren(
             profilesToWithdraw: toWithdraw,
             remainingProfiles: remaining,
             withdrawnEnrollments: enrollmentStates,
+            assignmentRollbacks,
           }
-        })
+        }, withdrawalTransactionOptions)
+
+      let txnResult: Awaited<ReturnType<typeof runWithdrawalTransaction>>
+      try {
+        txnResult = await runWithdrawalTransaction()
+      } catch (error) {
+        if (isPrismaError(error) && error.code === 'P2034') {
+          throw new ActionError(
+            'Another billing update for this family is in progress. Please try again.',
+            ERROR_CODES.INVALID_INPUT,
+            undefined,
+            409
+          )
+        }
+        throw error
+      }
+
+      const {
+        profilesToWithdraw,
+        remainingProfiles,
+        withdrawnEnrollments,
+        assignmentRollbacks,
+      } = txnResult
 
       const withdrawCount = profilesToWithdraw.length
       const remainingCount = remainingProfiles.length
@@ -375,6 +452,7 @@ export async function withdrawChildren(
           { familyReferenceId, profileIds }
         )
 
+        let rollbackSucceeded = false
         try {
           await prisma.$transaction(async (tx) => {
             for (const { id, status } of originalStatuses) {
@@ -383,12 +461,17 @@ export async function withdrawChildren(
 
             await reactivateBillingAssignmentsForProfiles(profileIds, now, tx)
 
+            for (const { id, amount } of assignmentRollbacks) {
+              await updateBillingAssignmentAmount(id, amount, tx)
+            }
+
             for (const state of withdrawnEnrollments) {
               await restoreEnrollmentState(state.id, state, tx)
             }
 
             await reactivateClassEnrollmentsForProfiles(profileIds, now, tx)
           })
+          rollbackSucceeded = true
 
           await logInfo(
             logger,
@@ -405,7 +488,9 @@ export async function withdrawChildren(
         }
 
         throw new ActionError(
-          'Stripe billing update failed. Withdrawal has been rolled back.',
+          rollbackSucceeded
+            ? 'Stripe billing update failed. Withdrawal has been rolled back.'
+            : 'Stripe billing update failed and automatic rollback also failed. Billing needs manual review — check logs.',
           ERROR_CODES.STRIPE_ERROR
         )
       }

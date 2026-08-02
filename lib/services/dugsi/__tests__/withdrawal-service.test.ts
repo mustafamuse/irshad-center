@@ -2,6 +2,9 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockFindFamilySubscription,
+  mockFindLiveFamilySubscriptionIds,
+  mockGetActiveBillingAssignmentsForProfiles,
+  mockUpdateBillingAssignmentAmount,
   mockHandleBillingDivergence,
   mockStripeSubscriptionUpdate,
   mockStripeSubscriptionRetrieve,
@@ -21,6 +24,9 @@ const {
   mockLogError,
 } = vi.hoisted(() => ({
   mockFindFamilySubscription: vi.fn(),
+  mockFindLiveFamilySubscriptionIds: vi.fn(),
+  mockGetActiveBillingAssignmentsForProfiles: vi.fn(),
+  mockUpdateBillingAssignmentAmount: vi.fn(),
   mockHandleBillingDivergence: vi.fn(),
   mockStripeSubscriptionUpdate: vi.fn(),
   mockStripeSubscriptionRetrieve: vi.fn(),
@@ -43,6 +49,8 @@ const {
 vi.mock('../billing-helpers', () => ({
   findFamilySubscription: (...args: unknown[]) =>
     mockFindFamilySubscription(...args),
+  findLiveFamilySubscriptionIds: (...args: unknown[]) =>
+    mockFindLiveFamilySubscriptionIds(...args),
   handleBillingDivergence: (...args: unknown[]) =>
     mockHandleBillingDivergence(...args),
 }))
@@ -84,6 +92,12 @@ vi.mock('@/lib/db/queries/billing', () => ({
     mockReactivateBillingAssignments(...args),
   updateSubscriptionAmount: (...args: unknown[]) =>
     mockUpdateSubscriptionAmount(...args),
+  getActiveBillingAssignmentsForProfiles: (...args: unknown[]) =>
+    mockGetActiveBillingAssignmentsForProfiles(...args),
+  updateBillingAssignmentAmount: (...args: unknown[]) =>
+    mockUpdateBillingAssignmentAmount(...args),
+  getBillingAccountByStripeCustomerId: vi.fn(),
+  upsertBillingAccount: vi.fn(),
 }))
 
 vi.mock('@/lib/db/queries/dugsi-class', () => ({
@@ -122,6 +136,9 @@ import { withdrawChildren } from '../withdrawal-service'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockFindLiveFamilySubscriptionIds.mockResolvedValue([])
+  mockGetActiveBillingAssignmentsForProfiles.mockResolvedValue([])
+  mockUpdateBillingAssignmentAmount.mockResolvedValue({})
   mockUpdateProgramProfileStatus.mockResolvedValue(undefined)
   mockUpdateProgramProfileStatusMany.mockImplementation((ids: string[]) =>
     Promise.resolve({ count: ids.length })
@@ -377,6 +394,102 @@ describe('withdrawChildren', () => {
     expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith('db-sub-id', 0)
   })
 
+  it('should refuse withdrawal when family has multiple live subscriptions', async () => {
+    mockFindLiveFamilySubscriptionIds.mockResolvedValueOnce(['sub-a', 'sub-b'])
+
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      /multiple active subscriptions/
+    )
+
+    expect(mockUpdateProgramProfileStatusMany).not.toHaveBeenCalled()
+    expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
+  })
+
+  it('should map serialization conflicts to a retryable error', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockUpdateProgramProfileStatusMany.mockRejectedValueOnce(
+      Object.assign(new Error('write conflict'), { code: 'P2034' })
+    )
+
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      /in progress/
+    )
+
+    expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
+  })
+
+  it('should re-split the new rate across surviving assignments', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(3)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce({
+      ...MOCK_SUBSCRIPTION,
+      amount: 23000,
+    })
+    mockGetActiveBillingAssignmentsForProfiles.mockResolvedValueOnce([
+      { id: 'ba-2', amount: 7667 },
+      { id: 'ba-3', amount: 7666 },
+    ])
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+    mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
+
+    expect(result.success).toBe(true)
+    expect(mockGetActiveBillingAssignmentsForProfiles).toHaveBeenCalledWith(
+      ['profile-2', 'profile-3'],
+      'db-sub-id',
+      'tx-client'
+    )
+    expect(mockUpdateBillingAssignmentAmount).toHaveBeenCalledWith(
+      'ba-2',
+      8000,
+      'tx-client'
+    )
+    expect(mockUpdateBillingAssignmentAmount).toHaveBeenCalledWith(
+      'ba-3',
+      8000,
+      'tx-client'
+    )
+  })
+
+  it('should restore original assignment amounts when Stripe fails after re-split', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(3)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce({
+      ...MOCK_SUBSCRIPTION,
+      amount: 23000,
+    })
+    mockGetActiveBillingAssignmentsForProfiles.mockResolvedValueOnce([
+      { id: 'ba-2', amount: 7667 },
+      { id: 'ba-3', amount: 7666 },
+    ])
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+    mockStripeSubscriptionUpdate.mockRejectedValueOnce(new Error('Stripe down'))
+
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      'Stripe billing update failed'
+    )
+
+    expect(mockUpdateBillingAssignmentAmount).toHaveBeenCalledWith(
+      'ba-2',
+      7667,
+      'tx-client'
+    )
+    expect(mockUpdateBillingAssignmentAmount).toHaveBeenCalledWith(
+      'ba-3',
+      7666,
+      'tx-client'
+    )
+  })
+
   it('should abort withdrawal when profiles changed status concurrently', async () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(2)
@@ -557,7 +670,7 @@ describe('withdrawChildren', () => {
     )
 
     await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
-      'Stripe billing update failed'
+      /rollback also failed/
     )
 
     expect(mockLogError).toHaveBeenCalledWith(

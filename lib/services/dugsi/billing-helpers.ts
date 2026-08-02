@@ -28,6 +28,30 @@ export async function findFamilySubscription(familyReferenceId: string | null) {
   return assignment?.subscription ?? null
 }
 
+export async function findLiveFamilySubscriptionIds(
+  familyReferenceId: string | null
+): Promise<string[]> {
+  if (!familyReferenceId) return []
+
+  const assignments = await prisma.billingAssignment.findMany({
+    where: {
+      isActive: true,
+      programProfile: {
+        familyReferenceId,
+        program: DUGSI_PROGRAM,
+      },
+      subscription: {
+        stripeAccountType: StripeAccountType.DUGSI,
+        status: { in: [...LIVE_SUBSCRIPTION_STATUSES, 'paused'] },
+      },
+    },
+    select: { subscriptionId: true },
+    distinct: ['subscriptionId'],
+  })
+
+  return assignments.map((a) => a.subscriptionId)
+}
+
 export async function handleBillingDivergence(
   logger: Logger,
   dbError: unknown,
