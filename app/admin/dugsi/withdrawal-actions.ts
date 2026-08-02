@@ -11,7 +11,7 @@ import {
   withdrawChildren,
   type WithdrawChildrenResult,
 } from '@/lib/services/dugsi/withdrawal-service'
-import type { ActionResult } from '@/lib/utils/action-helpers'
+import type { ActionResult } from '@/lib/types/batch'
 import {
   WithdrawChildrenSchema,
   WithdrawalPreviewSchema,
