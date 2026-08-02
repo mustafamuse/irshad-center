@@ -1,9 +1,27 @@
-import * as Sentry from '@sentry/nextjs'
-
 import { EnrollmentStatus } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import {
+  deactivateBillingAssignmentsForProfiles,
+  reactivateBillingAssignmentsForProfiles,
+  updateSubscriptionAmount,
+} from '@/lib/db/queries/billing'
+import {
+  deactivateClassEnrollmentsForProfiles,
+  reactivateClassEnrollmentsForProfiles,
+} from '@/lib/db/queries/dugsi-class'
+import {
+  getActiveEnrollment,
+  restoreEnrollmentState,
+  updateEnrollmentStatus,
+} from '@/lib/db/queries/enrollment'
+import {
+  findFamilyProfilesForWithdrawal,
+  updateProgramProfileStatus,
+  updateProgramProfileStatusMany,
+} from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
 import {
@@ -13,8 +31,11 @@ import {
   logWarning,
 } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { isValidStatusTransition } from '@/lib/types/enrollment'
 import {
   calculateDugsiRate,
+  formatRateDisplay,
+  getRateTierDescription,
   getStripeInterval,
 } from '@/lib/utils/dugsi-tuition'
 
@@ -27,6 +48,8 @@ const logger = createServiceLogger('dugsi-withdrawal')
 
 const WITHDRAWABLE_STATUSES: EnrollmentStatus[] = ['REGISTERED', 'ENROLLED']
 
+const WITHDRAWAL_REASON = 'Withdrawn by admin'
+
 export interface WithdrawChildrenResult {
   success: boolean
   error?: string
@@ -38,6 +61,13 @@ export interface WithdrawChildrenResult {
   subscriptionCanceled: boolean
 }
 
+interface EnrollmentRollbackState {
+  id: string
+  status: EnrollmentStatus
+  endDate: Date | null
+  reason: string | null
+}
+
 export async function withdrawChildren(
   familyReferenceId: string,
   profileIds: string[]
@@ -45,20 +75,11 @@ export async function withdrawChildren(
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChildren', op: 'function' },
     async () => {
-      const allFamilyProfiles = await prisma.programProfile.findMany({
-        where: {
-          familyReferenceId,
-          program: DUGSI_PROGRAM,
-          status: { in: WITHDRAWABLE_STATUSES },
-        },
-        include: {
-          person: { select: { name: true } },
-          assignments: {
-            where: { isActive: true },
-            include: { subscription: true },
-          },
-        },
-      })
+      const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
+        familyReferenceId,
+        DUGSI_PROGRAM,
+        WITHDRAWABLE_STATUSES
+      )
 
       if (allFamilyProfiles.length === 0) {
         throw new ActionError(
@@ -80,6 +101,9 @@ export async function withdrawChildren(
         )
       }
 
+      const remainingProfiles = allFamilyProfiles.filter(
+        (p) => !profileIds.includes(p.id)
+      )
       const currentActiveCount = allFamilyProfiles.length
       const withdrawCount = profilesToWithdraw.length
       const remainingCount = currentActiveCount - withdrawCount
@@ -98,23 +122,36 @@ export async function withdrawChildren(
       }))
 
       const now = new Date()
+      const withdrawnEnrollments: EnrollmentRollbackState[] = []
 
       await prisma.$transaction(async (tx) => {
-        await tx.programProfile.updateMany({
-          where: { id: { in: profileIds } },
-          data: { status: 'WITHDRAWN' },
-        })
+        await updateProgramProfileStatusMany(profileIds, 'WITHDRAWN', tx)
 
-        await tx.billingAssignment.updateMany({
-          where: {
-            programProfileId: { in: profileIds },
-            isActive: true,
-          },
-          data: {
-            isActive: false,
-            endDate: now,
-          },
-        })
+        await deactivateBillingAssignmentsForProfiles(profileIds, now, tx)
+
+        for (const profileId of profileIds) {
+          const activeEnrollment = await getActiveEnrollment(profileId, tx)
+          if (
+            activeEnrollment &&
+            isValidStatusTransition(activeEnrollment.status, 'WITHDRAWN')
+          ) {
+            withdrawnEnrollments.push({
+              id: activeEnrollment.id,
+              status: activeEnrollment.status,
+              endDate: activeEnrollment.endDate,
+              reason: activeEnrollment.reason,
+            })
+            await updateEnrollmentStatus(
+              activeEnrollment.id,
+              'WITHDRAWN',
+              WITHDRAWAL_REASON,
+              now,
+              tx
+            )
+          }
+        }
+
+        await deactivateClassEnrollmentsForProfiles(profileIds, now, tx)
       })
 
       const childNames = profilesToWithdraw.map((p) => p.person.name).join(', ')
@@ -126,6 +163,7 @@ export async function withdrawChildren(
         remainingCount,
         previousRate,
         newRate,
+        enrollmentsWithdrawn: withdrawnEnrollments.length,
       })
 
       if (!subscription) {
@@ -141,10 +179,10 @@ export async function withdrawChildren(
 
       if (isPaused) {
         try {
-          await prisma.subscription.update({
-            where: { id: subscription.id },
-            data: { amount: allWithdrawn ? 0 : newRate },
-          })
+          await updateSubscriptionAmount(
+            subscription.id,
+            allWithdrawn ? 0 : newRate
+          )
         } catch (dbError) {
           await logError(
             logger,
@@ -181,13 +219,18 @@ export async function withdrawChildren(
         if (allWithdrawn) {
           await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
             cancel_at_period_end: true,
+            metadata: {
+              Children: '',
+              Rate: '',
+              Tier: '',
+              childCount: '0',
+              calculatedRate: '0',
+              profileIds: '',
+            },
           })
 
           try {
-            await prisma.subscription.update({
-              where: { id: subscription.id },
-              data: { amount: 0 },
-            })
+            await updateSubscriptionAmount(subscription.id, 0)
           } catch (dbError) {
             const error = await handleBillingDivergence(
               logger,
@@ -259,13 +302,18 @@ export async function withdrawChildren(
             },
           ],
           proration_behavior: 'none',
+          metadata: {
+            Children: remainingProfiles.map((p) => p.person.name).join(', '),
+            Rate: formatRateDisplay(newRate),
+            Tier: getRateTierDescription(remainingCount),
+            childCount: remainingCount.toString(),
+            calculatedRate: newRate.toString(),
+            profileIds: remainingProfiles.map((p) => p.id).join(','),
+          },
         })
 
         try {
-          await prisma.subscription.update({
-            where: { id: subscription.id },
-            data: { amount: newRate },
-          })
+          await updateSubscriptionAmount(subscription.id, newRate)
         } catch (dbError) {
           const error = await handleBillingDivergence(
             logger,
@@ -316,23 +364,16 @@ export async function withdrawChildren(
         try {
           await prisma.$transaction(async (tx) => {
             for (const { id, status } of originalStatuses) {
-              await tx.programProfile.updateMany({
-                where: { id },
-                data: { status },
-              })
+              await updateProgramProfileStatus(id, status, tx)
             }
 
-            await tx.billingAssignment.updateMany({
-              where: {
-                programProfileId: { in: profileIds },
-                isActive: false,
-                endDate: now,
-              },
-              data: {
-                isActive: true,
-                endDate: null,
-              },
-            })
+            await reactivateBillingAssignmentsForProfiles(profileIds, now, tx)
+
+            for (const state of withdrawnEnrollments) {
+              await restoreEnrollmentState(state.id, state, tx)
+            }
+
+            await reactivateClassEnrollmentsForProfiles(profileIds, now, tx)
           })
 
           await logInfo(

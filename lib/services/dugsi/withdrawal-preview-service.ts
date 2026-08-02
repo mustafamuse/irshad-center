@@ -1,7 +1,7 @@
 import { EnrollmentStatus } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
+import { findFamilyProfilesForWithdrawal } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
@@ -23,16 +23,11 @@ export async function getWithdrawalPreview(
   familyReferenceId: string,
   profileIds: string[]
 ): Promise<WithdrawalPreview> {
-  const allFamilyProfiles = await prisma.programProfile.findMany({
-    where: {
-      familyReferenceId,
-      program: DUGSI_PROGRAM,
-      status: { in: WITHDRAWABLE_STATUSES },
-    },
-    include: {
-      person: { select: { name: true } },
-    },
-  })
+  const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
+    familyReferenceId,
+    DUGSI_PROGRAM,
+    WITHDRAWABLE_STATUSES
+  )
 
   if (allFamilyProfiles.length === 0) {
     throw new ActionError(

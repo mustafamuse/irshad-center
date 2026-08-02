@@ -719,3 +719,40 @@ export async function updateProgramProfileStatus(
     data: { status },
   })
 }
+
+/**
+ * Find a family's profiles eligible for withdrawal (active statuses only)
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findFamilyProfilesForWithdrawal(
+  familyReferenceId: string,
+  program: Program,
+  statuses: EnrollmentStatus[],
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      familyReferenceId,
+      program,
+      status: { in: statuses },
+    },
+    include: {
+      person: { select: { name: true } },
+    },
+  })
+}
+
+/**
+ * Set the status of multiple program profiles at once
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateProgramProfileStatusMany(
+  profileIds: string[],
+  status: EnrollmentStatus,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.updateMany({
+    where: { id: { in: profileIds } },
+    data: { status },
+  })
+}

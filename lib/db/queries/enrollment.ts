@@ -295,6 +295,31 @@ export async function updateEnrollmentStatus(
 }
 
 /**
+ * Restore an enrollment to a previously captured state, bypassing status
+ * transition validation. Only for compensating rollback after a failed
+ * external call (e.g. Stripe) — never for user-initiated status changes.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function restoreEnrollmentState(
+  enrollmentId: string,
+  state: {
+    status: EnrollmentStatus
+    endDate: Date | null
+    reason: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.update({
+    where: { id: enrollmentId },
+    data: {
+      status: state.status,
+      endDate: state.endDate,
+      reason: state.reason,
+    },
+  })
+}
+
+/**
  * Re-enroll a student (create new enrollment after withdrawal)
  * @param client - Optional database client (for transaction support)
  */

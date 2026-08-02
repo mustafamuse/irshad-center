@@ -5,10 +5,17 @@ const {
   mockHandleBillingDivergence,
   mockStripeSubscriptionUpdate,
   mockStripeSubscriptionRetrieve,
-  mockPrismaProfileUpdateMany,
-  mockPrismaAssignmentUpdateMany,
-  mockPrismaSubscriptionUpdate,
-  mockPrismaProfileFindMany,
+  mockFindFamilyProfilesForWithdrawal,
+  mockUpdateProgramProfileStatus,
+  mockUpdateProgramProfileStatusMany,
+  mockDeactivateBillingAssignments,
+  mockReactivateBillingAssignments,
+  mockUpdateSubscriptionAmount,
+  mockDeactivateClassEnrollments,
+  mockReactivateClassEnrollments,
+  mockGetActiveEnrollment,
+  mockUpdateEnrollmentStatus,
+  mockRestoreEnrollmentState,
   mockLogInfo,
   mockLogWarning,
   mockLogError,
@@ -17,10 +24,17 @@ const {
   mockHandleBillingDivergence: vi.fn(),
   mockStripeSubscriptionUpdate: vi.fn(),
   mockStripeSubscriptionRetrieve: vi.fn(),
-  mockPrismaProfileUpdateMany: vi.fn(),
-  mockPrismaAssignmentUpdateMany: vi.fn(),
-  mockPrismaSubscriptionUpdate: vi.fn(),
-  mockPrismaProfileFindMany: vi.fn(),
+  mockFindFamilyProfilesForWithdrawal: vi.fn(),
+  mockUpdateProgramProfileStatus: vi.fn(),
+  mockUpdateProgramProfileStatusMany: vi.fn(),
+  mockDeactivateBillingAssignments: vi.fn(),
+  mockReactivateBillingAssignments: vi.fn(),
+  mockUpdateSubscriptionAmount: vi.fn(),
+  mockDeactivateClassEnrollments: vi.fn(),
+  mockReactivateClassEnrollments: vi.fn(),
+  mockGetActiveEnrollment: vi.fn(),
+  mockUpdateEnrollmentStatus: vi.fn(),
+  mockRestoreEnrollmentState: vi.fn(),
   mockLogInfo: vi.fn(),
   mockLogWarning: vi.fn(),
   mockLogError: vi.fn(),
@@ -50,24 +64,41 @@ vi.mock('@/lib/keys/stripe', () => ({
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    programProfile: {
-      findMany: (...args: unknown[]) => mockPrismaProfileFindMany(...args),
-    },
-    $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        programProfile: {
-          updateMany: (...args: unknown[]) =>
-            mockPrismaProfileUpdateMany(...args),
-        },
-        billingAssignment: {
-          updateMany: (...args: unknown[]) =>
-            mockPrismaAssignmentUpdateMany(...args),
-        },
-      }),
-    subscription: {
-      update: (...args: unknown[]) => mockPrismaSubscriptionUpdate(...args),
-    },
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) => fn('tx-client'),
   },
+}))
+
+vi.mock('@/lib/db/queries/program-profile', () => ({
+  findFamilyProfilesForWithdrawal: (...args: unknown[]) =>
+    mockFindFamilyProfilesForWithdrawal(...args),
+  updateProgramProfileStatus: (...args: unknown[]) =>
+    mockUpdateProgramProfileStatus(...args),
+  updateProgramProfileStatusMany: (...args: unknown[]) =>
+    mockUpdateProgramProfileStatusMany(...args),
+}))
+
+vi.mock('@/lib/db/queries/billing', () => ({
+  deactivateBillingAssignmentsForProfiles: (...args: unknown[]) =>
+    mockDeactivateBillingAssignments(...args),
+  reactivateBillingAssignmentsForProfiles: (...args: unknown[]) =>
+    mockReactivateBillingAssignments(...args),
+  updateSubscriptionAmount: (...args: unknown[]) =>
+    mockUpdateSubscriptionAmount(...args),
+}))
+
+vi.mock('@/lib/db/queries/dugsi-class', () => ({
+  deactivateClassEnrollmentsForProfiles: (...args: unknown[]) =>
+    mockDeactivateClassEnrollments(...args),
+  reactivateClassEnrollmentsForProfiles: (...args: unknown[]) =>
+    mockReactivateClassEnrollments(...args),
+}))
+
+vi.mock('@/lib/db/queries/enrollment', () => ({
+  getActiveEnrollment: (...args: unknown[]) => mockGetActiveEnrollment(...args),
+  updateEnrollmentStatus: (...args: unknown[]) =>
+    mockUpdateEnrollmentStatus(...args),
+  restoreEnrollmentState: (...args: unknown[]) =>
+    mockRestoreEnrollmentState(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -81,11 +112,6 @@ vi.mock('@/lib/logger', () => ({
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
-vi.mock('@/lib/errors/action-error', async () => {
-  const actual = await vi.importActual('@/lib/errors/action-error')
-  return actual
-})
-
 vi.mock('@sentry/nextjs', () => ({
   startSpan: (_opts: unknown, fn: () => unknown) => fn(),
 }))
@@ -96,9 +122,23 @@ import { withdrawChildren } from '../withdrawal-service'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockPrismaProfileUpdateMany.mockResolvedValue({ count: 1 })
-  mockPrismaAssignmentUpdateMany.mockResolvedValue({ count: 1 })
-  mockPrismaSubscriptionUpdate.mockResolvedValue({})
+  mockUpdateProgramProfileStatus.mockResolvedValue(undefined)
+  mockUpdateProgramProfileStatusMany.mockResolvedValue({ count: 1 })
+  mockDeactivateBillingAssignments.mockResolvedValue({ count: 1 })
+  mockReactivateBillingAssignments.mockResolvedValue({ count: 1 })
+  mockUpdateSubscriptionAmount.mockResolvedValue({})
+  mockDeactivateClassEnrollments.mockResolvedValue({ count: 1 })
+  mockReactivateClassEnrollments.mockResolvedValue({ count: 1 })
+  mockGetActiveEnrollment.mockImplementation((profileId: string) =>
+    Promise.resolve({
+      id: `enr-${profileId}`,
+      status: 'ENROLLED',
+      endDate: null,
+      reason: null,
+    })
+  )
+  mockUpdateEnrollmentStatus.mockResolvedValue({})
+  mockRestoreEnrollmentState.mockResolvedValue({})
 })
 
 const FAMILY_ID = 'fam-uuid-123'
@@ -110,17 +150,6 @@ function createMockProfiles(count: number) {
     program: 'DUGSI_PROGRAM',
     status: 'ENROLLED',
     person: { name: `Child ${i + 1}` },
-    assignments: [
-      {
-        isActive: true,
-        subscription: {
-          id: 'db-sub-id',
-          stripeSubscriptionId: 'sub_stripe123',
-          status: 'active',
-          amount: 16000,
-        },
-      },
-    ],
   }))
 }
 
@@ -133,7 +162,7 @@ const MOCK_SUBSCRIPTION = {
 
 describe('withdrawChildren', () => {
   it('should throw when no active children found', async () => {
-    mockPrismaProfileFindMany.mockResolvedValueOnce([])
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce([])
 
     await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
       ActionError
@@ -141,16 +170,19 @@ describe('withdrawChildren', () => {
   })
 
   it('should throw when profileIds do not belong to family', async () => {
-    mockPrismaProfileFindMany.mockResolvedValueOnce(createMockProfiles(2))
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
 
     await expect(
       withdrawChildren(FAMILY_ID, ['profile-1', 'nonexistent'])
     ).rejects.toThrow(/not found or not eligible/)
   })
 
-  it('should withdraw single child and update Stripe rate', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+  it('should withdraw single child and update Stripe rate with metadata', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
       items: { data: [{ id: 'si_item1' }] },
@@ -166,20 +198,27 @@ describe('withdrawChildren', () => {
     expect(result.previousRate).toBe(16000)
     expect(result.subscriptionCanceled).toBe(false)
 
-    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: { in: ['profile-1'] } },
-        data: { status: 'WITHDRAWN' },
-      })
+    expect(mockUpdateProgramProfileStatusMany).toHaveBeenCalledWith(
+      ['profile-1'],
+      'WITHDRAWN',
+      'tx-client'
     )
-
-    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          programProfileId: { in: ['profile-1'] },
-          isActive: true,
-        },
-      })
+    expect(mockDeactivateBillingAssignments).toHaveBeenCalledWith(
+      ['profile-1'],
+      expect.any(Date),
+      'tx-client'
+    )
+    expect(mockDeactivateClassEnrollments).toHaveBeenCalledWith(
+      ['profile-1'],
+      expect.any(Date),
+      'tx-client'
+    )
+    expect(mockUpdateEnrollmentStatus).toHaveBeenCalledWith(
+      'enr-profile-1',
+      'WITHDRAWN',
+      'Withdrawn by admin',
+      expect.any(Date),
+      'tx-client'
     )
 
     expect(mockStripeSubscriptionUpdate).toHaveBeenCalledWith(
@@ -194,13 +233,20 @@ describe('withdrawChildren', () => {
           }),
         ],
         proration_behavior: 'none',
+        metadata: expect.objectContaining({
+          childCount: '1',
+          calculatedRate: '8000',
+          profileIds: 'profile-2',
+          Children: 'Child 2',
+        }),
       })
     )
   })
 
   it('should withdraw multiple children in bulk', async () => {
-    const profiles = createMockProfiles(3)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(3)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce({
       ...MOCK_SUBSCRIPTION,
       amount: 23000,
@@ -217,11 +263,13 @@ describe('withdrawChildren', () => {
     expect(result.remainingCount).toBe(1)
     expect(result.newRate).toBe(8000)
     expect(result.previousRate).toBe(23000)
+    expect(mockUpdateEnrollmentStatus).toHaveBeenCalledTimes(2)
   })
 
   it('should cancel subscription when all children withdrawn', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
 
@@ -231,14 +279,54 @@ describe('withdrawChildren', () => {
     expect(result.subscriptionCanceled).toBe(true)
     expect(result.remainingCount).toBe(0)
 
-    expect(mockStripeSubscriptionUpdate).toHaveBeenCalledWith('sub_stripe123', {
-      cancel_at_period_end: true,
+    expect(mockStripeSubscriptionUpdate).toHaveBeenCalledWith(
+      'sub_stripe123',
+      expect.objectContaining({
+        cancel_at_period_end: true,
+        metadata: expect.objectContaining({
+          childCount: '0',
+          profileIds: '',
+        }),
+      })
+    )
+  })
+
+  it('should skip enrollment update when no active enrollment exists', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(1)
+    )
+    mockGetActiveEnrollment.mockResolvedValueOnce(null)
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
+    expect(mockDeactivateClassEnrollments).toHaveBeenCalled()
+  })
+
+  it('should skip enrollment update when transition is invalid (COMPLETED)', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(1)
+    )
+    mockGetActiveEnrollment.mockResolvedValueOnce({
+      id: 'enr-profile-1',
+      status: 'COMPLETED',
+      endDate: null,
+      reason: null,
     })
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
   })
 
   it('should skip Stripe when subscription is paused (DB-only)', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce({
       ...MOCK_SUBSCRIPTION,
       status: 'paused',
@@ -249,17 +337,13 @@ describe('withdrawChildren', () => {
     expect(result.success).toBe(true)
     expect(result.remainingCount).toBe(1)
     expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
-    expect(mockPrismaSubscriptionUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'db-sub-id' },
-        data: { amount: 8000 },
-      })
-    )
+    expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith('db-sub-id', 8000)
   })
 
   it('should warn when admin override is reset', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce({
       ...MOCK_SUBSCRIPTION,
       amount: 10000,
@@ -277,14 +361,15 @@ describe('withdrawChildren', () => {
   })
 
   it('should handle DB divergence when Stripe succeeds but DB fails', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
       items: { data: [{ id: 'si_item1' }] },
     })
     mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
-    mockPrismaSubscriptionUpdate.mockRejectedValueOnce(
+    mockUpdateSubscriptionAmount.mockRejectedValueOnce(
       new Error('DB connection lost')
     )
     mockHandleBillingDivergence.mockResolvedValueOnce(
@@ -299,8 +384,9 @@ describe('withdrawChildren', () => {
   })
 
   it('should work without a subscription (no billing)', async () => {
-    const profiles = createMockProfiles(1)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(1)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(null)
 
     const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
@@ -311,8 +397,9 @@ describe('withdrawChildren', () => {
   })
 
   it('should rollback DB when Stripe rate update fails', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
       items: { data: [{ id: 'si_item1' }] },
@@ -325,34 +412,36 @@ describe('withdrawChildren', () => {
       'Stripe billing update failed'
     )
 
-    expect(mockLogError).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ message: 'Stripe rate update failed' }),
-      expect.stringContaining('Stripe call failed'),
-      expect.objectContaining({ familyReferenceId: FAMILY_ID })
+    expect(mockUpdateProgramProfileStatus).toHaveBeenCalledWith(
+      'profile-1',
+      'ENROLLED',
+      'tx-client'
     )
-
-    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'profile-1' },
-        data: { status: 'ENROLLED' },
-      })
+    expect(mockReactivateBillingAssignments).toHaveBeenCalledWith(
+      ['profile-1'],
+      expect.any(Date),
+      'tx-client'
     )
-
-    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
+    expect(mockRestoreEnrollmentState).toHaveBeenCalledWith(
+      'enr-profile-1',
       expect.objectContaining({
-        where: expect.objectContaining({
-          programProfileId: { in: ['profile-1'] },
-          isActive: false,
-        }),
-        data: { isActive: true, endDate: null },
-      })
+        status: 'ENROLLED',
+        endDate: null,
+        reason: null,
+      }),
+      'tx-client'
+    )
+    expect(mockReactivateClassEnrollments).toHaveBeenCalledWith(
+      ['profile-1'],
+      expect.any(Date),
+      'tx-client'
     )
   })
 
   it('should rollback DB when Stripe cancel_at_period_end fails', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionUpdate.mockRejectedValueOnce(
       new Error('Stripe cancel failed')
@@ -362,40 +451,28 @@ describe('withdrawChildren', () => {
       withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
     ).rejects.toThrow('Stripe billing update failed')
 
-    expect(mockLogError).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ message: 'Stripe cancel failed' }),
-      expect.stringContaining('Stripe call failed'),
-      expect.objectContaining({ familyReferenceId: FAMILY_ID })
+    expect(mockUpdateProgramProfileStatus).toHaveBeenCalledWith(
+      'profile-1',
+      'ENROLLED',
+      'tx-client'
     )
-
-    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'profile-1' },
-        data: { status: 'ENROLLED' },
-      })
+    expect(mockUpdateProgramProfileStatus).toHaveBeenCalledWith(
+      'profile-2',
+      'ENROLLED',
+      'tx-client'
     )
-    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'profile-2' },
-        data: { status: 'ENROLLED' },
-      })
-    )
-
-    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          programProfileId: { in: ['profile-1', 'profile-2'] },
-          isActive: false,
-        }),
-        data: { isActive: true, endDate: null },
-      })
+    expect(mockRestoreEnrollmentState).toHaveBeenCalledTimes(2)
+    expect(mockReactivateBillingAssignments).toHaveBeenCalledWith(
+      ['profile-1', 'profile-2'],
+      expect.any(Date),
+      'tx-client'
     )
   })
 
-  it('should rollback DB when Stripe retrieve fails (no subscription items)', async () => {
-    const profiles = createMockProfiles(2)
-    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+  it('should rollback DB when Stripe retrieve fails', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionRetrieve.mockRejectedValueOnce(
       new Error('Stripe retrieve failed')
@@ -411,22 +488,32 @@ describe('withdrawChildren', () => {
       expect.stringContaining('Stripe call failed'),
       expect.objectContaining({ familyReferenceId: FAMILY_ID })
     )
+    expect(mockReactivateBillingAssignments).toHaveBeenCalled()
+    expect(mockReactivateClassEnrollments).toHaveBeenCalled()
+  })
 
-    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'profile-1' },
-        data: { status: 'ENROLLED' },
-      })
+  it('should log but not throw when rollback itself fails', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+    mockStripeSubscriptionUpdate.mockRejectedValueOnce(new Error('Stripe down'))
+    mockUpdateProgramProfileStatus.mockRejectedValueOnce(
+      new Error('DB down too')
     )
 
-    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          programProfileId: { in: ['profile-1'] },
-          isActive: false,
-        }),
-        data: { isActive: true, endDate: null },
-      })
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      'Stripe billing update failed'
+    )
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ message: 'DB down too' }),
+      expect.stringContaining('MANUAL INTERVENTION REQUIRED'),
+      expect.objectContaining({ familyReferenceId: FAMILY_ID })
     )
   })
 })

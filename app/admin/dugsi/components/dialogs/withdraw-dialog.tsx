@@ -47,12 +47,12 @@ export function WithdrawDialog({
   useEffect(() => {
     if (open && profileIds.length > 0) {
       setIsLoadingPreview(true)
-      getWithdrawalPreviewAction(familyReferenceId, profileIds)
+      getWithdrawalPreviewAction({ familyReferenceId, profileIds })
         .then((result) => {
-          if (result.success && result.data) {
+          if (result?.data) {
             setPreview(result.data)
           } else {
-            toast.error(result.error || 'Failed to load preview')
+            toast.error(result?.serverError || 'Failed to load preview')
             onOpenChange(false)
           }
         })
@@ -75,16 +75,23 @@ export function WithdrawDialog({
 
   const handleWithdraw = () => {
     startTransition(async () => {
-      const result = await withdrawChildrenAction(familyReferenceId, profileIds)
-      if (result.success) {
-        toast.success(result.message || 'Children withdrawn')
-        if (result.warning) {
-          toast.warning(result.warning)
+      const result = await withdrawChildrenAction({
+        familyReferenceId,
+        profileIds,
+      })
+      if (result?.data?.success) {
+        toast.success(result.data.message || 'Children withdrawn')
+        if (result.data.warning) {
+          toast.warning(result.data.warning)
         }
         onOpenChange(false)
         onSuccess?.()
       } else {
-        toast.error(result.error || 'Failed to withdraw children')
+        toast.error(
+          result?.data?.error ||
+            result?.serverError ||
+            'Failed to withdraw children'
+        )
       }
     })
   }
