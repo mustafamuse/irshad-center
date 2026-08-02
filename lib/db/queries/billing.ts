@@ -280,8 +280,11 @@ export async function createSubscription(
   },
   client: DatabaseClient = prisma
 ) {
-  return client.subscription.create({
-    data: {
+  // Upsert instead of create: concurrent deliveries of the same subscription
+  // (event redelivery, created/checkout races) must not abort on P2002.
+  return client.subscription.upsert({
+    where: { stripeSubscriptionId: data.stripeSubscriptionId },
+    create: {
       billingAccountId: data.billingAccountId,
       stripeAccountType: data.stripeAccountType,
       stripeSubscriptionId: data.stripeSubscriptionId,
@@ -295,6 +298,15 @@ export async function createSubscription(
       paidUntil: data.paidUntil,
       lastPaymentDate: data.lastPaymentDate,
       previousSubscriptionIds: data.previousSubscriptionIds || [],
+    },
+    update: {
+      // No 'incomplete' default here: a late create delivery must not
+      // downgrade a status another event already advanced.
+      ...(data.status ? { status: data.status } : {}),
+      amount: data.amount,
+      currentPeriodStart: data.currentPeriodStart,
+      currentPeriodEnd: data.currentPeriodEnd,
+      paidUntil: data.paidUntil,
     },
     include: {
       billingAccount: {

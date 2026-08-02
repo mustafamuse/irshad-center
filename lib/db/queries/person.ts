@@ -1,4 +1,4 @@
-import { Prisma, Program } from '@prisma/client'
+import { Prisma, Program, StripeAccountType } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -12,6 +12,41 @@ export type PersonContactFields = Pick<
   Prisma.PersonUpdateInput,
   'name' | 'email' | 'phone'
 >
+
+/**
+ * Get a person by ID. Used to verify webhook metadata person IDs against the
+ * database before acting on them — Stripe metadata is a hint, not authority.
+ */
+export async function getPersonById(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({ where: { id: personId } })
+}
+
+/**
+ * Find the person who owns a billing account carrying the given Stripe
+ * customer ID in the given program's column. Scoped per program - customer
+ * IDs are namespaced per Stripe account, and a cross-column match would
+ * write the ID into the wrong program's column downstream.
+ */
+export async function findPersonByBillingCustomerId(
+  stripeCustomerId: string,
+  accountType: StripeAccountType,
+  client: DatabaseClient = prisma
+) {
+  if (accountType !== 'MAHAD' && accountType !== 'DUGSI') return null
+  return client.person.findFirst({
+    where: {
+      billingAccounts: {
+        some:
+          accountType === 'MAHAD'
+            ? { stripeCustomerIdMahad: stripeCustomerId }
+            : { stripeCustomerIdDugsi: stripeCustomerId },
+      },
+    },
+  })
+}
 
 /**
  * Get people with multiple roles across the system
