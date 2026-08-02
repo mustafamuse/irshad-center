@@ -163,7 +163,10 @@ describe('consolidate-subscription-service', () => {
     mockGetProgramProfilesByFamilyId.mockResolvedValue(mockFamilyProfiles)
     mockGetSubscriptionByStripeId.mockResolvedValue(null)
     mockUpsertBillingAccount.mockResolvedValue({ id: 'billing-123' })
-    mockCreateSubscription.mockResolvedValue({ id: 'sub-db-123' })
+    mockCreateSubscription.mockResolvedValue({
+      id: 'sub-db-123',
+      billingAccountId: 'billing-123',
+    })
     mockLinkSubscriptionToProfiles.mockResolvedValue(2)
     mockStripeSubscriptionUpdate.mockResolvedValue({})
     mockStripeCustomerUpdate.mockResolvedValue({})
@@ -348,6 +351,22 @@ describe('consolidate-subscription-service', () => {
         stripeMetadataUpdated: true,
         stripeCustomerSynced: false,
       })
+    })
+
+    it('should abort when the upserted subscription belongs to another billing account', async () => {
+      mockCreateSubscription.mockResolvedValue({
+        id: 'sub-db-123',
+        billingAccountId: 'billing-other',
+      })
+
+      await expect(
+        consolidateStripeSubscription({
+          stripeSubscriptionId: 'sub_test123',
+          familyId: 'family-123',
+          syncStripeCustomer: false,
+        })
+      ).rejects.toThrow('already belongs to another billing account')
+      expect(mockLinkSubscriptionToProfiles).not.toHaveBeenCalled()
     })
 
     it('should sync Stripe customer when requested', async () => {
