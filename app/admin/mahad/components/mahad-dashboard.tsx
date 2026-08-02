@@ -29,9 +29,14 @@ import {
 interface MahadDashboardProps {
   students: MahadStudent[]
   batches: BatchWithCount[]
+  initialStudentId?: string
 }
 
-export function MahadDashboard({ students, batches }: MahadDashboardProps) {
+export function MahadDashboard({
+  students,
+  batches,
+  initialStudentId,
+}: MahadDashboardProps) {
   const activeTab = useActiveTab()
   const filters = useMahadFilters()
   const dialogData = useDialogData()
@@ -104,6 +109,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
             students={filteredStudents}
             batches={batches}
             duplicates={duplicates}
+            initialStudentId={initialStudentId}
           />
         </TabsContent>
 

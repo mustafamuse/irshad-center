@@ -1,20 +1,5 @@
 # Irshad Center - Claude Code Rules
 
-## Stack
-
-- Next.js 15.3.0 (App Router, Server Components)
-- Prisma 6.16.2 + PostgreSQL
-- TypeScript 5.9.0 (strict mode)
-- Stripe (dual accounts: Mahad + Dugsi)
-- Vitest + React Testing Library
-- Bun (package manager)
-- Pino logging + Axiom log aggregation + Sentry error tracking
-- shadcn/ui + Tailwind CSS
-- Zod + react-hook-form
-- Zustand state management
-
----
-
 ## Git Operations
 
 - If git push fails with auth errors, stop immediately and tell the user to run `gh auth setup-git` or check SSH keys
@@ -71,7 +56,10 @@ Claude should refuse to write code violating these rules.
 16. **Log errors with structured context** - `logError(logger, error, 'Context', { entityId })`
 17. **Never log sensitive data** - Pino redacts passwords, tokens, card numbers, API keys
 18. **Always return `ActionResult<T>`** from server actions
-19. **Revalidate cache after mutations** - `revalidatePath()`
+19. **Always wrap `revalidatePath` in `after()`** — `after(() => revalidatePath('/path'))` — calling it directly blocks the response. Import `after` from `next/server`.
+20. **All server mutations must use safe-action clients** — `adminActionClient` or `rateLimitedActionClient` from `@/lib/safe-action`. Plain `'use server'` functions with `assertAdmin()` skip rate limiting, metadata, and error serialization. Only read-only query utilities may use bare `'use server'`.
+21. **Never bypass the query layer** — services must call query functions from `lib/db/queries/` instead of calling `prisma.X.Y()` directly. Raw Prisma calls in service files defeat query testability and reuse.
+22. **All `ActionError` throws must use a defined ERROR_CODE** — add the code to `lib/errors/action-error.ts` first. Never throw `ActionError` with a string literal code not in `ERROR_CODES`.
 
 ---
 
@@ -79,8 +67,6 @@ Claude should refuse to write code violating these rules.
 
 ### Workflow skills (loaded on demand, not always-on)
 
-- `/autopr` — autonomous PR pipeline (implement → typecheck → test → commit → push → `/create-pr`)
-- `/swarm` — parallel agent fan-out for refactors touching 3+ independent files
 - `/feature-gan` — three-agent harness (Planner/Generator/Evaluator) for non-trivial features
 - `/notes` — bootstrap NOTES.md to externalize state for long tasks
 - `/babysit` — handle PR review comments, rebase on main, shepherd toward merge

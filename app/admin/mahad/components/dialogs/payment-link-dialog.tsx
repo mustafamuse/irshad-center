@@ -37,10 +37,7 @@ import {
   parseBillingDay,
 } from '@/lib/utils/billing-date'
 
-import {
-  generatePaymentLinkWithOverrideAction,
-  type PaymentLinkWithOverrideData,
-} from '../../_actions'
+import { generatePaymentLinkWithOverrideAction } from '../../_actions'
 
 interface PaymentLinkDialogProps {
   profileId: string
@@ -128,6 +125,7 @@ export function PaymentLinkDialog({
         setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
+        setResult(response)
         toast.error(response?.serverError || 'Failed to generate payment link')
       }
     })

@@ -11,6 +11,15 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      {
+        source: '/mahad/students',
+        destination: '/mahad/check',
+        permanent: true,
+      },
+    ]
+  },
   async headers() {
     return [
       {

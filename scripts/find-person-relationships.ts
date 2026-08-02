@@ -2,11 +2,21 @@ import { prisma } from '@/lib/db'
 
 import { runScript } from './lib/run-script'
 
+const args = process.argv.slice(2)
+const idx = args.indexOf('--name')
+
+if (idx === -1 || idx + 1 >= args.length) {
+  console.error('Usage: find-person-relationships.ts --name <name>')
+  process.exit(1)
+}
+
+const nameFilter = args[idx + 1]
+
 async function findPersonRelationships() {
   const person = await prisma.person.findFirst({
     where: {
       name: {
-        contains: 'Mustafa',
+        contains: nameFilter,
         mode: 'insensitive',
       },
     },

@@ -23,10 +23,12 @@ import {
 import {
   getStudentById,
   getProfileForPaymentLink,
-  setProfileBillingDefaults,
+  getMahadStripeCustomerId,
+  hasLiveMahadSubscription,
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
@@ -63,6 +65,16 @@ import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 import type { BulkDeleteResult, DeleteWarnings } from '../_types'
 
 const logger = createActionLogger('mahad')
+
+function isStaleStripeCustomer(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const e = error as { type?: string; code?: string; param?: string }
+  return (
+    e.type === 'StripeInvalidRequestError' &&
+    e.code === 'resource_missing' &&
+    e.param === 'customer'
+  )
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -127,10 +139,6 @@ const bulkDeleteInputSchema = z.object({
   studentIds: z
     .array(z.string().uuid('Invalid student ID'))
     .min(1, 'No students selected for deletion'),
-})
-
-const paymentLinkInputSchema = z.object({
-  profileId: z.string().uuid('Invalid student ID'),
 })
 
 const paymentLinkWithOverrideInputSchema = z.object({
@@ -641,229 +649,6 @@ export async function updateStudentAction(
 }
 
 // ============================================================================
-// PAYMENT LINK GENERATION
-// ============================================================================
-
-export interface PaymentLinkData {
-  url: string
-  amount: number
-  billingPeriod: string
-}
-
-const DEFAULT_BILLING_CONFIG: {
-  graduationStatus: GraduationStatus
-  billingType: StudentBillingType
-  paymentFrequency: PaymentFrequency
-} = {
-  graduationStatus: 'NON_GRADUATE',
-  billingType: 'FULL_TIME',
-  paymentFrequency: 'MONTHLY',
-}
-
-async function createPaymentLinkSession(
-  profileId: string
-): Promise<PaymentLinkData> {
-  // 1. Fetch profile with billing config and contact info
-  const profile = await getProfileForPaymentLink(profileId)
-
-  if (!profile) {
-    throw new ActionError('Student profile not found', ERROR_CODES.NOT_FOUND)
-  }
-
-  // 2. Validate billing config is complete
-  if (
-    !profile.graduationStatus ||
-    !profile.paymentFrequency ||
-    !profile.billingType
-  ) {
-    throw new ActionError(
-      'Billing configuration incomplete. Please set Graduation Status, Payment Frequency, and Billing Type first, then save changes.',
-      ERROR_CODES.VALIDATION_ERROR
-    )
-  }
-
-  // 3. Check if EXEMPT
-  if (profile.billingType === 'EXEMPT') {
-    throw new ActionError(
-      'Exempt students do not need payment setup.',
-      ERROR_CODES.VALIDATION_ERROR
-    )
-  }
-
-  // 4. Calculate rate
-  const amount = calculateMahadRate(
-    profile.graduationStatus,
-    profile.paymentFrequency,
-    profile.billingType
-  )
-
-  if (amount <= 0) {
-    throw new ActionError(
-      'Invalid rate calculation. Please verify billing configuration.',
-      ERROR_CODES.VALIDATION_ERROR
-    )
-  }
-
-  // 5. Validate email exists
-  const email = profile.person.email
-  if (!email) {
-    throw new ActionError(
-      'Student email address is required for payment setup. Please add an email first.',
-      ERROR_CODES.VALIDATION_ERROR
-    )
-  }
-
-  // 6. Rate bounds validation - warn on unusually high rates
-  if (amount > MAX_EXPECTED_RATE_CENTS) {
-    logger.warn(
-      { amount, maxExpected: MAX_EXPECTED_RATE_CENTS, profileId },
-      'Unusually high rate calculated for admin payment link'
-    )
-  }
-
-  // 7. Validate app URL configuration
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  if (!appUrl) {
-    throw new ActionError(
-      'App URL not configured. Please set NEXT_PUBLIC_APP_URL.',
-      ERROR_CODES.SERVER_ERROR
-    )
-  }
-
-  // 8. Get validated product ID from centralized keys
-  const { productId } = getMahadKeys()
-  if (!productId) {
-    throw new ActionError(
-      'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID.',
-      ERROR_CODES.SERVER_ERROR
-    )
-  }
-
-  // 9. Create Stripe checkout session
-  const stripe = getMahadStripeClient()
-  const intervalConfig = getStripeInterval(profile.paymentFrequency)
-
-  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
-  try {
-    session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      // Feature flag: Toggle card payments to manage transaction fees
-      // ACH only: Lower fees for the organization
-      // Card + ACH: More convenience for families
-      payment_method_types: featureFlags.mahadCardPayments()
-        ? ['card', 'us_bank_account']
-        : ['us_bank_account'],
-      customer_email: email,
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product: productId,
-            unit_amount: amount,
-            recurring: intervalConfig,
-          },
-          quantity: 1,
-        },
-      ],
-      subscription_data: {
-        metadata: {
-          profileId: profile.id,
-          personId: profile.personId,
-          studentName: profile.person.name,
-          graduationStatus: profile.graduationStatus,
-          paymentFrequency: profile.paymentFrequency,
-          billingType: profile.billingType,
-          calculatedRate: amount.toString(),
-          source: 'admin-generated-link',
-        },
-      },
-      metadata: {
-        profileId: profile.id,
-        personId: profile.personId,
-        studentName: profile.person.name,
-        source: 'admin-generated-link',
-      },
-      success_url: `${appUrl}/mahad/payment-complete?payment=success`,
-      cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
-      allow_promotion_codes: true,
-    })
-  } catch (error) {
-    await logError(logger, error, 'Stripe checkout session creation failed', {
-      profileId,
-      amount,
-    })
-    throw new ActionError(
-      'Failed to create payment session. Please try again.',
-      ERROR_CODES.SERVER_ERROR
-    )
-  }
-
-  const billingPeriod =
-    profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'
-
-  if (!session.url) {
-    throw new ActionError(
-      'Failed to generate checkout URL. Please try again.',
-      ERROR_CODES.SERVER_ERROR
-    )
-  }
-
-  return {
-    url: session.url,
-    amount,
-    billingPeriod,
-  }
-}
-
-/**
- * Generate Stripe checkout link for students who abandoned checkout,
- * need a new link, or have been configured with billing settings by admin.
- */
-const _generatePaymentLinkAction = adminActionClient
-  .metadata({ actionName: 'generatePaymentLinkAction' })
-  .schema(paymentLinkInputSchema)
-  .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
-    return createPaymentLinkSession(parsedInput.profileId)
-  })
-
-export async function generatePaymentLinkAction(
-  ...args: Parameters<typeof _generatePaymentLinkAction>
-) {
-  return _generatePaymentLinkAction(...args)
-}
-
-const _generatePaymentLinkWithDefaultsAction = adminActionClient
-  .metadata({ actionName: 'generatePaymentLinkWithDefaultsAction' })
-  .schema(paymentLinkInputSchema)
-  .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
-    const { profileId } = parsedInput
-
-    // Set defaults atomically; returns null if profile not found
-    const updated = await setProfileBillingDefaults(
-      profileId,
-      DEFAULT_BILLING_CONFIG
-    )
-    if (!updated) {
-      throw new ActionError('Student profile not found', ERROR_CODES.NOT_FOUND)
-    }
-
-    after(() => {
-      revalidateTag('mahad-stats')
-      revalidateTag('mahad-students')
-      revalidatePath('/admin/mahad')
-    })
-
-    // Generate payment link (outside transaction since it's an external API call)
-    return createPaymentLinkSession(profileId)
-  })
-
-export async function generatePaymentLinkWithDefaultsAction(
-  ...args: Parameters<typeof _generatePaymentLinkWithDefaultsAction>
-) {
-  return _generatePaymentLinkWithDefaultsAction(...args)
-}
-
-// ============================================================================
 // PAYMENT LINK WITH OVERRIDE
 // ============================================================================
 
@@ -992,7 +777,72 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       )
     }
 
-    // 8. Validate app URL configuration
+    // 8. Guard: block if this profile already has a live subscription in the DB.
+    if (await hasLiveMahadSubscription(profileId)) {
+      throw new ActionError(
+        'This student already has an active Mahad subscription. Cancel it before generating a new link.',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+
+    // 9. Reuse existing Stripe customer if one exists (avoids duplicate customers after profile deletion)
+    const existingCustomerId = await getMahadStripeCustomerId(profile.personId)
+
+    const stripe = getMahadStripeClient()
+
+    // 10. Guard: verify with Stripe directly. The DB guard above cannot see
+    // subscriptions whose local records were deleted (post-deletion recovery),
+    // but Stripe can — a live subscription there means the family is already
+    // paying, so the fix is re-linking it, not a second checkout. Residual gap:
+    // if the Person row itself was deleted, BillingAccount cascades away and no
+    // customer ID survives to check — that case still needs /admin/link-subscriptions.
+    if (existingCustomerId) {
+      try {
+        const stripeSubscriptions = await stripe.subscriptions.list({
+          customer: existingCustomerId,
+          limit: 100,
+        })
+        if (stripeSubscriptions.has_more) {
+          throw new ActionError(
+            'This customer has too many Stripe subscriptions to verify safely. Review them in the Stripe dashboard before generating a new link.',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        }
+        const liveInStripe = stripeSubscriptions.data.filter((sub) =>
+          (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(sub.status)
+        )
+        if (liveInStripe.length > 0) {
+          logger.warn(
+            {
+              profileId,
+              existingCustomerId,
+              stripeSubscriptionIds: liveInStripe.map((sub) => sub.id),
+            },
+            'Live Stripe subscription found with no matching DB record'
+          )
+          throw new ActionError(
+            'Stripe already has a live subscription for this student that is not linked in the database. Re-link it via Link Subscriptions or cancel it in Stripe before generating a new link.',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        }
+      } catch (error) {
+        if (error instanceof ActionError) throw error
+        if (!isStaleStripeCustomer(error)) {
+          await logError(
+            logger,
+            error,
+            'Stripe subscription verification failed',
+            { profileId, existingCustomerId }
+          )
+          throw new ActionError(
+            'Could not verify existing subscriptions in Stripe. Please try again.',
+            ERROR_CODES.SERVER_ERROR
+          )
+        }
+      }
+    }
+
+    // 11. Validate app URL configuration
     const appUrl = process.env.NEXT_PUBLIC_APP_URL
     if (!appUrl) {
       throw new ActionError(
@@ -1001,7 +851,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       )
     }
 
-    // 9. Get validated product ID
+    // 12. Get validated product ID
     const { productId } = getMahadKeys()
     if (!productId) {
       throw new ActionError(
@@ -1010,8 +860,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       )
     }
 
-    // 10. Create Stripe checkout session
-    const stripe = getMahadStripeClient()
+    // 13. Create Stripe checkout session
     const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
     // Calculate and validate billing_cycle_anchor if start date provided
@@ -1042,19 +891,16 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
           : 'none',
         finalAmount: finalAmount / 100,
         isOverride,
+        reusedCustomer: !!existingCustomerId,
       },
       'Creating payment link with billing config'
     )
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      // Feature flag: Toggle card payments to manage transaction fees
-      // ACH only: Lower fees for the organization
-      // Card + ACH: More convenience for families
-      payment_method_types: featureFlags.mahadCardPayments()
+    const sessionParams = {
+      mode: 'subscription' as const,
+      payment_method_types: (featureFlags.mahadCardPayments()
         ? ['card', 'us_bank_account']
-        : ['us_bank_account'],
-      customer_email: email,
+        : ['us_bank_account']) as ('card' | 'us_bank_account')[],
       line_items: [
         {
           price_data: {
@@ -1094,7 +940,42 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       success_url: `${appUrl}/mahad/payment-complete?payment=success`,
       cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
       allow_promotion_codes: true,
-    })
+    }
+
+    let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
+    try {
+      session = await stripe.checkout.sessions.create({
+        ...sessionParams,
+        ...(existingCustomerId
+          ? { customer: existingCustomerId }
+          : { customer_email: email }),
+      })
+    } catch (error) {
+      if (existingCustomerId && isStaleStripeCustomer(error)) {
+        logger.warn(
+          { existingCustomerId, profileId },
+          'Stored Stripe customer ID is stale — retrying with customer_email'
+        )
+        session = await stripe.checkout.sessions.create({
+          ...sessionParams,
+          customer_email: email,
+        })
+      } else {
+        await logError(
+          logger,
+          error,
+          'Stripe checkout session creation failed',
+          {
+            profileId,
+            finalAmount,
+          }
+        )
+        throw new ActionError(
+          'Failed to create payment session. Please try again.',
+          ERROR_CODES.SERVER_ERROR
+        )
+      }
+    }
 
     const billingPeriod =
       profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'

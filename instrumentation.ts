@@ -4,12 +4,30 @@ import { type Instrumentation } from 'next'
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     await import('./sentry.server.config')
+    const { env } = await import('@/lib/env')
 
-    if (process.env.NODE_ENV === 'production') {
-      const { validateCenterLocationConfig } = await import(
-        '@/lib/constants/teacher-checkin'
-      )
-      validateCenterLocationConfig()
+    // Run in dev too (not just production) so geofence misconfiguration surfaces
+    // at startup rather than silently at first teacher check-in attempt.
+    // Guarded by var presence so devs without teacher check-in vars don't crash.
+    // lib/env (imported above) already enforces via superRefine that LAT and LNG
+    // must both be set or both absent — this adds a semantic check (non-zero values).
+    if (env.NODE_ENV !== 'test' && env.IRSHAD_CENTER_LAT !== undefined) {
+      try {
+        const { validateCenterLocationConfig } = await import(
+          '@/lib/constants/teacher-checkin'
+        )
+        validateCenterLocationConfig()
+      } catch (err) {
+        Sentry.captureException(err, {
+          tags: { source: 'startup', check: 'geofence-config' },
+        })
+        console.error(
+          '[instrumentation] Geofence configuration is invalid. ' +
+            'Check IRSHAD_CENTER_LAT and IRSHAD_CENTER_LNG in your environment.',
+          err
+        )
+        throw err
+      }
     }
   }
 

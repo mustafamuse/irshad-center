@@ -79,7 +79,20 @@ export function UnassignedStudentsSection({
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [classId, setClassId] = useState('')
+  const [teacherId, setTeacherId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  const teachers = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    for (const c of classes) {
+      for (const t of c.teachers) {
+        if (!map.has(t.teacherId)) {
+          map.set(t.teacherId, { id: t.teacherId, name: t.teacherName })
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [classes])
 
   const sorted = useMemo(
     () =>
@@ -139,13 +152,31 @@ export function UnassignedStudentsSection({
     }
   }
 
+  const filteredClasses = useMemo(() => {
+    if (!teacherId) return classes
+    return classes.filter((c) =>
+      c.teachers.some((t) => t.teacherId === teacherId)
+    )
+  }, [classes, teacherId])
+
+  const handleTeacherChange = (value: string) => {
+    const nextTeacherId = value === 'all' ? '' : value
+    setTeacherId(nextTeacherId)
+    const matching = nextTeacherId
+      ? classes.filter((c) =>
+          c.teachers.some((t) => t.teacherId === nextTeacherId)
+        )
+      : classes
+    setClassId(matching.length === 1 ? matching[0].id : '')
+  }
+
   const morningClasses = useMemo(
-    () => classes.filter((c) => c.shift === 'MORNING'),
-    [classes]
+    () => filteredClasses.filter((c) => c.shift === 'MORNING'),
+    [filteredClasses]
   )
   const afternoonClasses = useMemo(
-    () => classes.filter((c) => c.shift === 'AFTERNOON'),
-    [classes]
+    () => filteredClasses.filter((c) => c.shift === 'AFTERNOON'),
+    [filteredClasses]
   )
 
   return (
@@ -225,6 +256,24 @@ export function UnassignedStudentsSection({
             <p className="text-sm text-muted-foreground">
               {selected.size} of {sorted.length} selected
             </p>
+          )}
+          {teachers.length > 0 && (
+            <Select
+              value={teacherId || 'all'}
+              onValueChange={handleTeacherChange}
+            >
+              <SelectTrigger aria-label="Filter by teacher">
+                <SelectValue placeholder="Filter by teacher (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All teachers</SelectItem>
+                {teachers.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <Select value={classId} onValueChange={setClassId}>
             <SelectTrigger aria-label="Select a class">

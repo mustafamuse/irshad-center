@@ -15,6 +15,7 @@ interface TabContentProps {
   students: MahadStudent[]
   batches: MahadBatch[]
   duplicates: DuplicateGroup[]
+  initialStudentId?: string
 }
 
 export function TabContent({
@@ -22,10 +23,17 @@ export function TabContent({
   students,
   batches,
   duplicates,
+  initialStudentId,
 }: TabContentProps) {
   switch (tab) {
     case 'students':
-      return <StudentsTable students={students} batches={batches} />
+      return (
+        <StudentsTable
+          students={students}
+          batches={batches}
+          initialStudentId={initialStudentId}
+        />
+      )
     case 'batches':
       return <BatchGrid batches={batches} students={students} />
     case 'duplicates':

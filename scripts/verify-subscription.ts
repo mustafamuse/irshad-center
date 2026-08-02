@@ -13,6 +13,8 @@
  *   - BillingAssignment amount verification
  */
 
+import Stripe from 'stripe'
+
 import { prisma } from '@/lib/db'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import { formatCurrency } from '@/lib/utils/formatters'
@@ -41,14 +43,14 @@ async function main() {
   console.log('1. Fetching from Stripe...')
   const stripe = getMahadStripeClient()
 
-  let stripeSubscription
+  let stripeSubscription: Stripe.Subscription
   try {
     stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId)
   } catch (error) {
-    console.error(
-      `   ❌ Failed to fetch subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+    throw new Error(
+      `Failed to fetch subscription: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
     )
-    process.exit(1)
   }
 
   console.log('   ✅ Subscription found')

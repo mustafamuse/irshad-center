@@ -8,6 +8,8 @@
  *   npx tsx scripts/fix-payment-method-captured.ts
  */
 
+import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
+
 import { prisma } from '@/lib/db'
 
 import { runScript } from './lib/run-script'
@@ -15,13 +17,13 @@ import { runScript } from './lib/run-script'
 async function fixPaymentMethodCaptured() {
   const accounts = await prisma.billingAccount.findMany({
     where: {
-      accountType: 'DUGSI',
+      accountType: StripeAccountType.DUGSI,
       stripeCustomerIdDugsi: { not: null },
       paymentMethodCaptured: false,
     },
     include: {
       subscriptions: {
-        where: { status: 'active' },
+        where: { status: SubscriptionStatus.active },
       },
       person: true,
     },

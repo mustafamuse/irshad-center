@@ -66,6 +66,7 @@ const config: Config = {
         brand: {
           DEFAULT: 'hsl(var(--brand))',
           hover: 'hsl(var(--brand-hover))',
+          accent: 'hsl(var(--brand-accent))',
         },
         chart: {
           '1': 'hsl(var(--chart-1))',

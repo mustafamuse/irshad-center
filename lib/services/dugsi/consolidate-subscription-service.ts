@@ -362,6 +362,15 @@ export async function consolidateStripeSubscription(
                   },
                   tx
                 )
+                // createSubscription is an upsert: a racing insert could hand
+                // back a row attached to a different billing account. Abort
+                // the transaction instead of silently consolidating onto the
+                // wrong family.
+                if (dbSubscription.billingAccountId !== billingAccount.id) {
+                  throw new Error(
+                    `Subscription ${subscription.id} already belongs to another billing account`
+                  )
+                }
                 logger.info(
                   {
                     subscriptionId: subscription.id,

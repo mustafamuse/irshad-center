@@ -31,6 +31,10 @@ import {
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
+import {
+  findPersonByBillingCustomerId,
+  getPersonById,
+} from '@/lib/db/queries/person'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -130,6 +134,89 @@ export async function handlePaymentMethodCapture(
 }
 
 /**
+ * Resolve the billing account a new subscription should attach to.
+ *
+ * Order: existing account by Stripe customer ID; then metadata
+ * personId/guardianPersonId, DB-verified first (metadata is a hint, not
+ * authority - a stale or mistyped ID entered in the Stripe dashboard must not
+ * attribute billing to a person that does not exist); then person lookup by
+ * the program's own billing customer-ID column. Returns null when no person
+ * resolves - the caller fails soft and escalates for manual linking.
+ */
+async function resolveBillingAccountForSubscription(
+  subscription: Stripe.Subscription,
+  customerId: string,
+  accountType: StripeAccountType
+) {
+  const billingAccount = await getBillingAccountByStripeCustomerId(
+    customerId,
+    accountType
+  )
+  if (billingAccount) return billingAccount
+
+  const metadataPersonId =
+    subscription.metadata?.personId || subscription.metadata?.guardianPersonId
+
+  let resolvedPersonId: string | null = null
+  let fromVerifiedMetadata = false
+
+  if (metadataPersonId) {
+    const metadataPerson = await getPersonById(metadataPersonId)
+    if (metadataPerson) {
+      resolvedPersonId = metadataPerson.id
+      fromVerifiedMetadata = true
+      logger.info(
+        {
+          customerId,
+          personId: metadataPersonId,
+          subscriptionId: subscription.id,
+        },
+        'Creating billing account from subscription metadata'
+      )
+    } else {
+      logger.warn(
+        {
+          customerId,
+          personId: metadataPersonId,
+          subscriptionId: subscription.id,
+        },
+        'Subscription metadata person ID not found in database - falling back'
+      )
+      Sentry.captureMessage('Subscription metadata references unknown person', {
+        level: 'warning',
+        extra: {
+          subscriptionId: subscription.id,
+          customerId,
+          accountType,
+          metadataPersonId,
+        },
+      })
+    }
+  }
+
+  if (!resolvedPersonId) {
+    const person = await findPersonByBillingCustomerId(customerId, accountType)
+    if (person) {
+      resolvedPersonId = person.id
+    }
+  }
+
+  if (!resolvedPersonId) return null
+
+  return createOrUpdateBillingAccount({
+    personId: resolvedPersonId,
+    accountType,
+    stripeCustomerId: customerId,
+    ...(fromVerifiedMetadata
+      ? {
+          paymentMethodCaptured: true,
+          paymentMethodCapturedAt: new Date(),
+        }
+      : {}),
+  })
+}
+
+/**
  * Handle subscription creation event.
  *
  * Called when customer.subscription.created event is received.
@@ -151,83 +238,76 @@ export async function handleSubscriptionCreated(
     throw new Error('Invalid customer ID in subscription')
   }
 
-  // Get or create billing account
-  let billingAccount = await getBillingAccountByStripeCustomerId(
-    customerId,
-    accountType
-  )
-
-  if (!billingAccount) {
-    // Check for personId (Mahad) or guardianPersonId (Dugsi) in subscription metadata
-    const metadataPersonId =
-      subscription.metadata?.personId || subscription.metadata?.guardianPersonId // Mahad // Dugsi
-
-    if (metadataPersonId) {
-      // Use person ID from metadata to create billing account
-      // Handles race condition where subscription.created arrives before checkout.completed
-      logger.info(
-        {
-          customerId,
-          personId: metadataPersonId,
-          subscriptionId: subscription.id,
-        },
-        'Creating billing account from subscription metadata'
-      )
-
-      billingAccount = await createOrUpdateBillingAccount({
-        personId: metadataPersonId,
-        accountType,
-        stripeCustomerId: customerId,
-        paymentMethodCaptured: true,
-        paymentMethodCapturedAt: new Date(),
-      })
-    } else {
-      // Fall back to finding person by existing billing account (for non-Mahad subscriptions)
-      const person = await prisma.person.findFirst({
-        where: {
-          billingAccounts: {
-            some: {
-              OR: [
-                { stripeCustomerIdMahad: customerId },
-                { stripeCustomerIdDugsi: customerId },
-              ],
-            },
-          },
-        },
-      })
-
-      if (!person) {
-        throw new Error(
-          `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
-        )
-      }
-
-      billingAccount = await createOrUpdateBillingAccount({
-        personId: person.id,
-        accountType,
-        stripeCustomerId: customerId,
-      })
-    }
+  // Idempotency beyond the WebhookEvent table: the same subscription can
+  // arrive via different event deliveries or race checkout.session.completed.
+  // Skip creation only - fall through to profile linking, which is itself
+  // idempotent, so a retry after a partial failure (row created, linking
+  // threw) still completes the linking instead of silently returning.
+  const existingSubscription = await getSubscriptionByStripeId(subscription.id)
+  if (existingSubscription) {
+    logger.info(
+      { subscriptionId: subscription.id, accountType },
+      'Subscription already exists - skipping creation, ensuring linking'
+    )
   }
 
-  // Create subscription in database
-  const dbSubscription = await Sentry.startSpan(
-    {
-      name: 'subscription.create_from_stripe',
-      op: 'db.transaction',
-      attributes: {
-        account_type: accountType,
-        stripe_subscription_id: subscription.id,
-        billing_account_id: billingAccount.id,
-      },
-    },
-    async () =>
-      await createSubscriptionFromStripe(
-        subscription,
-        billingAccount.id,
-        accountType
+  let dbSubscription: { id: string; status: SubscriptionStatus } | null =
+    existingSubscription
+  let created = false
+
+  if (!dbSubscription) {
+    const billingAccount = await resolveBillingAccountForSubscription(
+      subscription,
+      customerId,
+      accountType
+    )
+
+    if (!billingAccount) {
+      // Permanent failure: retrying cannot resolve a person that is not in
+      // the database. Fail soft (2xx) instead of throwing so Stripe does not
+      // retry for 72 hours, and escalate for manual linking via the admin
+      // link-subscriptions page - mirroring the checkout no-match path.
+      Sentry.captureMessage('Subscription could not be matched to person', {
+        level: 'error',
+        extra: {
+          subscriptionId: subscription.id,
+          customerId,
+          accountType,
+          metadataSource: subscription.metadata?.source ?? null,
+          action: 'manual_linking_required',
+        },
+      })
+      logger.warn(
+        { subscriptionId: subscription.id, customerId, accountType },
+        'No person found for subscription - manual linking required'
       )
-  )
+      return {
+        subscriptionId: subscription.id,
+        status: subscription.status as SubscriptionStatus,
+        created: false,
+      }
+    }
+
+    // Create subscription in database
+    dbSubscription = await Sentry.startSpan(
+      {
+        name: 'subscription.create_from_stripe',
+        op: 'db.transaction',
+        attributes: {
+          account_type: accountType,
+          stripe_subscription_id: subscription.id,
+          billing_account_id: billingAccount.id,
+        },
+      },
+      async () =>
+        await createSubscriptionFromStripe(
+          subscription,
+          billingAccount.id,
+          accountType
+        )
+    )
+    created = true
+  }
 
   // Validate rate against calculated rate if metadata is present (Mahad checkout)
   const subscriptionMetadata = subscription.metadata || {}
@@ -248,12 +328,23 @@ export async function handleSubscriptionCreated(
       subscriptionMetadata.billingType as StudentBillingType
     )
 
-    if (priceAmount !== expectedRate) {
+    // Overrides are validated against finalRate (the override-inclusive amount)
+    // so tampering is still detected; legacy override subs without finalRate
+    // metadata cannot be validated and are skipped.
+    const isOverride = subscriptionMetadata.isOverride === 'true'
+    const parsedFinalRate = parseInt(subscriptionMetadata.finalRate ?? '', 10)
+    const overrideRate = Number.isFinite(parsedFinalRate)
+      ? parsedFinalRate
+      : null
+    const rateToMatch = isOverride ? overrideRate : expectedRate
+
+    if (rateToMatch !== null && priceAmount !== rateToMatch) {
       logger.warn(
         {
           subscriptionId: subscription.id,
           stripeAmount: priceAmount,
-          expectedRate,
+          expectedRate: rateToMatch,
+          isOverride,
           graduationStatus: subscriptionMetadata.graduationStatus,
           paymentFrequency: subscriptionMetadata.paymentFrequency,
           billingType: subscriptionMetadata.billingType,
@@ -401,7 +492,7 @@ export async function handleSubscriptionCreated(
   return {
     subscriptionId: dbSubscription.id,
     status: dbSubscription.status,
-    created: true,
+    created,
   }
 }
 
