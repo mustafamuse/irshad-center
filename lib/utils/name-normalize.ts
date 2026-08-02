@@ -10,8 +10,13 @@ export function extractFirstName(fullName: string): string {
 /**
  * Canonicalize a person's name for fuzzy matching during public lookup.
  *
- * Pipeline: NFD-decompose -> strip combining marks (diacritics) -> trim ->
- * collapse whitespace -> lowercase -> token-level alias map.
+ * Pipeline: NFD-decompose -> strip combining marks (diacritics) -> drop
+ * apostrophes -> hyphens to spaces -> trim -> collapse whitespace ->
+ * lowercase -> token-level alias map.
+ *
+ * Apostrophes and hyphens are folded because `nameSchema` accepts both:
+ * stored "Abdi Rahman" must match typed "Abdi-Rahman", and "Sa'id" must
+ * match "Said".
  *
  * Output is whitespace-joined, lowercase, no diacritics. Designed for
  * application-side comparison after a small DOB-narrowed candidate fetch
@@ -22,6 +27,8 @@ export function normalizeName(input: string): string {
   return input
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['\u2019]/g, '')
+    .replace(/-/g, ' ')
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()

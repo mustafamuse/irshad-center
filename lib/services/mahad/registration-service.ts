@@ -8,14 +8,17 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import { ActionError, ERROR_CODES, throwIfP2002 } from '@/lib/errors/action-error'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
-import { extractFirstName } from '@/lib/utils/name-normalize'
 
 const logger = createServiceLogger('mahad-registration-service')
 
@@ -45,11 +48,9 @@ export interface MahadRegistrationInput {
  * grandfathered in `.claude/rules/dry-catalog.md`; refactor to query helpers
  * is tracked separately to keep this PR focused.
  */
-export async function registerMahadStudent(input: MahadRegistrationInput): Promise<{
-  profileId: string
-  firstName: string
-  registeredAt: Date
-}> {
+export async function registerMahadStudent(
+  input: MahadRegistrationInput
+): Promise<{ profileId: string }> {
   const normalizedEmail = normalizeEmail(input.email)
   const normalizedPhone = input.phone
     ? (normalizePhone(input.phone) ?? null)
@@ -87,6 +88,14 @@ export async function registerMahadStudent(input: MahadRegistrationInput): Promi
           contactUpdates.email = normalizedEmail
         if (normalizedPhone !== null && !dupResult.existingPerson.phone)
           contactUpdates.phone = normalizedPhone
+        // Conservative merge fills null fields only (never overwrites). DOB
+        // must be backfilled here or a reused Person (e.g. a Dugsi guardian
+        // enrolling in Mahad) stays dateOfBirth=null forever and can never be
+        // found by the public name+DOB lookup. Name is deliberately NOT
+        // merged: it is never null, and registration flows have no authority
+        // to overwrite it (admin flows do).
+        if (input.dateOfBirth && !dupResult.existingPerson.dateOfBirth)
+          contactUpdates.dateOfBirth = input.dateOfBirth
 
         if (Object.keys(contactUpdates).length > 0) {
           await tx.person.update({
@@ -128,17 +137,14 @@ export async function registerMahadStudent(input: MahadRegistrationInput): Promi
         },
       })
 
-      return {
-        profileId: profile.id,
-        firstName: extractFirstName(input.name),
-        registeredAt: profile.createdAt,
-      }
+      return { profileId: profile.id }
     })
   } catch (error) {
     if (error instanceof ActionError) throw error
     throwIfP2002(error)
     await logError(logger, error, 'Failed to register Mahad student', {
-      name: input.name,
+      hasEmail: !!input.email,
+      hasPhone: !!input.phone,
     })
     throw error
   }

@@ -8,7 +8,7 @@ const DEFAULT_MAX_ATTEMPTS = 5
 const WINDOW = '15 m' as const
 
 let _redis: Redis | undefined
-let _defaultRatelimit: Ratelimit | undefined
+const _ratelimiters = new Map<number, Ratelimit>()
 let _warnedMissingRedis = false
 
 function isRedisConfigured(): boolean {
@@ -36,45 +36,55 @@ function getRedis(): Redis {
   return _redis
 }
 
-function getDefaultRatelimit(): Ratelimit {
-  if (!_defaultRatelimit) {
-    _defaultRatelimit = new Ratelimit({
+function getRatelimit(maxAttempts: number): Ratelimit {
+  let limiter = _ratelimiters.get(maxAttempts)
+  if (!limiter) {
+    limiter = new Ratelimit({
       redis: getRedis(),
-      limiter: Ratelimit.slidingWindow(DEFAULT_MAX_ATTEMPTS, WINDOW),
+      limiter: Ratelimit.slidingWindow(maxAttempts, WINDOW),
       analytics: false,
       prefix: 'rl',
     })
+    _ratelimiters.set(maxAttempts, limiter)
   }
-  return _defaultRatelimit
+  return limiter
+}
+
+export interface RateLimitOptions {
+  /**
+   * When true, a Redis error counts as rate-limited instead of allowed.
+   * Public unauthenticated endpoints must fail closed: their abuse ceiling
+   * is the rate limit itself, so an Upstash outage (or an attacker who
+   * exhausts the Upstash quota) must not remove the throttle. Admin-facing
+   * actions keep the availability-first default.
+   */
+  failClosed?: boolean
 }
 
 export async function checkRateLimit(
   identifier: string,
-  maxAttempts: number = DEFAULT_MAX_ATTEMPTS
+  maxAttempts: number = DEFAULT_MAX_ATTEMPTS,
+  options: RateLimitOptions = {}
 ): Promise<{ success: boolean; remaining: number; reset: number }> {
   if (!isRedisConfigured()) {
     warnOnceIfRedisMissing()
     return { success: true, remaining: maxAttempts, reset: 0 }
   }
 
-  const client =
-    maxAttempts !== DEFAULT_MAX_ATTEMPTS
-      ? new Ratelimit({
-          redis: getRedis(),
-          limiter: Ratelimit.slidingWindow(maxAttempts, WINDOW),
-          analytics: false,
-          prefix: 'rl',
-        })
-      : getDefaultRatelimit()
-
   try {
-    const { success, remaining, reset } = await client.limit(identifier)
+    const { success, remaining, reset } =
+      await getRatelimit(maxAttempts).limit(identifier)
     return { success, remaining, reset }
   } catch (error) {
     logger.error(
       { err: error instanceof Error ? error.message : String(error) },
-      '[rate-limit] Redis error — failing open'
+      options.failClosed
+        ? '[rate-limit] Redis error — failing closed'
+        : '[rate-limit] Redis error — failing open'
     )
+    if (options.failClosed) {
+      return { success: false, remaining: 0, reset: 0 }
+    }
     return { success: true, remaining: maxAttempts, reset: 0 }
   }
 }

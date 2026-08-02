@@ -1,13 +1,17 @@
 import { EnrollmentStatus, SubscriptionStatus } from '@prisma/client'
 
 import {
+  DOB_CANDIDATE_CAP,
   findMahadProfileByEmail,
   findMahadProfileById,
   findMahadProfilesByDob,
   type MahadVerificationCandidate,
 } from '@/lib/db/queries/mahad-verification'
+import { createServiceLogger } from '@/lib/logger'
 import { normalizeEmail } from '@/lib/utils/contact-normalization'
 import { extractFirstName, normalizeName } from '@/lib/utils/name-normalize'
+
+const logger = createServiceLogger('mahad-verification')
 
 /**
  * Public-safe view of a Mahad student's current state. Friendly label +
@@ -17,7 +21,10 @@ export type MahadStatusView = {
   kind:
     | 'awaiting_payment_link'
     | 'payment_link_sent'
+    | 'payment_processing'
     | 'payment_confirmed'
+    | 'payment_issue'
+    | 'payment_canceled'
     | 'on_leave'
     | 'withdrawn'
     | 'completed'
@@ -64,6 +71,30 @@ const PAYMENT_CONFIRMED_VIEW: MahadStatusView = {
   label: 'Payment confirmed',
   detail: 'Your enrollment is active. Welcome to Māhad.',
   guidance: 'none',
+}
+
+const PAYMENT_PROCESSING_VIEW: MahadStatusView = {
+  kind: 'payment_processing',
+  label: 'Payment processing',
+  detail:
+    'Your payment is being processed. Bank payments can take a few business days to clear.',
+  guidance: 'none',
+}
+
+const PAYMENT_ISSUE_VIEW: MahadStatusView = {
+  kind: 'payment_issue',
+  label: 'Payment issue',
+  detail:
+    'There was a problem with your last payment. Please contact Ustadh Mustafa to update your payment method.',
+  guidance: 'contact_admin',
+}
+
+const PAYMENT_CANCELED_VIEW: MahadStatusView = {
+  kind: 'payment_canceled',
+  label: 'Subscription canceled',
+  detail:
+    'Your payment subscription was canceled. Contact Ustadh Mustafa if you would like to re-enroll.',
+  guidance: 'contact_admin',
 }
 
 const ON_LEAVE_VIEW: MahadStatusView = {
@@ -114,9 +145,24 @@ export function deriveStatus(args: {
       return SUSPENDED_VIEW
     case 'REGISTERED':
     case 'ENROLLED':
-      if (args.subscriptionStatus === 'active') return PAYMENT_CONFIRMED_VIEW
-      if (args.hasStripeCustomer) return PAYMENT_LINK_SENT_VIEW
-      return AWAITING_PAYMENT_LINK_VIEW
+      switch (args.subscriptionStatus) {
+        case 'active':
+        case 'trialing':
+          return PAYMENT_CONFIRMED_VIEW
+        case 'incomplete':
+          return PAYMENT_PROCESSING_VIEW
+        case 'past_due':
+        case 'unpaid':
+        case 'paused':
+          return PAYMENT_ISSUE_VIEW
+        case 'canceled':
+        case 'incomplete_expired':
+          return PAYMENT_CANCELED_VIEW
+        case null:
+          return args.hasStripeCustomer
+            ? PAYMENT_LINK_SENT_VIEW
+            : AWAITING_PAYMENT_LINK_VIEW
+      }
   }
 }
 
@@ -149,6 +195,15 @@ export async function lookupByNameAndDob(input: {
   const inputLast = inputTokens[inputTokens.length - 1]!
 
   const candidates = await findMahadProfilesByDob(input.dateOfBirth)
+  if (candidates.length === DOB_CANDIDATE_CAP) {
+    // A full page means the cap may have cut off the true match (placeholder
+    // DOBs like 1/1 cluster heavily) — a legitimate student would then see
+    // not-found nondeterministically. Loud so it surfaces in Axiom.
+    logger.warn(
+      { cap: DOB_CANDIDATE_CAP },
+      'DOB candidate fetch hit cap — lookup may be truncated'
+    )
+  }
   const matches = candidates.filter((c) => {
     const storedTokens = normalizeName(c.fullName).split(' ').filter(Boolean)
     // Require at least first+last on the stored side too. A single-token
@@ -156,9 +211,15 @@ export async function lookupByNameAndDob(input: {
     // collapse to first === last and falsely match someone who happened
     // to type that single token in both fields.
     if (storedTokens.length < 2) return false
+    // First token must match exactly. The entered "last name" may match ANY
+    // later stored token, not just the final one: with Somali three-part
+    // names ("Mohamed Abdi Hassan") students routinely enter the patronymic
+    // ("Abdi") as their last name. Ambiguity stays safe — multiple hits
+    // still resolve to not-found via the exactly-one-match rule below.
     const storedFirst = storedTokens[0]!
-    const storedLast = storedTokens[storedTokens.length - 1]!
-    return storedFirst === inputFirst && storedLast === inputLast
+    return (
+      storedFirst === inputFirst && storedTokens.slice(1).includes(inputLast)
+    )
   })
 
   if (matches.length !== 1) return { found: false }

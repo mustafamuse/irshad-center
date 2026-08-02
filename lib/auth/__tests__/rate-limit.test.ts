@@ -85,4 +85,36 @@ describe('checkRateLimit', () => {
     expect(result).toEqual({ success: true, remaining: 10, reset: 0 })
     expect(mockLogError).toHaveBeenCalled()
   })
+
+  it('fails closed on Redis error when failClosed is set', async () => {
+    mockLimit.mockRejectedValueOnce(new Error('quota exhausted'))
+
+    const { checkRateLimit } = await import('../rate-limit')
+    const result = await checkRateLimit('ip-1', 3, { failClosed: true })
+
+    expect(result).toEqual({ success: false, remaining: 0, reset: 0 })
+    expect(mockLogError).toHaveBeenCalled()
+  })
+
+  it('builds a sliding window limiter with the custom maxAttempts', async () => {
+    mockLimit.mockResolvedValue({ success: true, remaining: 2, reset: 0 })
+    const { Ratelimit } = await import('@upstash/ratelimit')
+    const { checkRateLimit } = await import('../rate-limit')
+
+    await checkRateLimit('ip-1', 3)
+
+    expect(Ratelimit.slidingWindow).toHaveBeenCalledWith(3, '15 m')
+  })
+
+  it('memoizes limiters per maxAttempts value', async () => {
+    mockLimit.mockResolvedValue({ success: true, remaining: 2, reset: 0 })
+    const { Ratelimit } = await import('@upstash/ratelimit')
+    const { checkRateLimit } = await import('../rate-limit')
+
+    await checkRateLimit('ip-1', 3)
+    await checkRateLimit('ip-2', 3)
+    await checkRateLimit('ip-3', 5)
+
+    expect(vi.mocked(Ratelimit)).toHaveBeenCalledTimes(2)
+  })
 })

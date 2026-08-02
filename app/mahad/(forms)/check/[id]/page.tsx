@@ -9,6 +9,10 @@ import { lookupByProfileId } from '@/lib/services/mahad/verification-service'
 import { MahadPageHeader } from '../../../_components/mahad-page-header'
 import { MahadStatusView } from '../_components/shared/mahad-status-view'
 
+// Status must always be live and PII-bearing HTML must never sit in the
+// full-route cache (a withdrawn student would see stale "Payment confirmed").
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Registration Status - Irshād Māhad',
   description: 'View your Irshād Māhad registration status.',

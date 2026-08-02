@@ -1,16 +1,13 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-const {
-  mockFindById,
-  mockFindByEmail,
-  mockFindByDob,
-} = vi.hoisted(() => ({
+const { mockFindById, mockFindByEmail, mockFindByDob } = vi.hoisted(() => ({
   mockFindById: vi.fn(),
   mockFindByEmail: vi.fn(),
   mockFindByDob: vi.fn(),
 }))
 
 vi.mock('@/lib/db/queries/mahad-verification', () => ({
+  DOB_CANDIDATE_CAP: 25,
   findMahadProfileById: (...args: unknown[]) => mockFindById(...args),
   findMahadProfileByEmail: (...args: unknown[]) => mockFindByEmail(...args),
   findMahadProfilesByDob: (...args: unknown[]) => mockFindByDob(...args),
@@ -53,22 +50,62 @@ describe('deriveStatus', () => {
     expect(view.guidance).toBe('check_whatsapp')
   })
 
-  it('returns payment_link_sent when subscription is incomplete', () => {
+  it('returns payment_processing when subscription is incomplete', () => {
     const view = deriveStatus({
       enrollmentStatus: 'REGISTERED',
       hasStripeCustomer: true,
       subscriptionStatus: 'incomplete',
     })
-    expect(view.kind).toBe('payment_link_sent')
+    expect(view.kind).toBe('payment_processing')
   })
 
-  it('returns payment_link_sent when subscription is past_due', () => {
+  it('returns payment_issue when subscription is past_due', () => {
     const view = deriveStatus({
       enrollmentStatus: 'ENROLLED',
       hasStripeCustomer: true,
       subscriptionStatus: 'past_due',
     })
-    expect(view.kind).toBe('payment_link_sent')
+    expect(view.kind).toBe('payment_issue')
+  })
+
+  it.each([
+    ['active', 'payment_confirmed'],
+    ['trialing', 'payment_confirmed'],
+    ['incomplete', 'payment_processing'],
+    ['past_due', 'payment_issue'],
+    ['unpaid', 'payment_issue'],
+    ['paused', 'payment_issue'],
+    ['canceled', 'payment_canceled'],
+    ['incomplete_expired', 'payment_canceled'],
+  ] as const)(
+    'maps subscription status %s to %s for both active enrollment states',
+    (subscriptionStatus, expectedKind) => {
+      for (const enrollmentStatus of ['REGISTERED', 'ENROLLED'] as const) {
+        const view = deriveStatus({
+          enrollmentStatus,
+          hasStripeCustomer: true,
+          subscriptionStatus,
+        })
+        expect(view.kind).toBe(expectedKind)
+      }
+    }
+  )
+
+  it('falls back on hasStripeCustomer only when there is no subscription', () => {
+    expect(
+      deriveStatus({
+        enrollmentStatus: 'ENROLLED',
+        hasStripeCustomer: false,
+        subscriptionStatus: null,
+      }).kind
+    ).toBe('awaiting_payment_link')
+    expect(
+      deriveStatus({
+        enrollmentStatus: 'ENROLLED',
+        hasStripeCustomer: true,
+        subscriptionStatus: null,
+      }).kind
+    ).toBe('payment_link_sent')
   })
 
   it('returns payment_confirmed when subscription is active', () => {
@@ -108,7 +145,11 @@ describe('deriveStatus', () => {
       ['COMPLETED', false, null],
       ['SUSPENDED', false, null],
     ] as const
-    for (const [enrollmentStatus, hasStripeCustomer, subscriptionStatus] of inputs) {
+    for (const [
+      enrollmentStatus,
+      hasStripeCustomer,
+      subscriptionStatus,
+    ] of inputs) {
       const view = deriveStatus({
         enrollmentStatus,
         hasStripeCustomer,
@@ -226,6 +267,42 @@ describe('lookupByNameAndDob', () => {
     expect(result.found).toBe(true)
   })
 
+  it('matches when the entered last name is the stored patronymic (middle token)', async () => {
+    mockFindByDob.mockResolvedValue([
+      { ...baseCandidate, fullName: 'Mohamed Abdi Hassan' },
+    ])
+    const result = await lookupByNameAndDob({
+      firstName: 'Mohamed',
+      lastName: 'Abdi',
+      dateOfBirth: new Date('2005-03-15'),
+    })
+    expect(result.found).toBe(true)
+  })
+
+  it('matches hyphenated input against a space-separated stored name', async () => {
+    mockFindByDob.mockResolvedValue([
+      { ...baseCandidate, fullName: 'Abdi Rahman Hassan' },
+    ])
+    const result = await lookupByNameAndDob({
+      firstName: 'Abdi-Rahman',
+      lastName: 'Hassan',
+      dateOfBirth: new Date('2005-03-15'),
+    })
+    expect(result.found).toBe(true)
+  })
+
+  it('does not match when the entered last name appears only as the first token', async () => {
+    mockFindByDob.mockResolvedValue([
+      { ...baseCandidate, fullName: 'Hassan Mohamed' },
+    ])
+    const result = await lookupByNameAndDob({
+      firstName: 'Hassan',
+      lastName: 'Hassan',
+      dateOfBirth: new Date('2005-03-15'),
+    })
+    expect(result.found).toBe(false)
+  })
+
   it('returns not-found when multiple candidates collide on normalized name', async () => {
     mockFindByDob.mockResolvedValue([
       { ...baseCandidate, profileId: 'p-a', fullName: 'Mohammed Ali' },
@@ -263,7 +340,9 @@ describe('lookupByNameAndDob', () => {
   })
 
   it('does not match when stored fullName is a single token', async () => {
-    mockFindByDob.mockResolvedValue([{ ...baseCandidate, fullName: 'Mohammed' }])
+    mockFindByDob.mockResolvedValue([
+      { ...baseCandidate, fullName: 'Mohammed' },
+    ])
     const result = await lookupByNameAndDob({
       firstName: 'Mohammed',
       lastName: 'Mohammed',

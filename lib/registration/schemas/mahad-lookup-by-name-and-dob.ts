@@ -10,8 +10,10 @@ export const mahadLookupByNameAndDobSchema = z.object({
       required_error: 'Date of birth is required',
       invalid_type_error: 'Enter a valid date of birth',
     })
-    .max(new Date(), 'Date of birth cannot be in the future')
-    .min(new Date('1900-01-01'), 'Date of birth must be after 1900'),
+    .min(new Date('1900-01-01'), 'Date of birth must be after 1900')
+    // refine, not .max(new Date()): a bound built at module load freezes at
+    // process start and drifts on long-lived server instances
+    .refine((d) => d <= new Date(), 'Date of birth cannot be in the future'),
 })
 
 export type MahadLookupByNameAndDobValues = z.infer<

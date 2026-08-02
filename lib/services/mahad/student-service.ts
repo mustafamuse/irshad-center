@@ -17,7 +17,10 @@ import {
   throwIfP2002,
 } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
-import { normalizeEmail, normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('mahad-student-service')
 

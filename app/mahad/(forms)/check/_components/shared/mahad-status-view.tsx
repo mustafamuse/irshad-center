@@ -1,6 +1,8 @@
 import {
+  AlertTriangle,
   CheckCircle2,
   Clock,
+  Loader2,
   MessageCircle,
   Pause,
   XCircle,
@@ -48,6 +50,21 @@ const STATUS_VISUALS: Record<
     Icon: CheckCircle2,
     alertVariant: 'success',
     badgeClass: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+  },
+  payment_processing: {
+    Icon: Loader2,
+    alertVariant: 'default',
+    badgeClass: 'border-sky-300 bg-sky-50 text-sky-800',
+  },
+  payment_issue: {
+    Icon: AlertTriangle,
+    alertVariant: 'warning',
+    badgeClass: 'border-amber-300 bg-amber-50 text-amber-800',
+  },
+  payment_canceled: {
+    Icon: XCircle,
+    alertVariant: 'destructive',
+    badgeClass: 'border-rose-300 bg-rose-50 text-rose-800',
   },
   on_leave: {
     Icon: Pause,

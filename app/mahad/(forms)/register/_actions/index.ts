@@ -84,7 +84,8 @@ const _registerStudent = rateLimitedActionClient
         }
       }
       await logError(logger, error, 'Unexpected error in Mahad registration', {
-        name: fullName,
+        hasEmail: !!data.email,
+        hasPhone: !!data.phone,
       })
       throw error
     }
@@ -104,19 +105,20 @@ export async function checkEmailExists(email: string): Promise<boolean> {
   const parsed = emailSchema.safeParse(email)
   if (!parsed.success) return false
 
-  try {
-    const headerStore = await headers()
-    const ip =
-      headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    const rateResult = await checkRateLimit(`email-check:${ip}`, 10)
-    if (!rateResult.success) {
-      return false
-    }
-  } catch (error) {
-    logger.warn(
-      { err: error },
-      '[rate-limit] Rate limit check failed — failing open'
-    )
+  // Budget matches mahadLookupByEmail (3 per window): this endpoint answers
+  // the same "is this email registered?" question, so a looser cap here
+  // would undo the tighter one there. Fails closed — an Upstash outage must
+  // not turn this into an unthrottled enumeration oracle.
+  const headerStore = await headers()
+  const ip =
+    headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    headerStore.get('x-real-ip')?.trim() ||
+    'unknown'
+  const rateResult = await checkRateLimit(`email-check:${ip}`, 3, {
+    failClosed: true,
+  })
+  if (!rateResult.success) {
+    return false
   }
 
   try {

@@ -38,14 +38,18 @@ export const adminActionClient = actionClient.use(async ({ next }) => {
 })
 
 /**
- * Resolve a rate-limit identifier from request headers. When no IP is
- * available (misconfigured proxy, local requests), fall back to a shared
- * `"unknown"` bucket so attackers cannot bypass throttling by stripping
- * the `x-forwarded-for` header.
+ * Resolve a rate-limit identifier from request headers. `x-forwarded-for`
+ * is platform-set on Vercel; `x-real-ip` covers proxies that strip it. When
+ * neither is available (misconfigured proxy, local requests), fall back to a
+ * shared `"unknown"` bucket so attackers cannot bypass throttling by
+ * stripping IP headers — accepting that in header-less environments all
+ * such requests share one bucket.
  */
 async function getRateLimitIdentifier(): Promise<string> {
   const headersList = await headers()
-  const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const ip =
+    headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    headersList.get('x-real-ip')?.trim()
   return ip || 'unknown'
 }
 
@@ -54,7 +58,9 @@ export const rateLimitedActionClient = actionClient.use(
     const identifier = await getRateLimitIdentifier()
     const result = await checkRateLimit(
       `${metadata.actionName}:${identifier}`,
-      metadata.maxAttempts
+      metadata.maxAttempts,
+      // Public surface: an Upstash outage must not disable throttling.
+      { failClosed: true }
     )
     if (!result.success) {
       throw new ActionError(

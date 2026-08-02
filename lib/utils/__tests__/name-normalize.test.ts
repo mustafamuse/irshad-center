@@ -84,4 +84,13 @@ describe('normalizeName', () => {
   it('passes through tokens without alias mappings', () => {
     expect(normalizeName('Abdi Nur Hassan')).toBe('abdi nur hassan')
   })
+
+  it('folds hyphens to spaces', () => {
+    expect(normalizeName('Abdi-Rahman Hassan')).toBe('abdi rahman hassan')
+  })
+
+  it('drops apostrophes (straight and curly)', () => {
+    expect(normalizeName("Sa'id Hassan")).toBe('said hassan')
+    expect(normalizeName('Sa’id Hassan')).toBe('said hassan')
+  })
 })

@@ -7,6 +7,10 @@ import { lookupByProfileId } from '@/lib/services/mahad/verification-service'
 import { SuccessSummary } from './_components/success-summary'
 import { MahadPageHeader } from '../../../../_components/mahad-page-header'
 
+// Status must always be live and PII-bearing HTML must never sit in the
+// full-route cache.
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Registration Complete - Irshād Māhad',
   description: 'Your Irshād Māhad registration has been submitted.',

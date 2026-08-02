@@ -89,14 +89,10 @@ describe('registerMahadStudent', () => {
     })
   })
 
-  it('returns profileId, firstName, and registeredAt', async () => {
+  it('returns the new profileId', async () => {
     const result = await registerMahadStudent(baseInput)
 
-    expect(result).toEqual({
-      profileId: 'profile-1',
-      firstName: 'Ahmed',
-      registeredAt: new Date('2026-01-01T00:00:00.000Z'),
-    })
+    expect(result).toEqual({ profileId: 'profile-1' })
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: {
         name: 'Ahmed Mohamed',
@@ -146,7 +142,7 @@ describe('registerMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'existing-person' },
-        data: { phone: '6125551234' },
+        data: { phone: '6125551234', dateOfBirth: baseInput.dateOfBirth },
       })
     )
     expect(mockProgramProfileCreate).toHaveBeenCalledWith({
@@ -199,7 +195,11 @@ describe('registerMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'returnee-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: {
+          email: 'ahmed@example.com',
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -224,7 +224,10 @@ describe('registerMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'phone-only-person' },
-        data: { email: 'ahmed@example.com' },
+        data: {
+          email: 'ahmed@example.com',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -249,10 +252,33 @@ describe('registerMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'email-only-person' },
-        data: { phone: '6125551234' },
+        data: {
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
+  })
+
+  it('does not overwrite an existing dateOfBirth on Person reuse', async () => {
+    const storedDob = new Date('1980-01-01')
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'has-dob-person',
+        name: 'Ahmed',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: storedDob,
+      },
+      hasActiveProfile: false,
+    })
+
+    await registerMahadStudent(baseInput)
+
+    expect(mockPersonUpdate).not.toHaveBeenCalled()
   })
 
   it('allows cross-program Person reuse (Dugsi parent registering for Mahad)', async () => {
@@ -414,7 +440,7 @@ describe('registerMahadStudent', () => {
     })
   })
 
-  it('extracts firstName from full name correctly', async () => {
+  it('returns only the profileId', async () => {
     mockProgramProfileCreate.mockResolvedValue({
       id: 'profile-1',
       personId: 'person-1',
@@ -426,6 +452,6 @@ describe('registerMahadStudent', () => {
       name: '  Ahmed   Mohamed Hassan  ',
     })
 
-    expect(result.firstName).toBe('Ahmed')
+    expect(result).toEqual({ profileId: 'profile-1' })
   })
 })

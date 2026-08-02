@@ -226,6 +226,9 @@ model Person {
   // Note: Case-insensitive name matching may limit index usage, but dateOfBirth
   // filtering still benefits. Monitor query plans if performance degrades.
   @@index([name, dateOfBirth])
+  // Public DOB-range lookup (the composite above cannot serve a range on its
+  // second column alone).
+  @@index([dateOfBirth])
 }
 
 model GuardianRelationship {

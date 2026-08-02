@@ -340,12 +340,14 @@ describe('checkEmailExists', () => {
     expect(result).toBe(false)
   })
 
-  it('should rate limit with 10 attempts', async () => {
+  it('should rate limit with 3 attempts, failing closed', async () => {
     mockIsEmailRegistered.mockResolvedValue(false)
 
     await checkEmailExists('test@example.com')
 
-    expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:1.2.3.4', 10)
+    expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:1.2.3.4', 3, {
+      failClosed: true,
+    })
   })
 
   it('should rate limit under a shared bucket when IP is unavailable', async () => {
@@ -355,7 +357,9 @@ describe('checkEmailExists', () => {
     const result = await checkEmailExists('test@example.com')
 
     expect(result).toBe(false)
-    expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:unknown', 10)
+    expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:unknown', 3, {
+      failClosed: true,
+    })
     expect(mockIsEmailRegistered).toHaveBeenCalled()
   })
 
