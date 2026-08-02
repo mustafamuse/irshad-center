@@ -154,6 +154,10 @@ vi.mock('@/lib/db/queries/student', () => ({
     mockGetStudentDeleteWarnings(...args),
   getProfileForPaymentLink: (...args: unknown[]) =>
     mockGetProfileForPaymentLink(...args),
+  hasLiveMahadSubscription: async (...args: unknown[]) =>
+    (await mockBillingAssignmentFindFirst(...args)) !== null,
+  getMahadStripeCustomerId: async (...args: unknown[]) =>
+    (await mockBillingAccountFindFirst(...args))?.stripeCustomerIdMahad ?? null,
 }))
 
 vi.mock('@/lib/logger', () => ({

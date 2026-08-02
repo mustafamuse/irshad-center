@@ -11,7 +11,6 @@ import {
 import { z } from 'zod'
 
 import { featureFlags } from '@/lib/config/feature-flags'
-import { prisma } from '@/lib/db'
 import {
   createBatch,
   deleteBatch,
@@ -24,10 +23,11 @@ import {
 import {
   getStudentById,
   getProfileForPaymentLink,
+  getMahadStripeCustomerId,
+  hasLiveMahadSubscription,
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
@@ -781,18 +781,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
     // (new profile, no BillingAssignment) correctly bypasses this guard so admins
     // can re-link students whose profiles were wiped. In that case the old Stripe
     // subscription must be canceled manually after the new one is set up.
-    const activeAssignment = await prisma.billingAssignment.findFirst({
-      where: {
-        programProfileId: profileId,
-        isActive: true,
-        subscription: {
-          status: { in: LIVE_SUBSCRIPTION_STATUSES },
-          stripeAccountType: 'MAHAD',
-        },
-      },
-      select: { id: true },
-    })
-    if (activeAssignment) {
+    if (await hasLiveMahadSubscription(profileId)) {
       throw new ActionError(
         'This student already has an active Mahad subscription. Cancel it before generating a new link.',
         ERROR_CODES.VALIDATION_ERROR
@@ -800,12 +789,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
     }
 
     // 9. Reuse existing Stripe customer if one exists (avoids duplicate customers after profile deletion)
-    const existingBillingAccount = await prisma.billingAccount.findFirst({
-      where: { personId: profile.personId, accountType: 'MAHAD' },
-      select: { stripeCustomerIdMahad: true },
-    })
-    const existingCustomerId =
-      existingBillingAccount?.stripeCustomerIdMahad ?? null
+    const existingCustomerId = await getMahadStripeCustomerId(profile.personId)
 
     // 10. Validate app URL configuration
     const appUrl = process.env.NEXT_PUBLIC_APP_URL
