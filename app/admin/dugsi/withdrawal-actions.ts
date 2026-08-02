@@ -5,7 +5,7 @@ import { after } from 'next/server'
 
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
-import { adminActionClient } from '@/lib/safe-action'
+import { rateLimitedAdminActionClient } from '@/lib/safe-action'
 import { getWithdrawalPreview } from '@/lib/services/dugsi/withdrawal-preview-service'
 import { withdrawChildren } from '@/lib/services/dugsi/withdrawal-service'
 import {
@@ -15,8 +15,8 @@ import {
 
 const logger = createServiceLogger('dugsi-withdrawal-actions')
 
-const _getWithdrawalPreviewAction = adminActionClient
-  .metadata({ actionName: 'getWithdrawalPreviewAction' })
+const _getWithdrawalPreviewAction = rateLimitedAdminActionClient
+  .metadata({ actionName: 'getWithdrawalPreviewAction', maxAttempts: 30 })
   .schema(WithdrawalPreviewSchema)
   .action(async ({ parsedInput }) => {
     const { familyReferenceId, profileIds } = parsedInput
@@ -29,10 +29,10 @@ const _getWithdrawalPreviewAction = adminActionClient
         profileIds,
       })
       throw new ActionError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to get withdrawal preview',
-        ERROR_CODES.SERVER_ERROR
+        'Failed to get withdrawal preview',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
       )
     }
   })
@@ -43,8 +43,8 @@ export async function getWithdrawalPreviewAction(
   return _getWithdrawalPreviewAction(...args)
 }
 
-const _withdrawChildrenAction = adminActionClient
-  .metadata({ actionName: 'withdrawChildrenAction' })
+const _withdrawChildrenAction = rateLimitedAdminActionClient
+  .metadata({ actionName: 'withdrawChildrenAction', maxAttempts: 10 })
   .schema(WithdrawChildrenSchema)
   .action(async ({ parsedInput }) => {
     const { familyReferenceId, profileIds } = parsedInput
@@ -69,8 +69,10 @@ const _withdrawChildrenAction = adminActionClient
         profileIds,
       })
       throw new ActionError(
-        error instanceof Error ? error.message : 'Failed to withdraw children',
-        ERROR_CODES.SERVER_ERROR
+        'Failed to withdraw children',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
       )
     }
   })

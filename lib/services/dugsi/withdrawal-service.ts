@@ -68,6 +68,12 @@ interface EnrollmentRollbackState {
   reason: string | null
 }
 
+interface WithdrawnProfile {
+  id: string
+  status: EnrollmentStatus
+  name: string
+}
+
 export async function withdrawChildren(
   familyReferenceId: string,
   profileIds: string[]
@@ -75,86 +81,116 @@ export async function withdrawChildren(
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChildren', op: 'function' },
     async () => {
-      const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
-        familyReferenceId,
-        DUGSI_PROGRAM,
-        WITHDRAWABLE_STATUSES
-      )
+      const subscription = await findFamilySubscription(familyReferenceId)
 
-      if (allFamilyProfiles.length === 0) {
-        throw new ActionError(
-          'No active children found for this family',
-          ERROR_CODES.FAMILY_NOT_FOUND
-        )
-      }
+      const now = new Date()
 
-      const profilesToWithdraw = allFamilyProfiles.filter((p) =>
-        profileIds.includes(p.id)
-      )
+      // Profiles are read and counted inside the transaction so a concurrent
+      // withdrawal of other children in the same family cannot produce a
+      // stale remainingCount (and therefore a wrong Stripe rate).
+      const { profilesToWithdraw, remainingProfiles, withdrawnEnrollments } =
+        await prisma.$transaction(async (tx) => {
+          const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
+            familyReferenceId,
+            DUGSI_PROGRAM,
+            WITHDRAWABLE_STATUSES,
+            tx
+          )
 
-      if (profilesToWithdraw.length !== profileIds.length) {
-        const foundIds = new Set(profilesToWithdraw.map((p) => p.id))
-        const missing = profileIds.filter((id) => !foundIds.has(id))
-        throw new ActionError(
-          `Some children not found or not eligible for withdrawal: ${missing.join(', ')}`,
-          ERROR_CODES.INVALID_INPUT
-        )
-      }
+          if (allFamilyProfiles.length === 0) {
+            throw new ActionError(
+              'No active children found for this family',
+              ERROR_CODES.FAMILY_NOT_FOUND
+            )
+          }
 
-      const remainingProfiles = allFamilyProfiles.filter(
-        (p) => !profileIds.includes(p.id)
-      )
-      const currentActiveCount = allFamilyProfiles.length
+          const toWithdraw: WithdrawnProfile[] = allFamilyProfiles
+            .filter((p) => profileIds.includes(p.id))
+            .map((p) => ({
+              id: p.id,
+              status: p.status as EnrollmentStatus,
+              name: p.person.name,
+            }))
+
+          if (toWithdraw.length !== profileIds.length) {
+            const foundIds = new Set(toWithdraw.map((p) => p.id))
+            const missing = profileIds.filter((id) => !foundIds.has(id))
+            throw new ActionError(
+              `Some children not found or not eligible for withdrawal: ${missing.join(', ')}`,
+              ERROR_CODES.INVALID_INPUT
+            )
+          }
+
+          const remaining: WithdrawnProfile[] = allFamilyProfiles
+            .filter((p) => !profileIds.includes(p.id))
+            .map((p) => ({
+              id: p.id,
+              status: p.status as EnrollmentStatus,
+              name: p.person.name,
+            }))
+
+          const updated = await updateProgramProfileStatusMany(
+            profileIds,
+            'WITHDRAWN',
+            WITHDRAWABLE_STATUSES,
+            tx
+          )
+          if (updated.count !== profileIds.length) {
+            throw new ActionError(
+              'Some children changed status during withdrawal. Please refresh and try again.',
+              ERROR_CODES.INVALID_INPUT
+            )
+          }
+
+          await deactivateBillingAssignmentsForProfiles(profileIds, now, tx)
+
+          const enrollmentStates: EnrollmentRollbackState[] = []
+          for (const profileId of profileIds) {
+            const activeEnrollment = await getActiveEnrollment(profileId, tx)
+            if (
+              activeEnrollment &&
+              isValidStatusTransition(activeEnrollment.status, 'WITHDRAWN')
+            ) {
+              enrollmentStates.push({
+                id: activeEnrollment.id,
+                status: activeEnrollment.status,
+                endDate: activeEnrollment.endDate,
+                reason: activeEnrollment.reason,
+              })
+              await updateEnrollmentStatus(
+                activeEnrollment.id,
+                'WITHDRAWN',
+                WITHDRAWAL_REASON,
+                now,
+                tx
+              )
+            }
+          }
+
+          await deactivateClassEnrollmentsForProfiles(profileIds, now, tx)
+
+          return {
+            profilesToWithdraw: toWithdraw,
+            remainingProfiles: remaining,
+            withdrawnEnrollments: enrollmentStates,
+          }
+        })
+
       const withdrawCount = profilesToWithdraw.length
-      const remainingCount = currentActiveCount - withdrawCount
+      const remainingCount = remainingProfiles.length
+      const currentActiveCount = withdrawCount + remainingCount
       const allWithdrawn = remainingCount === 0
 
       const newRate = calculateDugsiRate(remainingCount)
-
-      const subscription = await findFamilySubscription(familyReferenceId)
       const previousRate =
         subscription?.amount ?? calculateDugsiRate(currentActiveCount)
-      const isPaused = subscription?.status === 'paused'
 
       const originalStatuses = profilesToWithdraw.map((p) => ({
         id: p.id,
-        status: p.status as EnrollmentStatus,
+        status: p.status,
       }))
 
-      const now = new Date()
-      const withdrawnEnrollments: EnrollmentRollbackState[] = []
-
-      await prisma.$transaction(async (tx) => {
-        await updateProgramProfileStatusMany(profileIds, 'WITHDRAWN', tx)
-
-        await deactivateBillingAssignmentsForProfiles(profileIds, now, tx)
-
-        for (const profileId of profileIds) {
-          const activeEnrollment = await getActiveEnrollment(profileId, tx)
-          if (
-            activeEnrollment &&
-            isValidStatusTransition(activeEnrollment.status, 'WITHDRAWN')
-          ) {
-            withdrawnEnrollments.push({
-              id: activeEnrollment.id,
-              status: activeEnrollment.status,
-              endDate: activeEnrollment.endDate,
-              reason: activeEnrollment.reason,
-            })
-            await updateEnrollmentStatus(
-              activeEnrollment.id,
-              'WITHDRAWN',
-              WITHDRAWAL_REASON,
-              now,
-              tx
-            )
-          }
-        }
-
-        await deactivateClassEnrollmentsForProfiles(profileIds, now, tx)
-      })
-
-      const childNames = profilesToWithdraw.map((p) => p.person.name).join(', ')
+      const childNames = profilesToWithdraw.map((p) => p.name).join(', ')
 
       await logInfo(logger, 'Children withdrawn from Dugsi', {
         familyReferenceId,
@@ -167,31 +203,6 @@ export async function withdrawChildren(
       })
 
       if (!subscription) {
-        return {
-          success: true,
-          withdrawnCount: withdrawCount,
-          remainingCount,
-          newRate,
-          previousRate,
-          subscriptionCanceled: false,
-        }
-      }
-
-      if (isPaused) {
-        try {
-          await updateSubscriptionAmount(
-            subscription.id,
-            allWithdrawn ? 0 : newRate
-          )
-        } catch (dbError) {
-          await logError(
-            logger,
-            dbError,
-            'Failed to update paused subscription amount in DB after withdrawal',
-            { familyReferenceId, subscriptionId: subscription.id }
-          )
-        }
-
         return {
           success: true,
           withdrawnCount: withdrawCount,
@@ -215,6 +226,9 @@ export async function withdrawChildren(
 
       const stripe = getDugsiStripeClient()
 
+      // Paused subscriptions take the same path: Stripe applies price changes
+      // and cancel_at_period_end while collection is paused, so a later resume
+      // bills at the post-withdrawal rate instead of the stale one.
       try {
         if (allWithdrawn) {
           await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
@@ -303,7 +317,7 @@ export async function withdrawChildren(
           ],
           proration_behavior: 'none',
           metadata: {
-            Children: remainingProfiles.map((p) => p.person.name).join(', '),
+            Children: remainingProfiles.map((p) => p.name).join(', '),
             Rate: formatRateDisplay(newRate),
             Tier: getRateTierDescription(remainingCount),
             childCount: remainingCount.toString(),

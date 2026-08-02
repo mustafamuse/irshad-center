@@ -158,7 +158,7 @@ export function WithdrawDialog({
                       </div>
                     )}
 
-                    {preview.removesAllChildren && !isPaused && (
+                    {preview.removesAllChildren && (
                       <div className="flex items-center gap-2 text-sm text-amber-700">
                         <AlertTriangle className="h-4 w-4 shrink-0" />
                         Subscription will be canceled at end of billing period
@@ -174,7 +174,8 @@ export function WithdrawDialog({
 
                     {isPaused && (
                       <Badge variant="outline" className="text-xs">
-                        Subscription is paused - DB only, no Stripe changes
+                        Subscription is paused - new rate applies when billing
+                        resumes
                       </Badge>
                     )}
                   </div>

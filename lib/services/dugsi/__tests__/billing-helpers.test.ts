@@ -94,7 +94,7 @@ describe('handleBillingDivergence', () => {
 
     expect(result).toContain('Stripe paused')
     expect(result).toContain('DB update failed')
-    expect(result).toContain('Connection refused')
+    expect(result).not.toContain('Connection refused')
     expect(mockLogError).toHaveBeenCalledWith(
       mockLogger,
       dbError,
@@ -116,6 +116,6 @@ describe('handleBillingDivergence', () => {
     )
 
     expect(result).toContain('Stripe resumed')
-    expect(result).toContain('Unknown error')
+    expect(result).toContain('DB update failed')
   })
 })

@@ -40,5 +40,5 @@ export async function handleBillingDivergence(
     `CRITICAL: ${stripeAction} but DB update failed - states diverged`,
     context
   )
-  return `${stripeAction} but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`
+  return `${stripeAction} but DB update failed. Check logs for details.`
 }

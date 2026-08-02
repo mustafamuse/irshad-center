@@ -743,16 +743,23 @@ export async function findFamilyProfilesForWithdrawal(
 }
 
 /**
- * Set the status of multiple program profiles at once
+ * Set the status of multiple program profiles at once. When fromStatuses is
+ * provided, only rows currently in one of those statuses are updated — callers
+ * should compare the returned count against profileIds.length to detect rows
+ * that changed status concurrently.
  * @param client - Optional database client (for transaction support)
  */
 export async function updateProgramProfileStatusMany(
   profileIds: string[],
   status: EnrollmentStatus,
+  fromStatuses?: EnrollmentStatus[],
   client: DatabaseClient = prisma
 ) {
   return client.programProfile.updateMany({
-    where: { id: { in: profileIds } },
+    where: {
+      id: { in: profileIds },
+      ...(fromStatuses ? { status: { in: fromStatuses } } : {}),
+    },
     data: { status },
   })
 }

@@ -123,7 +123,9 @@ import { withdrawChildren } from '../withdrawal-service'
 beforeEach(() => {
   vi.clearAllMocks()
   mockUpdateProgramProfileStatus.mockResolvedValue(undefined)
-  mockUpdateProgramProfileStatusMany.mockResolvedValue({ count: 1 })
+  mockUpdateProgramProfileStatusMany.mockImplementation((ids: string[]) =>
+    Promise.resolve({ count: ids.length })
+  )
   mockDeactivateBillingAssignments.mockResolvedValue({ count: 1 })
   mockReactivateBillingAssignments.mockResolvedValue({ count: 1 })
   mockUpdateSubscriptionAmount.mockResolvedValue({})
@@ -201,6 +203,7 @@ describe('withdrawChildren', () => {
     expect(mockUpdateProgramProfileStatusMany).toHaveBeenCalledWith(
       ['profile-1'],
       'WITHDRAWN',
+      ['REGISTERED', 'ENROLLED'],
       'tx-client'
     )
     expect(mockDeactivateBillingAssignments).toHaveBeenCalledWith(
@@ -323,7 +326,7 @@ describe('withdrawChildren', () => {
     expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
   })
 
-  it('should skip Stripe when subscription is paused (DB-only)', async () => {
+  it('should update Stripe price when subscription is paused so resume bills correctly', async () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(2)
     )
@@ -331,13 +334,61 @@ describe('withdrawChildren', () => {
       ...MOCK_SUBSCRIPTION,
       status: 'paused',
     })
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+    mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
 
     const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
 
     expect(result.success).toBe(true)
     expect(result.remainingCount).toBe(1)
-    expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
+    expect(mockStripeSubscriptionUpdate).toHaveBeenCalledWith(
+      'sub_stripe123',
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            price_data: expect.objectContaining({ unit_amount: 8000 }),
+          }),
+        ],
+      })
+    )
     expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith('db-sub-id', 8000)
+  })
+
+  it('should set cancel_at_period_end when all children withdrawn from paused subscription', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce({
+      ...MOCK_SUBSCRIPTION,
+      status: 'paused',
+    })
+    mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
+
+    expect(result.success).toBe(true)
+    expect(result.subscriptionCanceled).toBe(true)
+    expect(mockStripeSubscriptionUpdate).toHaveBeenCalledWith(
+      'sub_stripe123',
+      expect.objectContaining({ cancel_at_period_end: true })
+    )
+    expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith('db-sub-id', 0)
+  })
+
+  it('should abort withdrawal when profiles changed status concurrently', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockUpdateProgramProfileStatusMany.mockResolvedValueOnce({ count: 1 })
+
+    await expect(
+      withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
+    ).rejects.toThrow(/changed status during withdrawal/)
+
+    expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
+    expect(mockDeactivateBillingAssignments).not.toHaveBeenCalled()
   })
 
   it('should warn when admin override is reset', async () => {
