@@ -31,6 +31,8 @@ export async function getBillingAccount(
 }
 ```
 
+Services must use these query functions rather than calling `prisma.X.Y()` directly.
+
 ### Action Pattern
 
 All actions use next-safe-action v8 clients from `lib/safe-action.ts`:
@@ -58,6 +60,8 @@ export async function myAction(...args: Parameters<typeof _myAction>) {
 ```
 
 Errors: throw `ActionError(message, ERROR_CODES.X)` for domain errors — safe-action's `handleServerError` catches and serializes them. Never return `{ success: false }` manually.
+
+ERROR_CODES: All codes must be defined in `lib/errors/action-error.ts`. Add new codes there before using them — never throw `ActionError` with a string literal.
 
 ### Mapper Pattern
 

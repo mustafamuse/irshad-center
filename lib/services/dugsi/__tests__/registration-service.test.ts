@@ -13,6 +13,7 @@ const {
   mockPrismaDeleteMany,
   mockCancelSubscription,
   mockLogWarning,
+  mockLogError,
 } = vi.hoisted(() => ({
   mockGetProgramProfileById: vi.fn(),
   mockGetProgramProfilesByFamilyId: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockPrismaDeleteMany: vi.fn(),
   mockCancelSubscription: vi.fn(),
   mockLogWarning: vi.fn(),
+  mockLogError: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -50,6 +52,7 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
   })),
   logWarning: (...args: unknown[]) => mockLogWarning(...args),
+  logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
 import { deleteDugsiFamily } from '../registration-service'
@@ -257,12 +260,12 @@ describe('deleteDugsiFamily', () => {
 
       const result = await deleteDugsiFamily('profile-1')
 
-      expect(mockLogWarning).toHaveBeenCalledWith(
+      expect(mockLogError).toHaveBeenCalledWith(
         expect.anything(),
+        expect.any(Error),
         'Subscription cancellation failed during family deletion',
         expect.objectContaining({
           stripeSubscriptionId: 'sub_error',
-          error: 'Stripe API error: subscription already canceled',
         })
       )
       expect(mockPrismaDelete).toHaveBeenCalled()

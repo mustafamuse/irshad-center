@@ -24,7 +24,7 @@ export function ImageCarousel() {
   ])
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#007078]/5 via-transparent to-[#deb43e]/5 p-2 shadow-xl">
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand/5 via-transparent to-brand-accent/5 p-2 shadow-xl">
       <div className="overflow-hidden rounded-2xl" ref={emblaRef}>
         <div className="flex">
           {images.map((image, index) => (

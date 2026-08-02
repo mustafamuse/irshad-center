@@ -14,7 +14,7 @@ import {
 const FacebookIcon = () => (
   <svg
     viewBox="0 0 24 24"
-    className="h-5 w-5 text-[#007078] transition-colors group-hover:text-white"
+    className="h-5 w-5 text-brand transition-colors group-hover:text-white"
   >
     <path
       fill="currentColor"
@@ -26,7 +26,7 @@ const FacebookIcon = () => (
 const InstagramIcon = () => (
   <svg
     viewBox="0 0 24 24"
-    className="h-5 w-5 text-[#007078] transition-colors group-hover:text-white"
+    className="h-5 w-5 text-brand transition-colors group-hover:text-white"
   >
     <path
       fill="currentColor"
@@ -38,7 +38,7 @@ const InstagramIcon = () => (
 const TwitterIcon = () => (
   <svg
     viewBox="0 0 24 24"
-    className="h-5 w-5 text-[#007078] transition-colors group-hover:text-white"
+    className="h-5 w-5 text-brand transition-colors group-hover:text-white"
   >
     <path
       fill="currentColor"
@@ -60,9 +60,23 @@ const contactInfo = {
   whatsapp: '6125177466',
 }
 
-const socialLinks = [
-  { name: 'Facebook', Icon: FacebookIcon },
-  { name: 'Instagram', Icon: InstagramIcon },
+interface SocialLink {
+  name: string
+  Icon: React.FC
+  href?: string
+}
+
+const socialLinks: SocialLink[] = [
+  {
+    name: 'Facebook',
+    Icon: FacebookIcon,
+    href: 'https://www.facebook.com/irshadcenter',
+  },
+  {
+    name: 'Instagram',
+    Icon: InstagramIcon,
+    href: 'https://www.instagram.com/irshadcenter',
+  },
   { name: 'Twitter', Icon: TwitterIcon },
 ]
 
@@ -163,8 +177,8 @@ export function ContactSection() {
                 whileHover={{ x: 5 }}
                 transition={{ type: 'spring', stiffness: 300 }}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#007078]/10">
-                  <MapPin className="h-5 w-5 text-[#007078]" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10">
+                  <MapPin className="h-5 w-5 text-brand" />
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-900">Our Location</h3>
@@ -179,8 +193,8 @@ export function ContactSection() {
                 whileHover={{ x: 5 }}
                 transition={{ type: 'spring', stiffness: 300 }}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#007078]/10">
-                  <Mail className="h-5 w-5 text-[#007078]" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10">
+                  <Mail className="h-5 w-5 text-brand" />
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-900">Email Us</h3>
@@ -194,8 +208,8 @@ export function ContactSection() {
                 whileHover={{ x: 5 }}
                 transition={{ type: 'spring', stiffness: 300 }}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#007078]/10">
-                  <GraduationCap className="h-5 w-5 text-[#007078]" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10">
+                  <GraduationCap className="h-5 w-5 text-brand" />
                 </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-medium text-gray-900">
@@ -206,32 +220,30 @@ export function ContactSection() {
                     time slots:
                   </p>
 
-                  <div className="mt-4 overflow-hidden rounded-xl bg-[#007078]/5">
+                  <div className="mt-4 overflow-hidden rounded-xl bg-brand/5">
                     {studyHours.map(({ day, hours }, index) => (
                       <div
                         key={day}
                         className={`flex items-center gap-3 px-4 py-3 ${
                           index !== studyHours.length - 1
-                            ? 'border-b border-[#007078]/10'
+                            ? 'border-b border-brand/10'
                             : ''
                         }`}
                       >
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white">
-                          <Calendar className="h-4 w-4 text-[#007078]" />
+                          <Calendar className="h-4 w-4 text-brand" />
                         </div>
                         <div className="flex flex-1 items-center justify-between">
-                          <span className="font-medium text-[#007078]">
-                            {day}
-                          </span>
+                          <span className="font-medium text-brand">{day}</span>
                           <span className="text-sm text-gray-600">{hours}</span>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-4 flex items-start gap-2 rounded-lg bg-[#deb43e]/10 px-4 py-3">
-                    <div className="shrink-0 rounded-full bg-[#deb43e]/20 p-1">
-                      <div className="h-1.5 w-1.5 rounded-full bg-[#deb43e]" />
+                  <div className="mt-4 flex items-start gap-2 rounded-lg bg-brand-accent/10 px-4 py-3">
+                    <div className="shrink-0 rounded-full bg-brand-accent/20 p-1">
+                      <div className="h-1.5 w-1.5 rounded-full bg-brand-accent" />
                     </div>
                     <p className="text-sm text-gray-700">
                       <span className="font-medium">Note:</span> Your specific
@@ -247,27 +259,41 @@ export function ContactSection() {
             <div>
               <h3 className="font-medium text-gray-900">Follow Us</h3>
               <div className="mt-4 flex gap-4">
-                {socialLinks.map(({ name, Icon }) => (
-                  <div
-                    key={name}
-                    className="group relative flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full bg-[#007078]/10 opacity-70 transition-all hover:bg-[#007078]/5"
-                    title="Coming soon"
-                  >
-                    {/* Tooltip */}
-                    <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 transform">
-                      <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="whitespace-nowrap rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white">
-                          Coming Soon
-                          {/* Arrow */}
-                          <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 rotate-45 transform bg-gray-900" />
+                {socialLinks.map(({ name, Icon, href }) =>
+                  href ? (
+                    <a
+                      key={name}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Follow Irshad Center on ${name}`}
+                      className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 transition-all hover:bg-brand"
+                    >
+                      <span className="sr-only">{name}</span>
+                      <Icon />
+                    </a>
+                  ) : (
+                    <div
+                      key={name}
+                      className="group relative flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full bg-brand/10 opacity-70 transition-all hover:bg-brand/5"
+                      title="Coming soon"
+                    >
+                      {/* Tooltip */}
+                      <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 transform">
+                        <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="whitespace-nowrap rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white">
+                            Coming Soon
+                            {/* Arrow */}
+                            <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 rotate-45 transform bg-gray-900" />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <span className="sr-only">{name}</span>
-                    <Icon />
-                  </div>
-                ))}
+                      <span className="sr-only">{name}</span>
+                      <Icon />
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </motion.div>
@@ -277,7 +303,7 @@ export function ContactSection() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="relative h-[400px] overflow-hidden rounded-2xl bg-gradient-to-br from-[#007078]/5 to-[#007078]/10 sm:h-[600px]"
+            className="relative h-[400px] overflow-hidden rounded-2xl bg-gradient-to-br from-brand/5 to-brand/10 sm:h-[600px]"
           >
             {/* Background Pattern */}
             <GridPattern />
@@ -291,9 +317,9 @@ export function ContactSection() {
             >
               {/* Location Icon */}
               <div className="relative">
-                <div className="absolute -inset-4 animate-ping rounded-full bg-[#007078]/20" />
-                <div className="relative rounded-full bg-[#007078]/10 p-4">
-                  <MapPin className="h-8 w-8 text-[#007078]" />
+                <div className="absolute -inset-4 animate-ping rounded-full bg-brand/20" />
+                <div className="relative rounded-full bg-brand/10 p-4">
+                  <MapPin className="h-8 w-8 text-brand" />
                 </div>
               </div>
 
@@ -307,7 +333,7 @@ export function ContactSection() {
 
               {/* Action Button */}
               <motion.div
-                className="mt-8 flex items-center gap-2 rounded-full bg-[#007078] px-6 py-3 text-sm font-medium text-white transition-colors group-hover:bg-[#007078]/90"
+                className="mt-8 flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-medium text-white transition-colors group-hover:bg-brand/90"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -316,8 +342,8 @@ export function ContactSection() {
               </motion.div>
 
               {/* Decorative Elements */}
-              <div className="absolute left-0 top-0 h-32 w-32 bg-gradient-to-br from-[#007078]/20 to-transparent blur-2xl" />
-              <div className="absolute bottom-0 right-0 h-32 w-32 bg-gradient-to-tl from-[#deb43e]/20 to-transparent blur-2xl" />
+              <div className="absolute left-0 top-0 h-32 w-32 bg-gradient-to-br from-brand/20 to-transparent blur-2xl" />
+              <div className="absolute bottom-0 right-0 h-32 w-32 bg-gradient-to-tl from-brand-accent/20 to-transparent blur-2xl" />
             </a>
           </motion.div>
         </div>
