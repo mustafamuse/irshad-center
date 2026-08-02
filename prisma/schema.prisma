@@ -65,11 +65,16 @@ model Teacher {
   updatedAt DateTime @updatedAt
 
   // Relations
-  person             Person                   @relation(fields: [personId], references: [id], onDelete: Cascade)
-  programs           TeacherProgram[] // Programs this teacher is authorized to teach
-  attendanceSessions DugsiAttendanceSession[]
-  checkIns           DugsiTeacherCheckIn[]
-  dugsiClasses       DugsiClassTeacher[]
+  person                   Person                    @relation(fields: [personId], references: [id], onDelete: Cascade)
+  programs                 TeacherProgram[] // Programs this teacher is authorized to teach
+  attendanceSessions       DugsiAttendanceSession[]
+  checkIns                 DugsiTeacherCheckIn[]
+  dugsiClasses             DugsiClassTeacher[]
+  classScheduleExceptions  ClassScheduleException[]
+  classSessions            ClassSession[]
+  excuseRequests           ExcuseRequest[]
+  teacherAttendanceRecords TeacherAttendanceRecord[]
+  teacherClassAssignments  TeacherClassAssignment[]
 
   @@index([personId])
 }
@@ -315,12 +320,18 @@ model ProgramProfile {
   updatedAt DateTime @updatedAt
 
   // Relations
-  person               Person                  @relation(fields: [personId], references: [id], onDelete: Cascade)
-  enrollments          Enrollment[]
-  assignments          BillingAssignment[]
-  payments             StudentPayment[]
-  dugsiClassEnrollment DugsiClassEnrollment?
-  attendanceRecords    DugsiAttendanceRecord[]
+  person                   Person                   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  enrollments              Enrollment[]
+  assignments              BillingAssignment[]
+  payments                 StudentPayment[]
+  dugsiClassEnrollment     DugsiClassEnrollment?
+  attendanceRecords        DugsiAttendanceRecord[]
+  mahadAssessmentResults   MahadAssessmentResult[]
+  mahadCohortEnrollments   MahadCohortEnrollment[]
+  mahadCreditLedgers       MahadCreditLedger[]
+  studentClassMemberships  StudentClassMembership[]
+  studentProgressSummaries StudentProgressSummary[]
+  studentSessionRecords    StudentSessionRecord[]
 
   @@unique([personId, program])
   @@index([personId])
@@ -383,8 +394,8 @@ model BillingAccount {
   updatedAt DateTime @updatedAt
 
   // Relations
-  person              Person?        @relation(fields: [personId], references: [id], onDelete: SetNull) // SetNull allows organization accounts
-  subscriptions       Subscription[] // All subscriptions for this billing account
+  person        Person?        @relation(fields: [personId], references: [id], onDelete: SetNull) // SetNull allows organization accounts
+  subscriptions Subscription[] // All subscriptions for this billing account
 
   @@index([accountType]) // Filter by account type
   @@index([stripeCustomerIdMahad]) // Find by Mahad Stripe customer ID
@@ -554,6 +565,7 @@ model DugsiAttendanceSession {
   @@unique([date, classId])
   @@index([date])
   @@index([classId])
+  @@index([classId, date(sort: Desc)])
   @@index([teacherId, date])
 }
 
@@ -577,6 +589,7 @@ model DugsiAttendanceRecord {
 
   @@unique([sessionId, programProfileId])
   @@index([sessionId])
+  @@index([sessionId, status])
   @@index([programProfileId])
   @@index([status])
   @@index([programProfileId, status])
@@ -599,7 +612,8 @@ model DugsiTeacherCheckIn {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher                 Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherAttendanceRecord TeacherAttendanceRecord?
 
   @@unique([teacherId, date, shift])
   @@index([teacherId])
@@ -697,4 +711,715 @@ model Donation {
   @@index([status, isRecurring, stripeSubscriptionId])
   @@index([status, stripeSubscriptionId, paidAt])
   @@index([status, donorEmail])
+}
+
+// ============================================================
+// Reconciled from production introspection (2026-08-01).
+// These tables were created by migrations 20260409-20260414
+// applied from a branch whose files were lost; models restored
+// via prisma db pull so repo and database agree again.
+// ============================================================
+
+enum AttendanceSource {
+  SELF_CHECKIN
+  ADMIN_OVERRIDE
+  AUTO_MARKED
+  SYSTEM
+  EXCUSE_APPROVED
+}
+
+enum AuditActorType {
+  TEACHER
+  ADMIN
+  SYSTEM
+}
+
+enum AuditEntityType {
+  PROGRAM_TERM
+  CLASS
+  CLASS_TERM
+  TEACHER_CLASS_ASSIGNMENT
+  STUDENT_CLASS_MEMBERSHIP
+  CLASS_SCHEDULE_RULE
+  CLASS_SCHEDULE_EXCEPTION
+  CLASS_SESSION
+  TEACHER_SESSION_ATTENDANCE
+  TEACHER_SESSION_VERIFICATION_ATTEMPT
+  STUDENT_SESSION_RECORD
+  STUDENT_SESSION_LEARNING_ENTRY
+  STUDENT_PROGRESS_SUMMARY
+  TERM_SNAPSHOT
+  SESSION_EDIT_LOCK
+  PROMOTION_EVENT
+}
+
+enum ClassTermStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ExcuseRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LearningDomain {
+  DAREERIS
+  CASHAR
+  HINGAAD
+  BEHAVIOR
+}
+
+enum MahadAssessmentType {
+  QUIZ
+  MIDTERM
+  FINAL
+  PROJECT
+  OTHER
+}
+
+enum MahadCohortEnrollmentStatus {
+  ACTIVE
+  ON_LEAVE
+  WITHDRAWN
+  COMPLETED
+}
+
+enum MahadCohortStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum MahadCreditResultStatus {
+  IN_PROGRESS
+  PASSED
+  FAILED
+  TRANSFERRED
+  WAIVED
+}
+
+enum MahadProgramTermEnrollmentStatus {
+  ENROLLED
+  ON_LEAVE
+  WITHDRAWN
+  COMPLETED
+}
+
+enum ProgramTermStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  CLOSED
+}
+
+enum StudentAttendanceStatus {
+  UNMARKED
+  PRESENT
+  LATE
+  ABSENT
+}
+
+enum TeacherAttendanceStatus {
+  EXPECTED
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+  CLOSED
+}
+
+enum TeacherSessionAttendanceStatus {
+  UNSTARTED
+  PRESENT
+  LATE
+  ABSENT
+}
+
+enum TeacherVerificationMethod {
+  GEOFENCE
+  SITE_PIN
+}
+
+enum TeacherVerificationStatus {
+  VERIFIED
+  FALLBACK_VERIFIED
+  UNVERIFIED_REVIEW_REQUIRED
+}
+
+enum TermSnapshotStatus {
+  CURRENT
+  STALE
+  SUPERSEDED
+}
+
+enum WorkStatus {
+  NOT_ASSIGNED
+  INCOMPLETE
+  COMPLETE
+}
+
+model AuditLog {
+  id         String          @id
+  entityType AuditEntityType
+  entityId   String
+  fieldName  String?
+  oldValue   Json?
+  newValue   Json?
+  actorType  AuditActorType
+  actorId    String?
+  reason     String?
+  createdAt  DateTime        @default(now())
+
+  @@index([actorType, actorId, createdAt])
+  @@index([entityType, entityId, createdAt])
+}
+
+model Class {
+  id        String      @id
+  program   Program
+  siteId    String
+  levelId   String
+  name      String
+  isActive  Boolean     @default(true)
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+  Level     Level       @relation(fields: [levelId, program], references: [id, program])
+  Site      Site        @relation(fields: [siteId], references: [id])
+  ClassTerm ClassTerm[]
+
+  @@unique([id, program])
+  @@index([levelId])
+  @@index([program, isActive])
+  @@index([siteId])
+}
+
+model ClassScheduleException {
+  id                String    @id
+  classTermId       String
+  program           Program
+  date              DateTime  @db.Date
+  kind              String
+  overrideTeacherId String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  ClassTerm         ClassTerm @relation(fields: [classTermId, program], references: [id, program], onDelete: Cascade)
+  Teacher           Teacher?  @relation(fields: [overrideTeacherId], references: [id])
+
+  @@index([classTermId, date])
+}
+
+model ClassScheduleRule {
+  id                 String    @id
+  classTermId        String
+  program            Program
+  dayOfWeek          Int
+  frequency          String
+  interval           Int       @default(1)
+  scheduledStartTime DateTime  @db.Time(6)
+  scheduledEndTime   DateTime  @db.Time(6)
+  effectiveFrom      DateTime  @db.Date
+  effectiveTo        DateTime? @db.Date
+  isActive           Boolean   @default(true)
+  metadata           Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  ClassTerm          ClassTerm @relation(fields: [classTermId, program], references: [id, program], onDelete: Cascade)
+
+  @@index([classTermId, isActive])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model ClassSession {
+  id                                String                              @id
+  classTermId                       String
+  program                           Program
+  date                              DateTime                            @db.Date
+  scheduledStartTime                DateTime                            @db.Time(6)
+  scheduledEndTime                  DateTime                            @db.Time(6)
+  primaryTeacherId                  String
+  classNameSnapshot                 String
+  teacherNameSnapshot               String
+  status                            SessionStatus                       @default(SCHEDULED)
+  notes                             String?
+  version                           Int                                 @default(1)
+  createdAt                         DateTime                            @default(now())
+  updatedAt                         DateTime
+  ClassTerm                         ClassTerm                           @relation(fields: [classTermId, program], references: [id, program], onDelete: Cascade)
+  Teacher                           Teacher                             @relation(fields: [primaryTeacherId], references: [id])
+  SessionEditLock                   SessionEditLock?
+  StudentSessionRecord              StudentSessionRecord[]
+  TeacherSessionAttendance          TeacherSessionAttendance?
+  TeacherSessionVerificationAttempt TeacherSessionVerificationAttempt[]
+
+  @@unique([classTermId, date, scheduledStartTime])
+  @@index([classTermId, date])
+  @@index([primaryTeacherId, date])
+  @@index([status, date])
+}
+
+model ClassTerm {
+  id                     String                   @id
+  classId                String
+  termId                 String
+  program                Program
+  status                 ClassTermStatus          @default(DRAFT)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  ClassScheduleException ClassScheduleException[]
+  ClassScheduleRule      ClassScheduleRule[]
+  ClassSession           ClassSession[]
+  Class                  Class                    @relation(fields: [classId, program], references: [id, program], onDelete: Cascade)
+  ProgramTerm            ProgramTerm              @relation(fields: [termId, program], references: [id, program], onDelete: Cascade)
+  MahadAssessment        MahadAssessment[]
+  MahadClassTermDetails  MahadClassTermDetails?
+  MahadCreditLedger      MahadCreditLedger[]
+  StudentClassMembership StudentClassMembership[]
+  TeacherClassAssignment TeacherClassAssignment[]
+
+  @@unique([classId, termId])
+  @@unique([id, program])
+  @@index([termId, status])
+}
+
+model DugsiAttendanceConfig {
+  id                       String   @id @default("singleton")
+  morningAutoMarkMinutes   Int      @default(15)
+  afternoonAutoMarkMinutes Int      @default(15)
+  updatedAt                DateTime
+  updatedBy                String?
+}
+
+model ExcuseRequest {
+  id                      String                  @id
+  attendanceRecordId      String
+  teacherId               String
+  reason                  String
+  status                  ExcuseRequestStatus     @default(PENDING)
+  adminNote               String?
+  reviewedBy              String?
+  reviewedAt              DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime
+  TeacherAttendanceRecord TeacherAttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+  Teacher                 Teacher                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceRecordId])
+  @@index([status])
+  @@index([teacherId, status])
+}
+
+model Level {
+  id        String   @id
+  program   Program
+  name      String
+  sortOrder Int
+  isActive  Boolean  @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Class     Class[]
+
+  @@unique([id, program])
+  @@unique([program, name])
+  @@index([program, isActive, sortOrder])
+}
+
+model MahadAssessment {
+  id                      String                  @id
+  programTermDetailsId    String
+  classTermId             String?
+  type                    MahadAssessmentType
+  name                    String
+  maxPoints               Decimal                 @db.Decimal(8, 2)
+  weight                  Decimal?                @db.Decimal(5, 2)
+  scheduledOn             DateTime?               @db.Date
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime
+  ClassTerm               ClassTerm?              @relation(fields: [classTermId], references: [id])
+  MahadProgramTermDetails MahadProgramTermDetails @relation(fields: [programTermDetailsId], references: [id], onDelete: Cascade)
+  MahadAssessmentResult   MahadAssessmentResult[]
+
+  @@index([classTermId])
+  @@index([programTermDetailsId])
+}
+
+model MahadAssessmentResult {
+  id               String          @id
+  assessmentId     String
+  programProfileId String
+  score            Decimal?        @db.Decimal(8, 2)
+  passed           Boolean?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime
+  MahadAssessment  MahadAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  ProgramProfile   ProgramProfile  @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, programProfileId])
+  @@index([programProfileId])
+}
+
+model MahadClassTermDetails {
+  id           String       @id
+  classTermId  String       @unique
+  subjectId    String
+  creditHours  Decimal      @db.Decimal(5, 2)
+  capacity     Int?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime
+  ClassTerm    ClassTerm    @relation(fields: [classTermId], references: [id], onDelete: Cascade)
+  MahadSubject MahadSubject @relation(fields: [subjectId], references: [id])
+
+  @@index([subjectId])
+}
+
+model MahadCohort {
+  id                      String                    @id
+  name                    String                    @unique
+  programVersion          String?
+  startsOn                DateTime                  @db.Date
+  expectedGraduationOn    DateTime?                 @db.Date
+  status                  MahadCohortStatus         @default(PLANNED)
+  notes                   String?
+  metadata                Json?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime
+  MahadCohortEnrollment   MahadCohortEnrollment[]
+  MahadProgramTermDetails MahadProgramTermDetails[]
+
+  @@index([startsOn])
+  @@index([status])
+}
+
+model MahadCohortEnrollment {
+  id                         String                       @id
+  programProfileId           String
+  cohortId                   String
+  startsOn                   DateTime                     @db.Date
+  endsOn                     DateTime?                    @db.Date
+  status                     MahadCohortEnrollmentStatus  @default(ACTIVE)
+  notes                      String?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  MahadCohort                MahadCohort                  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  ProgramProfile             ProgramProfile               @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+  MahadProgramTermEnrollment MahadProgramTermEnrollment[]
+
+  @@index([cohortId])
+  @@index([programProfileId])
+}
+
+model MahadCreditLedger {
+  id                      String                  @id
+  programProfileId        String
+  subjectId               String
+  programTermDetailsId    String
+  classTermId             String?
+  creditsAttempted        Decimal                 @db.Decimal(5, 2)
+  creditsEarned           Decimal                 @db.Decimal(5, 2)
+  resultStatus            MahadCreditResultStatus
+  notes                   String?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime
+  ClassTerm               ClassTerm?              @relation(fields: [classTermId], references: [id])
+  ProgramProfile          ProgramProfile          @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+  MahadProgramTermDetails MahadProgramTermDetails @relation(fields: [programTermDetailsId], references: [id], onDelete: Cascade)
+  MahadSubject            MahadSubject            @relation(fields: [subjectId], references: [id])
+
+  @@index([classTermId])
+  @@index([programProfileId])
+  @@index([programTermDetailsId])
+  @@index([subjectId])
+}
+
+model MahadGraduationRequirement {
+  id              String   @id
+  programVersion  String
+  category        String
+  requiredCredits Decimal  @db.Decimal(5, 2)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+
+  @@index([programVersion])
+}
+
+model MahadProgramTermDetails {
+  id                         String                       @id
+  programTermId              String                       @unique
+  cohortId                   String
+  sequence                   Int
+  finalsStartOn              DateTime?                    @db.Date
+  finalsEndOn                DateTime?                    @db.Date
+  breakEndsOn                DateTime?                    @db.Date
+  notes                      String?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  MahadAssessment            MahadAssessment[]
+  MahadCreditLedger          MahadCreditLedger[]
+  MahadCohort                MahadCohort                  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  ProgramTerm                ProgramTerm                  @relation(fields: [programTermId], references: [id], onDelete: Cascade)
+  MahadProgramTermEnrollment MahadProgramTermEnrollment[]
+
+  @@unique([cohortId, sequence])
+  @@index([cohortId])
+}
+
+model MahadProgramTermEnrollment {
+  id                      String                           @id
+  cohortEnrollmentId      String
+  programTermDetailsId    String
+  status                  MahadProgramTermEnrollmentStatus @default(ENROLLED)
+  notes                   String?
+  createdAt               DateTime                         @default(now())
+  updatedAt               DateTime
+  MahadCohortEnrollment   MahadCohortEnrollment            @relation(fields: [cohortEnrollmentId], references: [id], onDelete: Cascade)
+  MahadProgramTermDetails MahadProgramTermDetails          @relation(fields: [programTermDetailsId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortEnrollmentId, programTermDetailsId])
+  @@index([programTermDetailsId])
+}
+
+model MahadSubject {
+  id                    String                  @id
+  code                  String                  @unique
+  name                  String
+  category              String?
+  creditHours           Decimal                 @db.Decimal(5, 2)
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  MahadClassTermDetails MahadClassTermDetails[]
+  MahadCreditLedger     MahadCreditLedger[]
+
+  @@index([isActive])
+}
+
+model ProgramTerm {
+  id                      String                   @id
+  program                 Program
+  name                    String
+  startsOn                DateTime                 @db.Date
+  endsOn                  DateTime                 @db.Date
+  status                  ProgramTermStatus        @default(DRAFT)
+  metadata                Json?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime
+  ClassTerm               ClassTerm[]
+  MahadProgramTermDetails MahadProgramTermDetails?
+  TermSnapshot            TermSnapshot[]
+
+  @@unique([id, program])
+  @@unique([program, name])
+  @@index([program, status])
+  @@index([startsOn, endsOn])
+}
+
+model SchoolClosure {
+  id        String   @id
+  date      DateTime @unique @db.Date
+  reason    String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model SessionEditLock {
+  id           String         @id
+  sessionId    String         @unique
+  actorType    AuditActorType
+  actorId      String
+  expiresAt    DateTime
+  heartbeatAt  DateTime
+  createdAt    DateTime       @default(now())
+  ClassSession ClassSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([actorType, actorId])
+}
+
+model Site {
+  id          String   @id
+  name        String
+  code        String   @unique
+  isActive    Boolean  @default(true)
+  sitePinHash String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  Class       Class[]
+
+  @@index([isActive])
+}
+
+model StudentClassMembership {
+  id               String         @id
+  classTermId      String
+  programProfileId String
+  program          Program
+  effectiveFrom    DateTime       @db.Date
+  effectiveTo      DateTime?      @db.Date
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  ClassTerm        ClassTerm      @relation(fields: [classTermId, program], references: [id, program], onDelete: Cascade)
+  ProgramProfile   ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@index([classTermId, effectiveFrom, effectiveTo])
+  @@index([programProfileId, effectiveFrom, effectiveTo])
+}
+
+model StudentProgressSummary {
+  id               String         @id
+  programProfileId String
+  program          Program
+  domain           LearningDomain
+  summary          Json
+  updatedAt        DateTime
+  ProgramProfile   ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([programProfileId, domain])
+  @@index([program, domain])
+}
+
+model StudentSessionLearningEntry {
+  id                     String               @id
+  studentSessionRecordId String
+  domain                 LearningDomain
+  entryType              String
+  payload                Json
+  notes                  String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime
+  StudentSessionRecord   StudentSessionRecord @relation(fields: [studentSessionRecordId], references: [id], onDelete: Cascade)
+
+  @@unique([studentSessionRecordId, domain])
+  @@index([domain, entryType])
+}
+
+model StudentSessionRecord {
+  id                          String                        @id
+  sessionId                   String
+  programProfileId            String
+  program                     Program
+  studentNameSnapshot         String
+  snapshotMetadata            Json?
+  attendanceStatus            StudentAttendanceStatus       @default(UNMARKED)
+  isExcused                   Boolean                       @default(false)
+  excuseCategory              String?
+  excuseNote                  String?
+  classworkStatus             WorkStatus                    @default(NOT_ASSIGNED)
+  homeworkStatus              WorkStatus                    @default(NOT_ASSIGNED)
+  teacherNote                 String?
+  adminNote                   String?
+  markedByActorType           AuditActorType?
+  markedByActorId             String?
+  markedAt                    DateTime?
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime
+  StudentSessionLearningEntry StudentSessionLearningEntry[]
+  ProgramProfile              ProgramProfile                @relation(fields: [programProfileId], references: [id])
+  ClassSession                ClassSession                  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, programProfileId])
+  @@index([programProfileId, attendanceStatus])
+  @@index([sessionId, attendanceStatus])
+}
+
+model TeacherAttendanceRecord {
+  id                  String                   @id
+  teacherId           String
+  date                DateTime                 @db.Date
+  shift               Shift
+  status              TeacherAttendanceStatus  @default(EXPECTED)
+  source              AttendanceSource         @default(SYSTEM)
+  checkInId           String?                  @unique
+  clockInTime         DateTime?
+  minutesLate         Int?
+  notes               String?
+  changedBy           String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime
+  previousStatus      TeacherAttendanceStatus?
+  ExcuseRequest       ExcuseRequest[]
+  DugsiTeacherCheckIn DugsiTeacherCheckIn?     @relation(fields: [checkInId], references: [id], onDelete: Restrict)
+  Teacher             Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, date, shift])
+  @@index([date, shift, status])
+  @@index([teacherId, date])
+}
+
+model TeacherClassAssignment {
+  id            String    @id
+  classTermId   String
+  teacherId     String
+  program       Program
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+  ClassTerm     ClassTerm @relation(fields: [classTermId, program], references: [id, program], onDelete: Cascade)
+  Teacher       Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([classTermId, effectiveFrom, effectiveTo])
+  @@index([teacherId, effectiveFrom, effectiveTo])
+}
+
+model TeacherSessionAttendance {
+  id                 String                         @id
+  sessionId          String                         @unique
+  status             TeacherSessionAttendanceStatus @default(UNSTARTED)
+  checkedInAt        DateTime?
+  minutesLate        Int?
+  verificationMethod TeacherVerificationMethod?
+  verificationStatus TeacherVerificationStatus?
+  notes              String?
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime
+  ClassSession       ClassSession                   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([checkedInAt])
+  @@index([status])
+}
+
+model TeacherSessionVerificationAttempt {
+  id           String                     @id
+  sessionId    String
+  method       TeacherVerificationMethod?
+  outcome      TeacherVerificationStatus
+  attemptedAt  DateTime                   @default(now())
+  payload      Json?
+  ClassSession ClassSession               @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([outcome, attemptedAt])
+  @@index([sessionId, attemptedAt])
+}
+
+model TermSnapshot {
+  id          String             @id
+  termId      String
+  version     Int
+  status      TermSnapshotStatus
+  generatedBy String?
+  generatedAt DateTime           @default(now())
+  payload     Json
+  ProgramTerm ProgramTerm        @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  @@unique([termId, version])
+  @@index([termId, status])
 }
