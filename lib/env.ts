@@ -203,6 +203,19 @@ const envSchema = z
       z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional()
     ),
 
+    // ── Upstash Redis (rate limiting) ────────────────────────────────────────────
+    // checkRateLimit() silently no-ops when these are unset, which disables
+    // throttling on public actions — so they are required on Vercel production
+    // (enforced via superRefine below) but optional locally and in preview.
+    UPSTASH_REDIS_REST_URL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().url('UPSTASH_REDIS_REST_URL must be a valid URL').optional()
+    ),
+    UPSTASH_REDIS_REST_TOKEN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().min(1).optional()
+    ),
+
     // ── Geofence ─────────────────────────────────────────────────────────────────
     IRSHAD_CENTER_LAT: z.preprocess(
       (v) => (v === '' ? undefined : v),
@@ -265,6 +278,35 @@ const envSchema = z
           })
         }
       }
+    }
+
+    // Gated on VERCEL_ENV (not NODE_ENV) deliberately: local pre-push builds run
+    // with NODE_ENV=production but no Upstash credentials. Only actual Vercel
+    // production serves public traffic and must have rate limiting configured.
+    if (data.VERCEL_ENV === 'production') {
+      for (const key of [
+        'UPSTASH_REDIS_REST_URL',
+        'UPSTASH_REDIS_REST_TOKEN',
+      ] as const) {
+        if (!data[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} is required in production — without it public actions run with rate limiting disabled`,
+            path: [key],
+          })
+        }
+      }
+    }
+
+    const hasUrl = data.UPSTASH_REDIS_REST_URL !== undefined
+    const hasToken = data.UPSTASH_REDIS_REST_TOKEN !== undefined
+    if (hasUrl !== hasToken) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must both be set or both be absent',
+        path: [hasUrl ? 'UPSTASH_REDIS_REST_TOKEN' : 'UPSTASH_REDIS_REST_URL'],
+      })
     }
 
     const hasLat = data.IRSHAD_CENTER_LAT !== undefined
