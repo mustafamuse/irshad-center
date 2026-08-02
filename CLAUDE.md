@@ -1,20 +1,5 @@
 # Irshad Center - Claude Code Rules
 
-## Stack
-
-- Next.js 15.3.0 (App Router, Server Components)
-- Prisma 6.16.2 + PostgreSQL
-- TypeScript 5.9.0 (strict mode)
-- Stripe (dual accounts: Mahad + Dugsi)
-- Vitest + React Testing Library
-- Bun (package manager)
-- Pino logging + Axiom log aggregation + Sentry error tracking
-- shadcn/ui + Tailwind CSS
-- Zod + react-hook-form
-- Zustand state management
-
----
-
 ## Git Operations
 
 - If git push fails with auth errors, stop immediately and tell the user to run `gh auth setup-git` or check SSH keys
@@ -82,8 +67,6 @@ Claude should refuse to write code violating these rules.
 
 ### Workflow skills (loaded on demand, not always-on)
 
-- `/autopr` — autonomous PR pipeline (implement → typecheck → test → commit → push → `/create-pr`)
-- `/swarm` — parallel agent fan-out for refactors touching 3+ independent files
 - `/feature-gan` — three-agent harness (Planner/Generator/Evaluator) for non-trivial features
 - `/notes` — bootstrap NOTES.md to externalize state for long tasks
 - `/babysit` — handle PR review comments, rebase on main, shepherd toward merge
