@@ -211,71 +211,141 @@ export type ScholarshipApplicationOutput = z.output<
 >
 
 // Combined schema for server-side validation (simple object merge)
-export const scholarshipApplicationSchema = z.object({
-  // Applicant Details
-  studentName: z.string().min(1, 'Please select your name'),
-  className: z.string().min(1, 'Class is required'),
-  email: z.string().email('Invalid email address'),
-  phone: z
-    .string()
-    .min(1, 'Phone number is required')
-    .refine(
-      (val) => normalizePhone(val) !== null,
-      'Invalid phone number. Expected a 10-digit US number'
-    ),
-  payer: z.enum(['self', 'relative']),
-  payerRelation: z.string().optional(),
-  payerName: z.string().optional(),
-  payerPhone: z.string().optional(),
-  siblingCount: z.number().optional(),
-  // Financial Assessment
-  educationStatus: z.enum(['highschool', 'college', 'not-studying']),
-  schoolName: z.string().optional(),
-  schoolYear: z
-    .union([z.enum(HIGH_SCHOOL_YEARS), z.string().length(0)])
-    .optional(),
-  collegeName: z.string().optional(),
-  collegeYear: z
-    .union([z.enum(COLLEGE_YEARS), z.string().length(0)])
-    .optional(),
-  qualifiesForFafsa: z.enum(['yes', 'no']).optional(),
-  fafsaExplanation: z.string().optional(),
-  householdSize: z
-    .string()
-    .min(1)
-    .transform((val) => {
-      const num = parseInt(val)
-      if (isNaN(num)) throw new Error('Please enter a valid number')
-      return num
-    })
-    .pipe(z.number().min(1)),
-  dependents: z
-    .string()
-    .min(1)
-    .transform((val) => {
-      const num = parseInt(val)
-      if (isNaN(num)) throw new Error('Please enter a valid number')
-      return num
-    })
-    .pipe(z.number().min(0)),
-  adultsInHousehold: z
-    .string()
-    .min(1)
-    .transform((val) => {
-      const num = parseInt(val)
-      if (isNaN(num)) throw new Error('Please enter a valid number')
-      return num
-    })
-    .pipe(z.number().min(1)),
-  livesWithBothParents: z.enum(['yes', 'no']),
-  livingExplanation: z.string().optional(),
-  isEmployed: z.enum(['yes', 'no']),
-  monthlyIncome: z.number().nullable().optional(),
-  // Scholarship Justification
-  needJustification: z.string().min(50),
-  goalSupport: z.string().min(50),
-  commitment: z.string().min(50),
-  additionalInfo: z.string().optional(),
-  // Terms
-  termsAgreed: z.boolean().refine((val) => val === true),
-})
+export const scholarshipApplicationSchema = z
+  .object({
+    // Applicant Details
+    studentName: z.string().min(1, 'Please select your name'),
+    className: z.string().min(1, 'Class is required'),
+    email: z.string().email('Invalid email address'),
+    phone: z
+      .string()
+      .min(1, 'Phone number is required')
+      .refine(
+        (val) => normalizePhone(val) !== null,
+        'Invalid phone number. Expected a 10-digit US number'
+      ),
+    payer: z.enum(['self', 'relative']),
+    payerRelation: z.string().optional(),
+    payerName: z.string().optional(),
+    payerPhone: z.string().optional(),
+    siblingCount: z.number().optional(),
+    // Financial Assessment
+    educationStatus: z.enum(['highschool', 'college', 'not-studying']),
+    schoolName: z.string().optional(),
+    schoolYear: z
+      .union([z.enum(HIGH_SCHOOL_YEARS), z.string().length(0)])
+      .optional(),
+    collegeName: z.string().optional(),
+    collegeYear: z
+      .union([z.enum(COLLEGE_YEARS), z.string().length(0)])
+      .optional(),
+    qualifiesForFafsa: z.enum(['yes', 'no']).optional(),
+    fafsaExplanation: z.string().optional(),
+    householdSize: z
+      .string()
+      .min(1)
+      .transform((val) => {
+        const num = parseInt(val)
+        if (isNaN(num)) throw new Error('Please enter a valid number')
+        return num
+      })
+      .pipe(z.number().min(1)),
+    dependents: z
+      .string()
+      .min(1)
+      .transform((val) => {
+        const num = parseInt(val)
+        if (isNaN(num)) throw new Error('Please enter a valid number')
+        return num
+      })
+      .pipe(z.number().min(0)),
+    adultsInHousehold: z
+      .string()
+      .min(1)
+      .transform((val) => {
+        const num = parseInt(val)
+        if (isNaN(num)) throw new Error('Please enter a valid number')
+        return num
+      })
+      .pipe(z.number().min(1)),
+    livesWithBothParents: z.enum(['yes', 'no']),
+    livingExplanation: z.string().optional(),
+    isEmployed: z.enum(['yes', 'no']),
+    monthlyIncome: z.number().nullable().optional(),
+    // Scholarship Justification
+    needJustification: z.string().min(50),
+    goalSupport: z.string().min(50),
+    commitment: z.string().min(50),
+    additionalInfo: z.string().optional(),
+    // Terms
+    termsAgreed: z.boolean().refine((val) => val === true),
+  })
+  .refine(
+    (data) => {
+      if (data.payer === 'relative') {
+        return data.payerRelation && data.payerName && data.payerPhone
+      }
+      return true
+    },
+    { message: 'Please fill in all payer information', path: ['payer'] }
+  )
+  .refine(
+    (data) => {
+      if (data.educationStatus === 'highschool') {
+        return (
+          data.schoolName &&
+          data.schoolYear &&
+          HIGH_SCHOOL_YEARS.includes(
+            data.schoolYear as (typeof HIGH_SCHOOL_YEARS)[number]
+          )
+        )
+      }
+      if (data.educationStatus === 'college') {
+        return (
+          data.collegeName &&
+          data.collegeYear &&
+          COLLEGE_YEARS.includes(
+            data.collegeYear as (typeof COLLEGE_YEARS)[number]
+          )
+        )
+      }
+      return true
+    },
+    {
+      message: 'Please complete all required education fields',
+      path: ['educationStatus'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.educationStatus === 'college') {
+        return data.qualifiesForFafsa !== undefined
+      }
+      return true
+    },
+    {
+      message: 'Please indicate if you qualify for FAFSA',
+      path: ['qualifiesForFafsa'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.livesWithBothParents === 'no') {
+        return !!data.livingExplanation
+      }
+      return true
+    },
+    {
+      message: 'Please explain your living situation',
+      path: ['livingExplanation'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.isEmployed === 'yes') {
+        return data.monthlyIncome !== null && data.monthlyIncome !== undefined
+      }
+      return true
+    },
+    { message: 'Please enter your monthly income', path: ['monthlyIncome'] }
+  )
