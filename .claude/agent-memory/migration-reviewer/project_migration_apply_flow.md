@@ -19,6 +19,23 @@ bunx prisma migrate diff --from-schema-datamodel /tmp/old.prisma \
   --to-schema-datamodel prisma/schema.prisma --script
 ```
 
+**Full-history verification (needs a shadow DB — docker works).** The datamodel-to-datamodel diff above proves a migration.sql matches the schema delta, but not that the whole history converges. For that, spin up a throwaway Postgres — no need for any project env var:
+
+```
+docker run -d --name mig-shadow -e POSTGRES_PASSWORD=shadow -e POSTGRES_USER=shadow \
+  -e POSTGRES_DB=shadow -p 55433:5432 postgres:15
+SHADOW='postgresql://shadow:shadow@localhost:55433/shadow?schema=public'
+bunx prisma migrate diff --from-empty --to-migrations prisma/migrations \
+  --shadow-database-url "$SHADOW" --script          # does history replay at all?
+bunx prisma migrate diff --from-migrations prisma/migrations \
+  --to-schema-datamodel prisma/schema.prisma --shadow-database-url "$SHADOW" --script  # expect empty
+docker rm -f mig-shadow
+```
+
+Expect **both** to be non-clean today — see [[residual-migration-drift]] for the four known pre-existing items. Always compute the same two diffs against `HEAD` as a baseline and compare; byte-identical output means the change under review adds no drift.
+
+Note the `block-dangerous.sh` hook blocks `rm -rf`, so build scratch copies of the migrations dir additively (`mkdir` + per-directory `cp -R`) rather than creating and deleting them.
+
 Note `bunx prisma validate` fails with P1012 (`Environment variable not found: DIRECT_URL`) in a bare shell — that is an env-loading artifact, not a schema error. `migrate diff` parses the same datamodel fine, so use it as the validity signal instead.
 
 Related: [[stale-migration-docs]]
