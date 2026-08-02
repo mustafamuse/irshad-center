@@ -121,17 +121,40 @@ describe('findMahadProfileByEmail', () => {
 describe('findMahadProfilesByDob', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('queries by program AND person.dateOfBirth', async () => {
+  it('queries by program AND a UTC day range around person.dateOfBirth', async () => {
     mockFindMany.mockResolvedValue([])
-    const dob = new Date('2005-03-15')
+    const dob = new Date('2005-03-15T00:00:00Z')
     await findMahadProfilesByDob(dob)
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           program: 'MAHAD_PROGRAM',
-          person: { dateOfBirth: dob },
+          person: {
+            dateOfBirth: {
+              gte: new Date('2005-03-14T10:00:00Z'),
+              lt: new Date('2005-03-16T00:00:00Z'),
+            },
+          },
         },
         take: 10,
+      })
+    )
+  })
+
+  it('derives the same range regardless of the submitted time-of-day', async () => {
+    mockFindMany.mockResolvedValue([])
+    // Local midnight CST serializes as 06:00Z — must still target March 15
+    await findMahadProfilesByDob(new Date('2005-03-15T06:00:00Z'))
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          person: {
+            dateOfBirth: {
+              gte: new Date('2005-03-14T10:00:00Z'),
+              lt: new Date('2005-03-16T00:00:00Z'),
+            },
+          },
+        }),
       })
     )
   })

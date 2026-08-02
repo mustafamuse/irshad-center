@@ -99,15 +99,35 @@ export async function findMahadProfileByEmail(
  * responsible for narrowing this small set to a single match by normalized
  * name comparison. Cap is generous enough to absorb large families sharing
  * a DOB (twins, transcription overlap) while keeping response time bounded.
+ *
+ * Stored DOBs are local-midnight instants from `tryBuildDate` (`new Date(y,
+ * m-1, d)`), so their UTC time-of-day varies with the writer's timezone and
+ * DST (a January CST registration stores 06:00Z, a July CDT one 05:00Z).
+ * Exact DateTime equality therefore fails for the same calendar day. Match a
+ * window around the UTC day instead: 14h back covers local midnights east of
+ * UTC (up to UTC+14) that land on the previous UTC day. Any overlap with a
+ * neighboring calendar day is disambiguated by the caller's name filter and
+ * its exactly-one-match rule.
  */
 export async function findMahadProfilesByDob(
   dateOfBirth: Date,
   client: DatabaseClient = prisma
 ): Promise<MahadVerificationCandidate[]> {
+  const dayStart = Date.UTC(
+    dateOfBirth.getUTCFullYear(),
+    dateOfBirth.getUTCMonth(),
+    dateOfBirth.getUTCDate()
+  )
+  const HOUR = 60 * 60 * 1000
   const profiles = await client.programProfile.findMany({
     where: {
       program: MAHAD_PROGRAM,
-      person: { dateOfBirth },
+      person: {
+        dateOfBirth: {
+          gte: new Date(dayStart - 14 * HOUR),
+          lt: new Date(dayStart + 24 * HOUR),
+        },
+      },
     },
     take: 10,
     select: VERIFICATION_SELECT,
