@@ -59,6 +59,18 @@ const withdrawalTransactionOptions = {
   isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
 }
 
+// Connection-level failures (timeout, dropped socket) mean the response was
+// never received — Stripe may or may not have applied the change. Rolling back
+// the DB on that ambiguity could silently diverge from a Stripe that DID
+// apply it, so these are surfaced as unknown-state instead of rolled back.
+function isAmbiguousStripeOutcome(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'type' in error &&
+    (error as { type?: string }).type === 'StripeConnectionError'
+  )
+}
+
 export interface WithdrawChildrenResult {
   success: boolean
   error?: string
@@ -321,9 +333,12 @@ export async function withdrawChildren(
       // bills at the post-withdrawal rate instead of the stale one.
       //
       // Only Stripe-mutating calls and their prerequisites live inside this
-      // try — a failure here means Stripe was NOT changed, so the compensating
-      // DB rollback is truthful. Post-success DB sync and logging happen after
-      // the catch and are treated as divergence, never as rollback.
+      // try — an API-level failure here means Stripe rejected the change, so
+      // the compensating DB rollback is truthful. Connection-level failures
+      // are the exception: the outcome is unknown, so the catch surfaces them
+      // as unknown-state instead of rolling back. Post-success DB sync and
+      // logging happen after the catch and are treated as divergence, never
+      // as rollback.
       try {
         if (allWithdrawn) {
           await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
@@ -383,6 +398,24 @@ export async function withdrawChildren(
           })
         }
       } catch (stripeError) {
+        if (isAmbiguousStripeOutcome(stripeError)) {
+          await logError(
+            logger,
+            stripeError,
+            'Stripe outcome unknown after DB commit (connection failure) - verify subscription in Stripe dashboard',
+            {
+              familyReferenceId,
+              profileIds,
+              stripeSubscriptionId: subscription.stripeSubscriptionId,
+              intendedAmount: newRate,
+            }
+          )
+          throw new ActionError(
+            'Withdrawal was recorded, but the Stripe billing update may not have completed. Verify the subscription in the Stripe dashboard before retrying.',
+            ERROR_CODES.STRIPE_ERROR
+          )
+        }
+
         await logError(
           logger,
           stripeError,

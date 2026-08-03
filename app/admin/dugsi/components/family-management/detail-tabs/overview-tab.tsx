@@ -198,6 +198,14 @@ export function OverviewTab({
     [membersKey]
   )
 
+  const selectedWithdrawableIds = sortedChildren
+    .filter(
+      (child) =>
+        selectedIds.has(child.id) &&
+        (child.status === 'REGISTERED' || child.status === 'ENROLLED')
+    )
+    .map((child) => child.id)
+
   return (
     <div className="space-y-5">
       <div className="space-y-4 rounded-lg border bg-card p-5">
@@ -249,19 +257,16 @@ export function OverviewTab({
             Kids ({family.members.length})
           </h3>
           <div className="flex items-center gap-1">
-            {selectedIds.size > 0 && (
+            {selectedWithdrawableIds.length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  onWithdraw(Array.from(selectedIds))
-                  setSelectedIds(new Set())
-                }}
+                onClick={() => onWithdraw(selectedWithdrawableIds)}
                 className="h-8 px-2 text-xs text-amber-700 hover:text-amber-800 sm:px-3"
               >
                 <UserMinus className="h-3.5 w-3.5 sm:mr-1" />
                 <span className="hidden sm:inline">
-                  Withdraw ({selectedIds.size})
+                  Withdraw ({selectedWithdrawableIds.length})
                 </span>
               </Button>
             )}

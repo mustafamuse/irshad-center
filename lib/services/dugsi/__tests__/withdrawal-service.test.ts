@@ -654,6 +654,29 @@ describe('withdrawChildren', () => {
     )
   })
 
+  it('should not rollback on Stripe connection failure (unknown outcome)', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+    const connectionError = Object.assign(new Error('Request timed out'), {
+      type: 'StripeConnectionError',
+    })
+    mockStripeSubscriptionUpdate.mockRejectedValueOnce(connectionError)
+
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      /may not have completed/
+    )
+
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
+    expect(mockReactivateBillingAssignments).not.toHaveBeenCalled()
+    expect(mockRestoreEnrollmentState).not.toHaveBeenCalled()
+    expect(mockReactivateClassEnrollments).not.toHaveBeenCalled()
+  })
+
   it('should rollback DB when Stripe cancel_at_period_end fails', async () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(2)
