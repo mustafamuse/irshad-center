@@ -8,7 +8,7 @@ import {
   getProgramProfileById,
   findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
-  updateProgramProfileStatus,
+  updateProgramProfileStatusMany,
 } from '@/lib/db/queries/program-profile'
 import {
   ActionError,
@@ -599,7 +599,20 @@ export async function reEnrollChild(
 
   const now = new Date()
   await prisma.$transaction(async (tx) => {
-    await updateProgramProfileStatus(profileId, 'REGISTERED', tx)
+    const updated = await updateProgramProfileStatusMany(
+      [profileId],
+      'REGISTERED',
+      ['WITHDRAWN'],
+      tx
+    )
+    if (updated.count !== 1) {
+      throw new ActionError(
+        'Child status changed during re-enrollment. Please refresh and try again.',
+        ERROR_CODES.INVALID_INPUT,
+        undefined,
+        409
+      )
+    }
     await createRegisteredEnrollment(profileId, now, tx)
   })
 

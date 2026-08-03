@@ -9,7 +9,6 @@ import type { Program, EnrollmentStatus } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
-import { createBillingAssignment } from './billing'
 import { createEnrollment } from './enrollment'
 import { createGuardianRelationship } from './relationships'
 
@@ -133,51 +132,6 @@ export async function createEnrollmentWithBatch(
   }
 
   return createEnrollment(data, client)
-}
-
-/**
- * Create billing assignment with total validation
- */
-export async function createBillingAssignmentWithValidation(
-  data: {
-    subscriptionId: string
-    programProfileId: string
-    amount: number
-    percentage?: number | null
-    notes?: string | null
-    strict?: boolean // If true, throws error on over-assignment
-  },
-  client: DatabaseClient = prisma
-) {
-  const { strict = false, ...assignmentData } = data
-
-  // Calculate current total
-  const currentTotal = await calculateBillingAssignmentTotal(
-    data.subscriptionId,
-    data.programProfileId,
-    client
-  )
-
-  // Get subscription amount
-  const subscription = await client.subscription.findUnique({
-    where: { id: data.subscriptionId },
-    select: { amount: true },
-  })
-
-  if (!subscription) {
-    throw new Error('Subscription not found')
-  }
-
-  const newTotal = currentTotal + data.amount
-
-  // Strict validation: throw error if exceeds
-  if (strict && newTotal > subscription.amount) {
-    throw new Error(
-      `Total assignments ($${newTotal / 100}) would exceed subscription amount ($${subscription.amount / 100})`
-    )
-  }
-
-  return createBillingAssignment(assignmentData, client)
 }
 
 /**

@@ -4,10 +4,10 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 
 import { reEnrollChild } from '../family-service'
 
-const { mockGetProfile, mockUpdateStatus, mockCreateEnrollment, mockSync } =
+const { mockGetProfile, mockUpdateStatusMany, mockCreateEnrollment, mockSync } =
   vi.hoisted(() => ({
     mockGetProfile: vi.fn(),
-    mockUpdateStatus: vi.fn(),
+    mockUpdateStatusMany: vi.fn(),
     mockCreateEnrollment: vi.fn(),
     mockSync: vi.fn(),
   }))
@@ -15,7 +15,7 @@ const { mockGetProfile, mockUpdateStatus, mockCreateEnrollment, mockSync } =
 vi.mock('@/lib/db/queries/program-profile', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProgramProfileById: mockGetProfile,
-  updateProgramProfileStatus: mockUpdateStatus,
+  updateProgramProfileStatusMany: mockUpdateStatusMany,
 }))
 
 vi.mock('@/lib/db/queries/enrollment', () => ({
@@ -41,15 +41,17 @@ const WITHDRAWN_PROFILE = {
 beforeEach(() => {
   vi.clearAllMocks()
   mockGetProfile.mockResolvedValue(WITHDRAWN_PROFILE)
+  mockUpdateStatusMany.mockResolvedValue({ count: 1 })
   mockSync.mockResolvedValue({ synced: true, rate: 16000, childCount: 2 })
 })
 
 describe('reEnrollChild', () => {
   it('flips status, creates a fresh enrollment, and syncs billing', async () => {
     const result = await reEnrollChild('p1')
-    expect(mockUpdateStatus).toHaveBeenCalledWith(
-      'p1',
+    expect(mockUpdateStatusMany).toHaveBeenCalledWith(
+      ['p1'],
       'REGISTERED',
+      ['WITHDRAWN'],
       'tx-client'
     )
     expect(mockCreateEnrollment).toHaveBeenCalledWith(
@@ -68,7 +70,15 @@ describe('reEnrollChild', () => {
       status: 'ENROLLED',
     })
     await expect(reEnrollChild('p1')).rejects.toThrow(/not withdrawn/i)
-    expect(mockUpdateStatus).not.toHaveBeenCalled()
+    expect(mockUpdateStatusMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects with 409 when the profile flips away from WITHDRAWN between the read and the transaction', async () => {
+    mockUpdateStatusMany.mockResolvedValueOnce({ count: 0 })
+    await expect(reEnrollChild('p1')).rejects.toMatchObject({
+      statusCode: 409,
+    })
+    expect(mockCreateEnrollment).not.toHaveBeenCalled()
   })
 
   it('rejects unknown or non-Dugsi profiles', async () => {

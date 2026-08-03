@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import {
   createBillingAssignment,
   deactivateBillingAssignmentsForProfiles,
+  findFamilyLiveSubscriptions,
   getActiveBillingAssignmentsForSubscription,
   updateBillingAssignmentAmount,
   updateSubscriptionAmount,
@@ -73,7 +74,25 @@ export async function syncFamilyBillingRate(
     }
   }
 
-  const subscription = await findFamilySubscription(familyReferenceId)
+  let subscription = await findFamilySubscription(familyReferenceId)
+  if (!subscription) {
+    // No ACTIVE assignment means findFamilySubscription can't see it — this
+    // covers a fully-withdrawn family whose Stripe subscription is still live
+    // with cancel_at_period_end pending. Fall back to a family-scoped lookup
+    // that doesn't require an active assignment before giving up.
+    const liveSubscriptions =
+      await findFamilyLiveSubscriptions(familyReferenceId)
+    if (liveSubscriptions.length > 1) {
+      throw new ActionError(
+        'This family has multiple active subscriptions. Consolidate billing before recalculating.',
+        ERROR_CODES.ACTIVE_SUBSCRIPTION,
+        undefined,
+        409
+      )
+    }
+    subscription = liveSubscriptions[0] ?? null
+  }
+
   if (!subscription) {
     return {
       synced: false,
@@ -117,6 +136,7 @@ export async function syncFamilyBillingRate(
       { clearCancelAtPeriodEnd: true }
     )
   } catch (error) {
+    if (error instanceof ActionError) throw error
     await logError(logger, error, 'Stripe update failed during billing sync', {
       familyReferenceId,
       stripeSubscriptionId: subscription.stripeSubscriptionId,

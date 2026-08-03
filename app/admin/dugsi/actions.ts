@@ -875,8 +875,8 @@ const _updateFamilyShift = adminActionClient
     return { message: 'Successfully updated family shift' }
   })
 
-const _addChildToFamily = adminActionClient
-  .metadata({ actionName: 'addChildToFamily' })
+const _addChildToFamily = rateLimitedAdminActionClient
+  .metadata({ actionName: 'addChildToFamily', maxAttempts: 10 })
   .schema(AddChildToFamilySchema)
   .action(
     async ({ parsedInput }): Promise<{ childId: string; message: string }> => {
@@ -893,26 +893,52 @@ const _reEnrollChild = rateLimitedAdminActionClient
   .metadata({ actionName: 'reEnrollChild', maxAttempts: 10 })
   .schema(ReEnrollChildSchema)
   .action(async ({ parsedInput }) => {
-    const result = await reEnrollChildService(parsedInput.profileId)
-    after(() => {
-      revalidatePath('/admin/dugsi')
-      revalidateTag('dugsi-registrations')
-    })
-    return result
+    try {
+      const result = await reEnrollChildService(parsedInput.profileId)
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
+      return result
+    } catch (error) {
+      if (error instanceof ActionError) throw error
+      await logError(logger, error, 'Failed to re-enroll child', {
+        profileId: parsedInput.profileId,
+      })
+      throw new ActionError(
+        'Failed to re-enroll child',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
+    }
   })
 
 const _recalculateFamilyRate = rateLimitedAdminActionClient
   .metadata({ actionName: 'recalculateFamilyRate', maxAttempts: 30 })
   .schema(FamilyBillingControlSchema)
   .action(async ({ parsedInput }): Promise<SyncFamilyBillingResult> => {
-    const result = await syncFamilyBillingRateService(
-      parsedInput.familyReferenceId
-    )
-    after(() => {
-      revalidatePath('/admin/dugsi')
-      revalidateTag('dugsi-registrations')
-    })
-    return result
+    try {
+      const result = await syncFamilyBillingRateService(
+        parsedInput.familyReferenceId
+      )
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
+      return result
+    } catch (error) {
+      if (error instanceof ActionError) throw error
+      await logError(logger, error, 'Failed to recalculate family rate', {
+        familyReferenceId: parsedInput.familyReferenceId,
+      })
+      throw new ActionError(
+        'Failed to recalculate family rate',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
+    }
   })
 
 const _generateFamilyPaymentLinkAction = adminActionClient

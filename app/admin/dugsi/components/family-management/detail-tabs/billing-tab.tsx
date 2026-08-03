@@ -140,6 +140,10 @@ export function BillingTab({ family }: BillingTabProps) {
         toast.error(result.serverError)
         return
       }
+      if (result?.validationErrors) {
+        toast.error('Failed to recalculate rate')
+        return
+      }
       if (result?.data?.warning) {
         toast.warning(result.data.warning)
         return

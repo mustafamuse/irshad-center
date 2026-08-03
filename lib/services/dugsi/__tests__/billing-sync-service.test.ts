@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+
 import { syncFamilyBillingRate } from '../billing-sync-service'
 
 const {
   mockFindFamilySubscription,
   mockFindLiveFamilySubscriptionIds,
+  mockFindFamilyLiveSubscriptions,
   mockHandleBillingDivergence,
   mockFindFamilyProfilesForWithdrawal,
   mockGetActiveAssignmentsForSubscription,
@@ -16,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   mockFindFamilySubscription: vi.fn(),
   mockFindLiveFamilySubscriptionIds: vi.fn(),
+  mockFindFamilyLiveSubscriptions: vi.fn(),
   mockHandleBillingDivergence: vi.fn(),
   mockFindFamilyProfilesForWithdrawal: vi.fn(),
   mockGetActiveAssignmentsForSubscription: vi.fn(),
@@ -51,6 +55,8 @@ vi.mock('@/lib/db/queries/billing', () => ({
     mockUpdateSubscriptionAmount(...args),
   deactivateBillingAssignmentsForProfiles: (...args: unknown[]) =>
     mockDeactivateBillingAssignmentsForProfiles(...args),
+  findFamilyLiveSubscriptions: (...args: unknown[]) =>
+    mockFindFamilyLiveSubscriptions(...args),
 }))
 
 vi.mock('../subscription-pricing', () => ({
@@ -92,6 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockFindLiveFamilySubscriptionIds.mockResolvedValue(['sub-db-1'])
   mockFindFamilySubscription.mockResolvedValue(SUB)
+  mockFindFamilyLiveSubscriptions.mockResolvedValue([])
   mockFindFamilyProfilesForWithdrawal.mockResolvedValue(profiles(2))
   mockGetActiveAssignmentsForSubscription.mockResolvedValue([
     { id: 'a1', programProfileId: 'p1', amount: 8000 },
@@ -224,5 +231,54 @@ describe('syncFamilyBillingRate', () => {
     const result = await syncFamilyBillingRate(FAMILY)
     expect(result.synced).toBe(true)
     expect(result.warning).toMatch(/DB update failed/)
+  })
+
+  it('falls back to the family-scoped live subscription when no active-assignment subscription is found (fully-withdrawn re-enroll)', async () => {
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+    mockFindFamilyLiveSubscriptions.mockResolvedValueOnce([SUB])
+    const result = await syncFamilyBillingRate(FAMILY)
+    expect(mockUpdatePricing).toHaveBeenCalledWith(
+      expect.anything(),
+      'sub_stripe1',
+      expect.any(Number),
+      expect.anything(),
+      { clearCancelAtPeriodEnd: true }
+    )
+    expect(result.synced).toBe(true)
+    expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith(
+      'sub-db-1',
+      expect.any(Number),
+      'tx-client'
+    )
+  })
+
+  it('still returns the "needs a new checkout" warning when the fallback also finds nothing', async () => {
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+    mockFindFamilyLiveSubscriptions.mockResolvedValueOnce([])
+    const result = await syncFamilyBillingRate(FAMILY)
+    expect(result.synced).toBe(false)
+    expect(result.warning).toMatch(/needs a new checkout/i)
+    expect(mockUpdatePricing).not.toHaveBeenCalled()
+  })
+
+  it('409s when the fallback finds multiple live subscriptions', async () => {
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+    mockFindFamilyLiveSubscriptions.mockResolvedValueOnce([
+      SUB,
+      { ...SUB, id: 'sub-db-2' },
+    ])
+    await expect(syncFamilyBillingRate(FAMILY)).rejects.toThrow(
+      /multiple active subscriptions/i
+    )
+    expect(mockUpdatePricing).not.toHaveBeenCalled()
+  })
+
+  it('rethrows an ActionError from the Stripe pricing helper unwrapped instead of collapsing it into the generic Stripe-error message', async () => {
+    const configError = new ActionError(
+      'Stripe product not configured for Dugsi',
+      ERROR_CODES.STRIPE_ERROR
+    )
+    mockUpdatePricing.mockRejectedValueOnce(configError)
+    await expect(syncFamilyBillingRate(FAMILY)).rejects.toBe(configError)
   })
 })
