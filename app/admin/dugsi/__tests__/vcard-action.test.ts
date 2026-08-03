@@ -47,6 +47,7 @@ function makeReg(
   return {
     id: 'reg-1',
     name: 'Child One',
+    status: 'ENROLLED',
     gender: null,
     dateOfBirth: null,
     gradeLevel: null,

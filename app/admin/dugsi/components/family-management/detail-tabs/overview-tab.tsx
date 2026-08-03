@@ -17,8 +17,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
-
 import { useActionHandler } from '@/hooks/use-action-handler'
+
 import { Family, DugsiRegistration } from '../../../_types'
 import { getOrderedParentData } from '../../../_utils/format'
 import { setPrimaryPayer } from '../../../actions'
@@ -277,44 +277,62 @@ export function OverviewTab({
           </div>
         </div>
         <div className="space-y-2.5 pt-1">
-          {sortedChildren.map((child, index) => (
-            <div key={child.id} className="flex items-start gap-2">
-              <div className="flex pt-3">
-                <Checkbox
-                  checked={selectedIds.has(child.id)}
-                  onCheckedChange={() => toggleSelection(child.id)}
-                  aria-label={`Select ${child.name} for withdrawal`}
-                />
+          {sortedChildren.map((child, index) => {
+            const isWithdrawable =
+              child.status === 'REGISTERED' || child.status === 'ENROLLED'
+            return (
+              <div key={child.id} className="flex items-start gap-2">
+                <div className="flex w-4 pt-3">
+                  {isWithdrawable && (
+                    <Checkbox
+                      checked={selectedIds.has(child.id)}
+                      onCheckedChange={() => toggleSelection(child.id)}
+                      aria-label={`Select ${child.name} for withdrawal`}
+                    />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <ChildInfoCard
+                    child={child}
+                    index={index}
+                    editButton={
+                      <div className="flex items-center gap-0.5">
+                        {isWithdrawable ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onWithdraw([child.id])}
+                            className="h-7 px-1.5 text-amber-600 hover:text-amber-700"
+                            title="Withdraw child"
+                          >
+                            <UserMinus className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="h-5 px-1.5 text-[10px] font-medium text-muted-foreground"
+                          >
+                            {child.status === 'WITHDRAWN'
+                              ? 'Withdrawn'
+                              : child.status.charAt(0) +
+                                child.status.slice(1).toLowerCase()}
+                          </Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onEditChild(child.id)}
+                          className="h-7 px-2"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    }
+                  />
+                </div>
               </div>
-              <div className="flex-1">
-                <ChildInfoCard
-                  child={child}
-                  index={index}
-                  editButton={
-                    <div className="flex items-center gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onWithdraw([child.id])}
-                        className="h-7 px-1.5 text-amber-600 hover:text-amber-700"
-                        title="Withdraw child"
-                      >
-                        <UserMinus className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onEditChild(child.id)}
-                        className="h-7 px-2"
-                      >
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  }
-                />
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>
