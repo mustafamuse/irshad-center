@@ -11,6 +11,7 @@ import { withdrawChildren } from '@/lib/services/dugsi/withdrawal-service'
 import {
   WithdrawChildrenSchema,
   WithdrawalPreviewSchema,
+  formatWithdrawalReason,
 } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-withdrawal-actions')
@@ -47,9 +48,13 @@ const _withdrawChildrenAction = rateLimitedAdminActionClient
   .metadata({ actionName: 'withdrawChildrenAction', maxAttempts: 10 })
   .schema(WithdrawChildrenSchema)
   .action(async ({ parsedInput }) => {
-    const { familyReferenceId, profileIds } = parsedInput
+    const { familyReferenceId, profileIds, reason, note } = parsedInput
     try {
-      const result = await withdrawChildren(familyReferenceId, profileIds)
+      const result = await withdrawChildren(
+        familyReferenceId,
+        profileIds,
+        formatWithdrawalReason(reason, note)
+      )
 
       after(() => {
         revalidatePath('/admin/dugsi')

@@ -97,7 +97,8 @@ interface WithdrawnProfile {
 
 export async function withdrawChildren(
   familyReferenceId: string,
-  requestedProfileIds: string[]
+  requestedProfileIds: string[],
+  reason: string = WITHDRAWAL_REASON
 ): Promise<WithdrawChildrenResult> {
   const profileIds = Array.from(new Set(requestedProfileIds))
   return Sentry.startSpan(
@@ -238,7 +239,7 @@ export async function withdrawChildren(
           if (enrollmentStates.length > 0) {
             await withdrawEnrollmentsByIds(
               enrollmentStates.map((e) => e.id),
-              WITHDRAWAL_REASON,
+              reason,
               now,
               tx
             )

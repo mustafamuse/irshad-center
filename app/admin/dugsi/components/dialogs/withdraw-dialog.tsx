@@ -16,7 +16,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 import type { WithdrawalPreview } from '@/lib/services/dugsi/withdrawal-preview-service'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
@@ -43,6 +53,10 @@ export function WithdrawDialog({
   const [isPending, startTransition] = useTransition()
   const [preview, setPreview] = useState<WithdrawalPreview | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [reason, setReason] = useState<
+    (typeof WITHDRAWAL_REASONS)[number] | ''
+  >('')
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     if (!open || profileIds.length === 0) return
@@ -77,14 +91,19 @@ export function WithdrawDialog({
   useEffect(() => {
     if (!open) {
       setPreview(null)
+      setReason('')
+      setNote('')
     }
   }, [open])
 
   const handleWithdraw = () => {
+    if (!reason) return
     startTransition(async () => {
       const result = await withdrawChildrenAction({
         familyReferenceId,
         profileIds,
+        reason,
+        note: note.trim() || undefined,
       })
       if (result?.data?.success) {
         toast.success(result.data.message || 'Children withdrawn')
@@ -192,11 +211,48 @@ export function WithdrawDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="withdraw-reason">Reason</Label>
+            <Select
+              value={reason || undefined}
+              onValueChange={(value) =>
+                setReason(value as (typeof WITHDRAWAL_REASONS)[number])
+              }
+              disabled={isPending}
+            >
+              <SelectTrigger id="withdraw-reason">
+                <SelectValue placeholder="Select a reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {WITHDRAWAL_REASONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="withdraw-note">Note (Optional)</Label>
+            <Textarea
+              id="withdraw-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={200}
+              rows={2}
+              disabled={isPending}
+              placeholder="Additional details..."
+            />
+          </div>
+        </div>
+
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleWithdraw}
-            disabled={isPending || isLoadingPreview}
+            disabled={isPending || isLoadingPreview || !reason}
             className="bg-amber-600 hover:bg-amber-700"
           >
             {isPending ? 'Withdrawing...' : 'Confirm Withdrawal'}

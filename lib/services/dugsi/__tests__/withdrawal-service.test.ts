@@ -731,6 +731,44 @@ describe('withdrawChildren', () => {
     expect(mockReactivateClassEnrollments).toHaveBeenCalled()
   })
 
+  it('passes the provided reason to enrollment withdrawal', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+
+    await withdrawChildren(FAMILY_ID, ['profile-1'], 'Financial: tuition cost')
+
+    expect(mockWithdrawEnrollmentsByIds).toHaveBeenCalledWith(
+      expect.any(Array),
+      'Financial: tuition cost',
+      expect.any(Date),
+      'tx-client'
+    )
+  })
+
+  it('defaults the reason when none is provided', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+
+    await withdrawChildren(FAMILY_ID, ['profile-1'])
+
+    expect(mockWithdrawEnrollmentsByIds).toHaveBeenCalledWith(
+      expect.any(Array),
+      'Withdrawn by admin',
+      expect.any(Date),
+      'tx-client'
+    )
+  })
+
   it('should log but not throw when rollback itself fails', async () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(2)
