@@ -45,24 +45,31 @@ export function WithdrawDialog({
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
 
   useEffect(() => {
-    if (open && profileIds.length > 0) {
-      setIsLoadingPreview(true)
-      getWithdrawalPreviewAction({ familyReferenceId, profileIds })
-        .then((result) => {
-          if (result?.data) {
-            setPreview(result.data)
-          } else {
-            toast.error(result?.serverError || 'Failed to load preview')
-            onOpenChange(false)
-          }
-        })
-        .catch(() => {
-          toast.error('Failed to load withdrawal preview')
+    if (!open || profileIds.length === 0) return
+
+    let cancelled = false
+    setIsLoadingPreview(true)
+    getWithdrawalPreviewAction({ familyReferenceId, profileIds })
+      .then((result) => {
+        if (cancelled) return
+        if (result?.data) {
+          setPreview(result.data)
+        } else {
+          toast.error(result?.serverError || 'Failed to load preview')
           onOpenChange(false)
-        })
-        .finally(() => {
-          setIsLoadingPreview(false)
-        })
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        toast.error('Failed to load withdrawal preview')
+        onOpenChange(false)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingPreview(false)
+      })
+
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, familyReferenceId, profileIds])

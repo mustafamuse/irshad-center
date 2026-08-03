@@ -16,8 +16,8 @@ const {
   mockUpdateSubscriptionAmount,
   mockDeactivateClassEnrollments,
   mockReactivateClassEnrollments,
-  mockGetActiveEnrollment,
-  mockUpdateEnrollmentStatus,
+  mockGetActiveEnrollmentsForProfiles,
+  mockWithdrawEnrollmentsByIds,
   mockRestoreEnrollmentState,
   mockLogInfo,
   mockLogWarning,
@@ -38,8 +38,8 @@ const {
   mockUpdateSubscriptionAmount: vi.fn(),
   mockDeactivateClassEnrollments: vi.fn(),
   mockReactivateClassEnrollments: vi.fn(),
-  mockGetActiveEnrollment: vi.fn(),
-  mockUpdateEnrollmentStatus: vi.fn(),
+  mockGetActiveEnrollmentsForProfiles: vi.fn(),
+  mockWithdrawEnrollmentsByIds: vi.fn(),
   mockRestoreEnrollmentState: vi.fn(),
   mockLogInfo: vi.fn(),
   mockLogWarning: vi.fn(),
@@ -108,9 +108,10 @@ vi.mock('@/lib/db/queries/dugsi-class', () => ({
 }))
 
 vi.mock('@/lib/db/queries/enrollment', () => ({
-  getActiveEnrollment: (...args: unknown[]) => mockGetActiveEnrollment(...args),
-  updateEnrollmentStatus: (...args: unknown[]) =>
-    mockUpdateEnrollmentStatus(...args),
+  getActiveEnrollmentsForProfiles: (...args: unknown[]) =>
+    mockGetActiveEnrollmentsForProfiles(...args),
+  withdrawEnrollmentsByIds: (...args: unknown[]) =>
+    mockWithdrawEnrollmentsByIds(...args),
   restoreEnrollmentState: (...args: unknown[]) =>
     mockRestoreEnrollmentState(...args),
 }))
@@ -148,15 +149,18 @@ beforeEach(() => {
   mockUpdateSubscriptionAmount.mockResolvedValue({})
   mockDeactivateClassEnrollments.mockResolvedValue({ count: 1 })
   mockReactivateClassEnrollments.mockResolvedValue({ count: 1 })
-  mockGetActiveEnrollment.mockImplementation((profileId: string) =>
-    Promise.resolve({
-      id: `enr-${profileId}`,
-      status: 'ENROLLED',
-      endDate: null,
-      reason: null,
-    })
+  mockGetActiveEnrollmentsForProfiles.mockImplementation((ids: string[]) =>
+    Promise.resolve(
+      ids.map((id) => ({
+        id: `enr-${id}`,
+        status: 'ENROLLED',
+        endDate: null,
+        reason: null,
+        programProfileId: id,
+      }))
+    )
   )
-  mockUpdateEnrollmentStatus.mockResolvedValue({})
+  mockWithdrawEnrollmentsByIds.mockResolvedValue({ count: 1 })
   mockRestoreEnrollmentState.mockResolvedValue({})
 })
 
@@ -233,9 +237,8 @@ describe('withdrawChildren', () => {
       expect.any(Date),
       'tx-client'
     )
-    expect(mockUpdateEnrollmentStatus).toHaveBeenCalledWith(
-      'enr-profile-1',
-      'WITHDRAWN',
+    expect(mockWithdrawEnrollmentsByIds).toHaveBeenCalledWith(
+      ['enr-profile-1'],
       'Withdrawn by admin',
       expect.any(Date),
       'tx-client'
@@ -283,7 +286,12 @@ describe('withdrawChildren', () => {
     expect(result.remainingCount).toBe(1)
     expect(result.newRate).toBe(8000)
     expect(result.previousRate).toBe(23000)
-    expect(mockUpdateEnrollmentStatus).toHaveBeenCalledTimes(2)
+    expect(mockWithdrawEnrollmentsByIds).toHaveBeenCalledWith(
+      ['enr-profile-1', 'enr-profile-2'],
+      'Withdrawn by admin',
+      expect.any(Date),
+      'tx-client'
+    )
   })
 
   it('should cancel subscription when all children withdrawn', async () => {
@@ -315,13 +323,13 @@ describe('withdrawChildren', () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(1)
     )
-    mockGetActiveEnrollment.mockResolvedValueOnce(null)
+    mockGetActiveEnrollmentsForProfiles.mockResolvedValueOnce([])
     mockFindFamilySubscription.mockResolvedValueOnce(null)
 
     const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
 
     expect(result.success).toBe(true)
-    expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
+    expect(mockWithdrawEnrollmentsByIds).not.toHaveBeenCalled()
     expect(mockDeactivateClassEnrollments).toHaveBeenCalled()
   })
 
@@ -329,18 +337,21 @@ describe('withdrawChildren', () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(1)
     )
-    mockGetActiveEnrollment.mockResolvedValueOnce({
-      id: 'enr-profile-1',
-      status: 'COMPLETED',
-      endDate: null,
-      reason: null,
-    })
+    mockGetActiveEnrollmentsForProfiles.mockResolvedValueOnce([
+      {
+        id: 'enr-profile-1',
+        status: 'COMPLETED',
+        endDate: null,
+        reason: null,
+        programProfileId: 'profile-1',
+      },
+    ])
     mockFindFamilySubscription.mockResolvedValueOnce(null)
 
     const result = await withdrawChildren(FAMILY_ID, ['profile-1'])
 
     expect(result.success).toBe(true)
-    expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
+    expect(mockWithdrawEnrollmentsByIds).not.toHaveBeenCalled()
   })
 
   it('should update Stripe price when subscription is paused so resume bills correctly', async () => {

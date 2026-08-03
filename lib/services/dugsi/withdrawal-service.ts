@@ -15,9 +15,9 @@ import {
   reactivateClassEnrollmentsForProfiles,
 } from '@/lib/db/queries/dugsi-class'
 import {
-  getActiveEnrollment,
+  getActiveEnrollmentsForProfiles,
   restoreEnrollmentState,
-  updateEnrollmentStatus,
+  withdrawEnrollmentsByIds,
 } from '@/lib/db/queries/enrollment'
 import {
   findFamilyProfilesForWithdrawal,
@@ -90,31 +90,37 @@ export async function withdrawChildren(
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChildren', op: 'function' },
     async () => {
-      // Per-child rate math assumes one live subscription covers the family.
-      // Legacy families can have siblings split across subscriptions — those
-      // must be consolidated first or the wrong subscription gets repriced.
-      const liveSubscriptionIds =
-        await findLiveFamilySubscriptionIds(familyReferenceId)
-      if (liveSubscriptionIds.length > 1) {
-        throw new ActionError(
-          'This family has multiple active subscriptions. Consolidate billing before withdrawing children.',
-          ERROR_CODES.ACTIVE_SUBSCRIPTION,
-          undefined,
-          409
-        )
-      }
-
-      const subscription = await findFamilySubscription(familyReferenceId)
-
       const now = new Date()
 
-      // Profiles are read and counted inside the transaction so a concurrent
-      // withdrawal of other children in the same family cannot produce a
-      // stale remainingCount (and therefore a wrong Stripe rate). Serializable
-      // isolation makes two overlapping withdrawals of different siblings
-      // conflict instead of both computing rates from the same snapshot.
+      // Profiles, the family subscription, and the multi-subscription guard
+      // are all read inside the transaction so the rate math and the Stripe
+      // update work from one consistent snapshot. Serializable isolation
+      // makes two overlapping withdrawals of different siblings conflict
+      // instead of both computing rates from the same stale state.
       const runWithdrawalTransaction = () =>
         prisma.$transaction(async (tx) => {
+          // Per-child rate math assumes one live subscription covers the
+          // family. Legacy families can have siblings split across
+          // subscriptions — those must be consolidated first or the wrong
+          // subscription gets repriced.
+          const liveSubscriptionIds = await findLiveFamilySubscriptionIds(
+            familyReferenceId,
+            tx
+          )
+          if (liveSubscriptionIds.length > 1) {
+            throw new ActionError(
+              'This family has multiple active subscriptions. Consolidate billing before withdrawing children.',
+              ERROR_CODES.ACTIVE_SUBSCRIPTION,
+              undefined,
+              409
+            )
+          }
+
+          const subscription = await findFamilySubscription(
+            familyReferenceId,
+            tx
+          )
+
           const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
             familyReferenceId,
             DUGSI_PROGRAM,
@@ -204,32 +210,31 @@ export async function withdrawChildren(
             }
           }
 
-          const enrollmentStates: EnrollmentRollbackState[] = []
-          for (const profileId of profileIds) {
-            const activeEnrollment = await getActiveEnrollment(profileId, tx)
-            if (
-              activeEnrollment &&
-              isValidStatusTransition(activeEnrollment.status, 'WITHDRAWN')
-            ) {
-              enrollmentStates.push({
-                id: activeEnrollment.id,
-                status: activeEnrollment.status,
-                endDate: activeEnrollment.endDate,
-                reason: activeEnrollment.reason,
-              })
-              await updateEnrollmentStatus(
-                activeEnrollment.id,
-                'WITHDRAWN',
-                WITHDRAWAL_REASON,
-                now,
-                tx
-              )
-            }
+          const activeEnrollments = await getActiveEnrollmentsForProfiles(
+            profileIds,
+            tx
+          )
+          const enrollmentStates: EnrollmentRollbackState[] = activeEnrollments
+            .filter((e) => isValidStatusTransition(e.status, 'WITHDRAWN'))
+            .map((e) => ({
+              id: e.id,
+              status: e.status,
+              endDate: e.endDate,
+              reason: e.reason,
+            }))
+          if (enrollmentStates.length > 0) {
+            await withdrawEnrollmentsByIds(
+              enrollmentStates.map((e) => e.id),
+              WITHDRAWAL_REASON,
+              now,
+              tx
+            )
           }
 
           await deactivateClassEnrollmentsForProfiles(profileIds, now, tx)
 
           return {
+            subscription,
             profilesToWithdraw: toWithdraw,
             remainingProfiles: remaining,
             withdrawnEnrollments: enrollmentStates,
@@ -253,6 +258,7 @@ export async function withdrawChildren(
       }
 
       const {
+        subscription,
         profilesToWithdraw,
         remainingProfiles,
         withdrawnEnrollments,
