@@ -184,6 +184,12 @@ export async function withdrawChildren(
                 calculateDugsiRate(remaining.length),
                 remainingAssignments.length
               )
+              if (splits.some((amount) => amount <= 0)) {
+                throw new ActionError(
+                  'Cannot re-split subscription amount: would create zero-amount billing assignments',
+                  ERROR_CODES.INVALID_INPUT
+                )
+              }
               for (let i = 0; i < remainingAssignments.length; i++) {
                 assignmentRollbacks.push({
                   id: remainingAssignments[i].id,
@@ -306,6 +312,11 @@ export async function withdrawChildren(
       // Paused subscriptions take the same path: Stripe applies price changes
       // and cancel_at_period_end while collection is paused, so a later resume
       // bills at the post-withdrawal rate instead of the stale one.
+      //
+      // Only Stripe-mutating calls and their prerequisites live inside this
+      // try — a failure here means Stripe was NOT changed, so the compensating
+      // DB rollback is truthful. Post-success DB sync and logging happen after
+      // the catch and are treated as divergence, never as rollback.
       try {
         if (allWithdrawn) {
           await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
@@ -319,130 +330,50 @@ export async function withdrawChildren(
               profileIds: '',
             },
           })
+        } else {
+          const stripeSubscription = await stripe.subscriptions.retrieve(
+            subscription.stripeSubscriptionId
+          )
+          const subscriptionItemId = stripeSubscription.items.data[0]?.id
 
-          try {
-            await updateSubscriptionAmount(subscription.id, 0)
-          } catch (dbError) {
-            const error = await handleBillingDivergence(
-              logger,
-              dbError,
-              'Stripe cancel_at_period_end set',
-              {
-                familyReferenceId,
-                stripeSubscriptionId: subscription.stripeSubscriptionId,
-              }
+          if (!subscriptionItemId) {
+            throw new ActionError(
+              'Subscription has no line items to update',
+              ERROR_CODES.STRIPE_ERROR
             )
-            return {
-              success: false,
-              error,
-              withdrawnCount: withdrawCount,
-              remainingCount,
-              newRate,
-              previousRate,
-              subscriptionCanceled: true,
-            }
           }
 
-          await logInfo(logger, 'Subscription set to cancel at period end', {
-            familyReferenceId,
-            subscriptionId: subscription.stripeSubscriptionId,
-          })
-
-          return {
-            success: true,
-            warning,
-            withdrawnCount: withdrawCount,
-            remainingCount,
-            newRate: 0,
-            previousRate,
-            subscriptionCanceled: true,
+          const { productId } = getDugsiKeys()
+          if (!productId) {
+            throw new ActionError(
+              'Stripe product not configured for Dugsi',
+              ERROR_CODES.STRIPE_ERROR
+            )
           }
-        }
+          const intervalConfig = getStripeInterval()
 
-        const stripeSubscription = await stripe.subscriptions.retrieve(
-          subscription.stripeSubscriptionId
-        )
-        const subscriptionItemId = stripeSubscription.items.data[0]?.id
-
-        if (!subscriptionItemId) {
-          throw new ActionError(
-            'Subscription has no line items to update',
-            ERROR_CODES.STRIPE_ERROR
-          )
-        }
-
-        const { productId } = getDugsiKeys()
-        if (!productId) {
-          throw new ActionError(
-            'Stripe product not configured for Dugsi',
-            ERROR_CODES.STRIPE_ERROR
-          )
-        }
-        const intervalConfig = getStripeInterval()
-
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-          items: [
-            {
-              id: subscriptionItemId,
-              price_data: {
-                product: productId,
-                unit_amount: newRate,
-                currency: 'usd',
-                recurring: intervalConfig,
+          await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            items: [
+              {
+                id: subscriptionItemId,
+                price_data: {
+                  product: productId,
+                  unit_amount: newRate,
+                  currency: 'usd',
+                  recurring: intervalConfig,
+                },
               },
+            ],
+            proration_behavior: 'none',
+            metadata: {
+              Children: remainingProfiles.map((p) => p.name).join(', '),
+              Rate: formatRateDisplay(newRate),
+              Tier: getRateTierDescription(remainingCount),
+              childCount: remainingCount.toString(),
+              calculatedRate: newRate.toString(),
+              profileIds: remainingProfiles.map((p) => p.id).join(','),
             },
-          ],
-          proration_behavior: 'none',
-          metadata: {
-            Children: remainingProfiles.map((p) => p.name).join(', '),
-            Rate: formatRateDisplay(newRate),
-            Tier: getRateTierDescription(remainingCount),
-            childCount: remainingCount.toString(),
-            calculatedRate: newRate.toString(),
-            profileIds: remainingProfiles.map((p) => p.id).join(','),
-          },
-        })
-
-        try {
-          await updateSubscriptionAmount(subscription.id, newRate)
-        } catch (dbError) {
-          const error = await handleBillingDivergence(
-            logger,
-            dbError,
-            `Stripe updated to ${newRate} cents`,
-            {
-              familyReferenceId,
-              stripeSubscriptionId: subscription.stripeSubscriptionId,
-              intendedAmount: newRate,
-            }
-          )
-          return {
-            success: false,
-            error,
-            warning,
-            withdrawnCount: withdrawCount,
-            remainingCount,
-            newRate,
-            previousRate,
-            subscriptionCanceled: false,
-          }
-        }
-
-        await logInfo(logger, 'Subscription rate updated after withdrawal', {
-          familyReferenceId,
-          subscriptionId: subscription.stripeSubscriptionId,
-          previousRate,
-          newRate,
-        })
-
-        return {
-          success: true,
-          warning,
-          withdrawnCount: withdrawCount,
-          remainingCount,
-          newRate,
-          previousRate,
-          subscriptionCanceled: false,
+          })
         }
       } catch (stripeError) {
         await logError(
@@ -493,6 +424,56 @@ export async function withdrawChildren(
             : 'Stripe billing update failed and automatic rollback also failed. Billing needs manual review — check logs.',
           ERROR_CODES.STRIPE_ERROR
         )
+      }
+
+      try {
+        await updateSubscriptionAmount(subscription.id, newRate)
+      } catch (dbError) {
+        const error = await handleBillingDivergence(
+          logger,
+          dbError,
+          allWithdrawn
+            ? 'Stripe cancel_at_period_end set'
+            : `Stripe updated to ${newRate} cents`,
+          {
+            familyReferenceId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            intendedAmount: newRate,
+          }
+        )
+        return {
+          success: false,
+          error,
+          warning,
+          withdrawnCount: withdrawCount,
+          remainingCount,
+          newRate,
+          previousRate,
+          subscriptionCanceled: allWithdrawn,
+        }
+      }
+
+      await logInfo(
+        logger,
+        allWithdrawn
+          ? 'Subscription set to cancel at period end'
+          : 'Subscription rate updated after withdrawal',
+        {
+          familyReferenceId,
+          subscriptionId: subscription.stripeSubscriptionId,
+          previousRate,
+          newRate,
+        }
+      )
+
+      return {
+        success: true,
+        warning,
+        withdrawnCount: withdrawCount,
+        remainingCount,
+        newRate,
+        previousRate,
+        subscriptionCanceled: allWithdrawn,
       }
     }
   )

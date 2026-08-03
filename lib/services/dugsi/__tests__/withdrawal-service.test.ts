@@ -545,6 +545,29 @@ describe('withdrawChildren', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('DB update failed')
     expect(mockHandleBillingDivergence).toHaveBeenCalled()
+    expect(mockReactivateBillingAssignments).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
+  })
+
+  it('should treat post-cancel DB failure as divergence, not rollback', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
+    mockUpdateSubscriptionAmount.mockRejectedValueOnce(
+      new Error('DB connection lost')
+    )
+    mockHandleBillingDivergence.mockResolvedValueOnce(
+      'Stripe cancel_at_period_end set but DB update failed. Check logs for details.'
+    )
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
+
+    expect(result.success).toBe(false)
+    expect(result.subscriptionCanceled).toBe(true)
+    expect(mockReactivateBillingAssignments).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 
   it('should work without a subscription (no billing)', async () => {

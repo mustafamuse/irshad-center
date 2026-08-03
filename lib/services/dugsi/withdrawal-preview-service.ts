@@ -5,7 +5,10 @@ import { findFamilyProfilesForWithdrawal } from '@/lib/db/queries/program-profil
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
-import { findFamilySubscription } from './billing-helpers'
+import {
+  findFamilySubscription,
+  findLiveFamilySubscriptionIds,
+} from './billing-helpers'
 
 const WITHDRAWABLE_STATUSES: EnrollmentStatus[] = ['REGISTERED', 'ENROLLED']
 
@@ -23,6 +26,17 @@ export async function getWithdrawalPreview(
   familyReferenceId: string,
   profileIds: string[]
 ): Promise<WithdrawalPreview> {
+  const liveSubscriptionIds =
+    await findLiveFamilySubscriptionIds(familyReferenceId)
+  if (liveSubscriptionIds.length > 1) {
+    throw new ActionError(
+      'This family has multiple active subscriptions. Consolidate billing before withdrawing children.',
+      ERROR_CODES.ACTIVE_SUBSCRIPTION,
+      undefined,
+      409
+    )
+  }
+
   const allFamilyProfiles = await findFamilyProfilesForWithdrawal(
     familyReferenceId,
     DUGSI_PROGRAM,
