@@ -394,36 +394,30 @@ export async function updateSubscriptionStatus(
 }
 
 /**
+ * Get active billing assignments for a subscription
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getActiveBillingAssignmentsForSubscription(
+  subscriptionId: string,
+  client: DatabaseClient = prisma
+): Promise<{ id: string; programProfileId: string; amount: number }[]> {
+  return client.billingAssignment.findMany({
+    where: { subscriptionId, isActive: true },
+    select: { id: true, programProfileId: true, amount: true },
+  })
+}
+
+/**
  * Create billing assignment
  * @param client - Optional database client (for transaction support)
  */
 export async function createBillingAssignment(
-  data: {
-    subscriptionId: string
-    programProfileId: string
-    amount: number
-    percentage?: number | null
-    notes?: string | null
-  },
+  data: { subscriptionId: string; programProfileId: string; amount: number },
   client: DatabaseClient = prisma
-) {
+): Promise<{ id: string }> {
   return client.billingAssignment.create({
-    data: {
-      subscriptionId: data.subscriptionId,
-      programProfileId: data.programProfileId,
-      amount: data.amount,
-      percentage: data.percentage,
-      notes: data.notes,
-      isActive: true,
-    },
-    include: {
-      subscription: true,
-      programProfile: {
-        include: {
-          person: personMinimalSelect,
-        },
-      },
-    },
+    data: { ...data, isActive: true },
+    select: { id: true },
   })
 }
 

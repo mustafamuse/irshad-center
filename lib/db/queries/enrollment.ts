@@ -433,3 +433,18 @@ export async function getEnrollmentsByProgram(
     },
   })
 }
+
+/**
+ * Create a registered enrollment
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createRegisteredEnrollment(
+  programProfileId: string,
+  startDate: Date,
+  client: DatabaseClient = prisma
+): Promise<{ id: string }> {
+  return client.enrollment.create({
+    data: { programProfileId, status: 'REGISTERED', startDate },
+    select: { id: true },
+  })
+}
