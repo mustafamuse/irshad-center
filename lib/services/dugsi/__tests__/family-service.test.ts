@@ -12,6 +12,7 @@ const {
   mockProgramProfileCreate,
   mockEnrollmentCreate,
   mockTransaction,
+  mockSync,
 } = vi.hoisted(() => {
   const mockPersonCreate = vi.fn()
   const mockPersonUpdate = vi.fn()
@@ -21,6 +22,7 @@ const {
   const mockGuardianRelationshipUpdate = vi.fn()
   const mockProgramProfileCreate = vi.fn()
   const mockEnrollmentCreate = vi.fn()
+  const mockSync = vi.fn()
 
   const tx = {
     person: {
@@ -57,6 +59,7 @@ const {
     mockProgramProfileCreate,
     mockEnrollmentCreate,
     mockTransaction,
+    mockSync,
   }
 })
 
@@ -92,6 +95,10 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
   })),
   logError: vi.fn(),
+}))
+
+vi.mock('../billing-sync-service', () => ({
+  syncFamilyBillingRate: mockSync,
 }))
 
 import {
@@ -130,6 +137,7 @@ describe('addChildToFamily', () => {
     mockGuardianRelationshipCreateMany.mockResolvedValue({ count: 2 })
     mockProgramProfileCreate.mockResolvedValue({ id: 'new-profile-id' })
     mockEnrollmentCreate.mockResolvedValue({ id: 'new-enrollment-id' })
+    mockSync.mockResolvedValue({ synced: true, rate: 16000, childCount: 2 })
   })
 
   it('should inherit MORNING shift from existing sibling', async () => {
@@ -194,6 +202,25 @@ describe('addChildToFamily', () => {
     await expect(addChildToFamily(baseInput)).rejects.toThrow(
       'No guardians found for existing student'
     )
+  })
+
+  it('syncs family billing after adding a child', async () => {
+    mockGetProgramProfileById.mockResolvedValue(makeExistingProfile('MORNING'))
+
+    const result = await addChildToFamily(baseInput)
+
+    expect(mockSync).toHaveBeenCalledWith('family-123')
+    expect(result.childId).toBe('new-profile-id')
+  })
+
+  it('returns the childId with a warning when sync fails', async () => {
+    mockGetProgramProfileById.mockResolvedValue(makeExistingProfile('MORNING'))
+    mockSync.mockRejectedValueOnce(new Error('stripe down'))
+
+    const result = await addChildToFamily(baseInput)
+
+    expect(result.childId).toBe('new-profile-id')
+    expect(result.warning).toMatch(/billing/i)
   })
 })
 

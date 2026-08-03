@@ -340,7 +340,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
 
 export async function addChildToFamily(
   input: NewChildInput
-): Promise<{ childId: string }> {
+): Promise<{ childId: string; warning?: string }> {
   const existingProfile = await getProgramProfileById(input.existingStudentId)
   if (!existingProfile || existingProfile.program !== DUGSI_PROGRAM) {
     throw new ActionError(
@@ -431,7 +431,20 @@ export async function addChildToFamily(
     throw error
   }
 
-  return { childId: newProfile.id }
+  try {
+    const sync = await syncFamilyBillingRate(familyId)
+    return { childId: newProfile.id, warning: sync.warning }
+  } catch (error) {
+    await logError(logger, error, 'Billing sync failed after adding child', {
+      childId: newProfile.id,
+      familyReferenceId: familyId,
+    })
+    return {
+      childId: newProfile.id,
+      warning:
+        'Child added, but the billing update failed. Use Recalculate rate to retry.',
+    }
+  }
 }
 
 export interface SetPrimaryPayerInput {
