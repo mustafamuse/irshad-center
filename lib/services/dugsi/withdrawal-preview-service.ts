@@ -24,8 +24,9 @@ export interface WithdrawalPreview {
 
 export async function getWithdrawalPreview(
   familyReferenceId: string,
-  profileIds: string[]
+  requestedProfileIds: string[]
 ): Promise<WithdrawalPreview> {
+  const profileIds = Array.from(new Set(requestedProfileIds))
   const liveSubscriptionIds =
     await findLiveFamilySubscriptionIds(familyReferenceId)
   if (liveSubscriptionIds.length > 1) {

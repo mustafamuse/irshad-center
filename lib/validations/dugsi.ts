@@ -58,12 +58,15 @@ export const ResumeFamilyBillingSchema = FamilyBillingControlSchema
 // WITHDRAWAL VALIDATION
 // ============================================================================
 
+const uniqueProfileIds = (ids: string[]) => new Set(ids).size === ids.length
+
 export const WithdrawChildrenSchema = z.object({
   familyReferenceId: z.string().uuid('Invalid family reference ID format'),
   profileIds: z
     .array(z.string().uuid('Invalid profile ID format'))
     .min(1, 'At least one child must be selected for withdrawal')
-    .max(50, 'Too many children selected'),
+    .max(50, 'Too many children selected')
+    .refine(uniqueProfileIds, 'Duplicate children selected'),
 })
 
 export const WithdrawalPreviewSchema = z.object({
@@ -71,7 +74,8 @@ export const WithdrawalPreviewSchema = z.object({
   profileIds: z
     .array(z.string().uuid('Invalid profile ID format'))
     .min(1, 'At least one child must be selected')
-    .max(50, 'Too many children selected'),
+    .max(50, 'Too many children selected')
+    .refine(uniqueProfileIds, 'Duplicate children selected'),
 })
 
 // ============================================================================

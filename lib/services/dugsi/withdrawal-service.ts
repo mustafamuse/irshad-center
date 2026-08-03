@@ -85,8 +85,9 @@ interface WithdrawnProfile {
 
 export async function withdrawChildren(
   familyReferenceId: string,
-  profileIds: string[]
+  requestedProfileIds: string[]
 ): Promise<WithdrawChildrenResult> {
+  const profileIds = Array.from(new Set(requestedProfileIds))
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChildren', op: 'function' },
     async () => {

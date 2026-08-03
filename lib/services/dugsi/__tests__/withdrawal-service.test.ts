@@ -405,6 +405,24 @@ describe('withdrawChildren', () => {
     expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith('db-sub-id', 0)
   })
 
+  it('should dedupe repeated profileIds instead of failing with an empty missing list', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1', 'profile-1'])
+
+    expect(result.success).toBe(true)
+    expect(result.withdrawnCount).toBe(1)
+    expect(mockUpdateProgramProfileStatusMany).toHaveBeenCalledWith(
+      ['profile-1'],
+      'WITHDRAWN',
+      ['REGISTERED', 'ENROLLED'],
+      'tx-client'
+    )
+  })
+
   it('should refuse withdrawal when family has multiple live subscriptions', async () => {
     mockFindLiveFamilySubscriptionIds.mockResolvedValueOnce(['sub-a', 'sub-b'])
 
