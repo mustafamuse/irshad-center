@@ -57,6 +57,7 @@ import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
+import { WithdrawDialog } from '../dialogs/withdraw-dialog'
 
 interface FamilyDetailSheetProps {
   family: Family | null
@@ -256,6 +257,7 @@ export function FamilyDetailSheet({
                 onEditParent={actions.openEditParent}
                 onEditChild={actions.openEditChild}
                 onAddChild={() => actions.setAddChildDialog(true)}
+                onWithdraw={actions.openWithdrawDialog}
               />
             </TabsContent>
 
@@ -412,6 +414,18 @@ export function FamilyDetailSheet({
           onOpenChange={actions.setConsolidateSubscriptionDialog}
           familyId={firstMember.familyReferenceId}
           familyName={getSheetTitle()}
+        />
+      )}
+
+      {state.withdrawDialog.open && firstMember.familyReferenceId && (
+        <WithdrawDialog
+          familyReferenceId={firstMember.familyReferenceId}
+          profileIds={state.withdrawDialog.profileIds}
+          open={state.withdrawDialog.open}
+          onOpenChange={(open) => {
+            if (!open) actions.closeWithdrawDialog()
+          }}
+          onSuccess={actions.closeWithdrawDialog}
         />
       )}
     </Sheet>

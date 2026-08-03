@@ -445,6 +445,99 @@ export async function deactivateBillingAssignment(
 }
 
 /**
+ * Deactivate all active billing assignments for a set of program profiles
+ * @param client - Optional database client (for transaction support)
+ */
+export async function deactivateBillingAssignmentsForProfiles(
+  profileIds: string[],
+  endDate: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.updateMany({
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+      endDate,
+    },
+  })
+}
+
+/**
+ * Reactivate billing assignments previously deactivated with the given
+ * endDate sentinel (compensating rollback for a failed withdrawal)
+ * @param client - Optional database client (for transaction support)
+ */
+export async function reactivateBillingAssignmentsForProfiles(
+  profileIds: string[],
+  endDate: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.updateMany({
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: false,
+      endDate,
+    },
+    data: {
+      isActive: true,
+      endDate: null,
+    },
+  })
+}
+
+/**
+ * Get active billing assignments on a subscription for a set of profiles
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getActiveBillingAssignmentsForProfiles(
+  profileIds: string[],
+  subscriptionId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.findMany({
+    where: {
+      programProfileId: { in: profileIds },
+      subscriptionId,
+      isActive: true,
+    },
+    select: { id: true, amount: true },
+  })
+}
+
+/**
+ * Update the amount on a single billing assignment
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateBillingAssignmentAmount(
+  assignmentId: string,
+  amount: number,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.update({
+    where: { id: assignmentId },
+    data: { amount },
+  })
+}
+
+/**
+ * Update the stored amount on a subscription row
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateSubscriptionAmount(
+  subscriptionId: string,
+  amount: number,
+  client: DatabaseClient = prisma
+) {
+  return client.subscription.update({
+    where: { id: subscriptionId },
+    data: { amount },
+  })
+}
+
+/**
  * Add subscription history entry
  * @param client - Optional database client (for transaction support)
  */

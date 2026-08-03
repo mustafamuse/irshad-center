@@ -295,6 +295,72 @@ export async function updateEnrollmentStatus(
 }
 
 /**
+ * Get all active enrollments for a set of profiles in one query.
+ * Lean select — no relations — for use inside short transactions.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getActiveEnrollmentsForProfiles(
+  profileIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.findMany({
+    where: {
+      programProfileId: { in: profileIds },
+      ...ACTIVE_ENROLLMENT_WHERE,
+    },
+    select: {
+      id: true,
+      status: true,
+      endDate: true,
+      reason: true,
+      programProfileId: true,
+    },
+  })
+}
+
+/**
+ * Set a batch of enrollments to WITHDRAWN in one statement. Callers must
+ * validate status transitions first — this bypasses per-row validation.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function withdrawEnrollmentsByIds(
+  enrollmentIds: string[],
+  reason: string,
+  endDate: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.updateMany({
+    where: { id: { in: enrollmentIds } },
+    data: { status: 'WITHDRAWN', endDate, reason },
+  })
+}
+
+/**
+ * Restore an enrollment to a previously captured state, bypassing status
+ * transition validation. Only for compensating rollback after a failed
+ * external call (e.g. Stripe) — never for user-initiated status changes.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function restoreEnrollmentState(
+  enrollmentId: string,
+  state: {
+    status: EnrollmentStatus
+    endDate: Date | null
+    reason: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.update({
+    where: { id: enrollmentId },
+    data: {
+      status: state.status,
+      endDate: state.endDate,
+      reason: state.reason,
+    },
+  })
+}
+
+/**
  * Re-enroll a student (create new enrollment after withdrawal)
  * @param client - Optional database client (for transaction support)
  */

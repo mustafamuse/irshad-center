@@ -95,6 +95,7 @@ export function mapProfileToDugsiRegistration(
   return {
     id: profile.id,
     name: person.name,
+    status: profile.status,
     gender: profile.gender,
     dateOfBirth: person.dateOfBirth,
     gradeLevel: profile.gradeLevel,
@@ -217,6 +218,7 @@ export function mapProfileToSimpleDugsiRegistration(
   return {
     id: profile.id,
     name: person.name,
+    status: profile.status,
     gender: profile.gender,
     dateOfBirth: person.dateOfBirth,
     gradeLevel: profile.gradeLevel,

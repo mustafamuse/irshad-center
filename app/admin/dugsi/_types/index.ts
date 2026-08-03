@@ -4,6 +4,7 @@
  */
 
 import {
+  EnrollmentStatus,
   Gender,
   GradeLevel,
   Shift,
@@ -23,6 +24,7 @@ export interface DugsiRegistration {
   // Student info (from Person + ProgramProfile)
   id: string
   name: string
+  status: EnrollmentStatus
   gender: Gender | null
   dateOfBirth: Date | null
   gradeLevel: GradeLevel | null // K-12 grade level for Dugsi students

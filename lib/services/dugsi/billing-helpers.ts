@@ -4,12 +4,16 @@ import type { Logger } from 'pino'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import type { DatabaseClient } from '@/lib/db/types'
 import { logError } from '@/lib/logger'
 
-export async function findFamilySubscription(familyReferenceId: string | null) {
+export async function findFamilySubscription(
+  familyReferenceId: string | null,
+  client: DatabaseClient = prisma
+) {
   if (!familyReferenceId) return null
 
-  const assignment = await prisma.billingAssignment.findFirst({
+  const assignment = await client.billingAssignment.findFirst({
     where: {
       isActive: true,
       programProfile: {
@@ -28,6 +32,31 @@ export async function findFamilySubscription(familyReferenceId: string | null) {
   return assignment?.subscription ?? null
 }
 
+export async function findLiveFamilySubscriptionIds(
+  familyReferenceId: string | null,
+  client: DatabaseClient = prisma
+): Promise<string[]> {
+  if (!familyReferenceId) return []
+
+  const assignments = await client.billingAssignment.findMany({
+    where: {
+      isActive: true,
+      programProfile: {
+        familyReferenceId,
+        program: DUGSI_PROGRAM,
+      },
+      subscription: {
+        stripeAccountType: StripeAccountType.DUGSI,
+        status: { in: [...LIVE_SUBSCRIPTION_STATUSES, 'paused'] },
+      },
+    },
+    select: { subscriptionId: true },
+    distinct: ['subscriptionId'],
+  })
+
+  return assignments.map((a) => a.subscriptionId)
+}
+
 export async function handleBillingDivergence(
   logger: Logger,
   dbError: unknown,
@@ -40,5 +69,5 @@ export async function handleBillingDivergence(
     `CRITICAL: ${stripeAction} but DB update failed - states diverged`,
     context
   )
-  return `${stripeAction} but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`
+  return `${stripeAction} but DB update failed. Check logs for details.`
 }

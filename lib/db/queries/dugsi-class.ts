@@ -348,6 +348,43 @@ export async function removeStudentFromClass(
   })
 }
 
+/**
+ * Deactivate active class enrollments for a set of program profiles
+ * (used by family withdrawal to free class seats)
+ */
+export async function deactivateClassEnrollmentsForProfiles(
+  profileIds: string[],
+  endDate: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.dugsiClassEnrollment.updateMany({
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: true,
+    },
+    data: { isActive: false, endDate },
+  })
+}
+
+/**
+ * Reactivate class enrollments previously deactivated with the given
+ * endDate sentinel (compensating rollback for a failed withdrawal)
+ */
+export async function reactivateClassEnrollmentsForProfiles(
+  profileIds: string[],
+  endDate: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.dugsiClassEnrollment.updateMany({
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: false,
+      endDate,
+    },
+    data: { isActive: true, endDate: null },
+  })
+}
+
 export async function bulkEnrollStudents(
   classId: string,
   programProfileIds: string[],
