@@ -10,6 +10,7 @@ const { mockGetAllDugsiRegistrations, mockLoggerInfo } = vi.hoisted(() => ({
 
 vi.mock('@/lib/safe-action', () => ({
   adminActionClient: createAdminActionClientMock(),
+  rateLimitedAdminActionClient: createAdminActionClientMock(),
 }))
 
 vi.mock('next/cache', () => ({

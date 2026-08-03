@@ -60,6 +60,9 @@ import {
   consolidateStripeSubscription as consolidateStripeSubscriptionService,
   type StripeSubscriptionPreview,
   type ConsolidateSubscriptionResult,
+  // Billing sync service
+  syncFamilyBillingRate as syncFamilyBillingRateService,
+  type SyncFamilyBillingResult,
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
@@ -70,6 +73,7 @@ import {
 } from '@/lib/utils/contact-normalization'
 import { formatFullName } from '@/lib/utils/formatters'
 import {
+  FamilyBillingControlSchema,
   ReEnrollChildSchema,
   UpdateFamilyShiftSchema,
 } from '@/lib/validations/dugsi'
@@ -897,6 +901,20 @@ const _reEnrollChild = rateLimitedAdminActionClient
     return result
   })
 
+const _recalculateFamilyRate = rateLimitedAdminActionClient
+  .metadata({ actionName: 'recalculateFamilyRate', maxAttempts: 30 })
+  .schema(FamilyBillingControlSchema)
+  .action(async ({ parsedInput }): Promise<SyncFamilyBillingResult> => {
+    const result = await syncFamilyBillingRateService(
+      parsedInput.familyReferenceId
+    )
+    after(() => {
+      revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
+    })
+    return result
+  })
+
 const _generateFamilyPaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
   .schema(GenerateFamilyPaymentLinkSchema)
@@ -1473,6 +1491,11 @@ export async function reEnrollChild(
   ...args: Parameters<typeof _reEnrollChild>
 ) {
   return _reEnrollChild(...args)
+}
+export async function recalculateFamilyRate(
+  ...args: Parameters<typeof _recalculateFamilyRate>
+) {
+  return _recalculateFamilyRate(...args)
 }
 export async function generateFamilyPaymentLinkAction(
   ...args: Parameters<typeof _generateFamilyPaymentLinkAction>
