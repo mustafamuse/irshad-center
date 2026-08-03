@@ -1,4 +1,4 @@
-import { EnrollmentStatus } from '@prisma/client'
+import { EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -16,6 +16,7 @@ import { createServiceLogger, logError, logInfo } from '@/lib/logger'
 import { calculateSplitAmounts } from '@/lib/services/shared/billing-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 import {
   findFamilySubscription,
@@ -28,6 +29,10 @@ const logger = createServiceLogger('dugsi-billing-sync')
 
 const ROSTER_STATUSES: EnrollmentStatus[] = ['REGISTERED', 'ENROLLED']
 
+const syncTransactionOptions = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+}
+
 export interface SyncFamilyBillingResult {
   synced: boolean
   rate: number
@@ -35,14 +40,16 @@ export interface SyncFamilyBillingResult {
   warning?: string
 }
 
-// Roster, subscription, and existing assignments are read here OUTSIDE any
-// transaction, unlike withdrawChildren's Serializable-isolated read+write.
-// The spec's Stripe-first ordering (roster/rate must be known before the
-// Stripe call, and the Stripe call can't happen inside a DB transaction)
-// makes a single consistent snapshot impossible: two concurrent syncs for
-// the same family can race, and the later write wins. There is no
-// compensating lock here by design — the "Recalculate rate" action is the
-// reconvergence path an admin uses if a race leaves billing stale.
+// Roster and subscription lookup happen OUTSIDE any transaction — the spec's
+// Stripe-first ordering (roster/rate must be known before the Stripe call,
+// and the Stripe call can't happen inside a DB transaction) makes a single
+// consistent snapshot across the whole function impossible. But the
+// assignment partition (update vs create, and which assignments are stale)
+// is computed from a Serializable, in-transaction re-read of active
+// assignments, not the pre-Stripe snapshot: two overlapping syncs for the
+// same family therefore can't both insert an assignment for the same
+// (subscriptionId, programProfileId). A serialization conflict (P2034)
+// surfaces as a retryable 409 instead of silently corrupting assignments.
 export async function syncFamilyBillingRate(
   familyReferenceId: string
 ): Promise<SyncFamilyBillingResult> {
@@ -110,21 +117,7 @@ export async function syncFamilyBillingRate(
     )
   }
 
-  const existingAssignments = await getActiveBillingAssignmentsForSubscription(
-    subscription.id
-  )
   const rosterProfileIds = new Set(roster.map((p) => p.id))
-  const rosterAssignments = existingAssignments.filter((a) =>
-    rosterProfileIds.has(a.programProfileId)
-  )
-  const staleAssignments = existingAssignments.filter(
-    (a) => !rosterProfileIds.has(a.programProfileId)
-  )
-  const overrideWarning =
-    subscription.amount !== rate &&
-    subscription.amount !== calculateDugsiRate(rosterAssignments.length)
-      ? 'Admin override was replaced by the calculated rate'
-      : undefined
 
   const stripe = getDugsiStripeClient()
   try {
@@ -148,9 +141,24 @@ export async function syncFamilyBillingRate(
     )
   }
 
+  let overrideWarning: string | undefined
   try {
     const now = new Date()
     await prisma.$transaction(async (tx) => {
+      const existingAssignments =
+        await getActiveBillingAssignmentsForSubscription(subscription.id, tx)
+      const rosterAssignments = existingAssignments.filter((a) =>
+        rosterProfileIds.has(a.programProfileId)
+      )
+      const staleAssignments = existingAssignments.filter(
+        (a) => !rosterProfileIds.has(a.programProfileId)
+      )
+      overrideWarning =
+        subscription.amount !== rate &&
+        subscription.amount !== calculateDugsiRate(rosterAssignments.length)
+          ? 'Admin override was replaced by the calculated rate'
+          : undefined
+
       const byProfile = new Map(
         rosterAssignments.map((a) => [a.programProfileId, a])
       )
@@ -178,8 +186,16 @@ export async function syncFamilyBillingRate(
         )
       }
       await updateSubscriptionAmount(subscription.id, rate, tx)
-    })
+    }, syncTransactionOptions)
   } catch (dbError) {
+    if (isPrismaError(dbError) && dbError.code === 'P2034') {
+      throw new ActionError(
+        'Another billing update for this family is in progress. Please try again.',
+        ERROR_CODES.INVALID_INPUT,
+        undefined,
+        409
+      )
+    }
     const warning = await handleBillingDivergence(
       logger,
       dbError,

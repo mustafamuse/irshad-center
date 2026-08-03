@@ -132,6 +132,27 @@ describe('syncFamilyBillingRate', () => {
     )
   })
 
+  it('re-reads active assignments inside the transaction with the tx client', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(profiles(2))
+    await syncFamilyBillingRate(FAMILY)
+    expect(mockGetActiveAssignmentsForSubscription).toHaveBeenCalledWith(
+      'sub-db-1',
+      'tx-client'
+    )
+  })
+
+  it('maps a P2034 serialization failure to a retryable 409', async () => {
+    const p2034 = Object.assign(new Error('serialization failure'), {
+      code: 'P2034',
+    })
+    mockUpdateSubscriptionAmount.mockRejectedValueOnce(p2034)
+    await expect(syncFamilyBillingRate(FAMILY)).rejects.toMatchObject({
+      code: ERROR_CODES.INVALID_INPUT,
+      statusCode: 409,
+    })
+    expect(mockHandleBillingDivergence).not.toHaveBeenCalled()
+  })
+
   it('creates assignments for roster children without one', async () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(profiles(3))
     const result = await syncFamilyBillingRate(FAMILY)
@@ -250,6 +271,22 @@ describe('syncFamilyBillingRate', () => {
       expect.any(Number),
       'tx-client'
     )
+  })
+
+  it('falls back to a trialing subscription for a fully-withdrawn re-enroll', async () => {
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
+    mockFindFamilyLiveSubscriptions.mockResolvedValueOnce([
+      { ...SUB, status: 'trialing' },
+    ])
+    const result = await syncFamilyBillingRate(FAMILY)
+    expect(mockUpdatePricing).toHaveBeenCalledWith(
+      expect.anything(),
+      'sub_stripe1',
+      expect.any(Number),
+      expect.anything(),
+      { clearCancelAtPeriodEnd: true }
+    )
+    expect(result.synced).toBe(true)
   })
 
   it('still returns the "needs a new checkout" warning when the fallback also finds nothing', async () => {

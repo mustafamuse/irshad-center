@@ -339,22 +339,6 @@ export function BillingTab({ family }: BillingTabProps) {
               </>
             )}
 
-            <Separator />
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              disabled={isRecalculating || !familyReferenceId}
-              onClick={handleRecalculateRate}
-            >
-              {isRecalculating ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              {isRecalculating ? 'Recalculating...' : 'Recalculate rate'}
-            </Button>
-
             {customerId && (
               <>
                 <Separator />
@@ -382,6 +366,26 @@ export function BillingTab({ family }: BillingTabProps) {
               </p>
             </div>
           </div>
+        )}
+
+        {familyReferenceId && (
+          <>
+            <Separator />
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={isRecalculating}
+              onClick={handleRecalculateRate}
+            >
+              {isRecalculating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              {isRecalculating ? 'Recalculating...' : 'Recalculate rate'}
+            </Button>
+          </>
         )}
       </div>
 

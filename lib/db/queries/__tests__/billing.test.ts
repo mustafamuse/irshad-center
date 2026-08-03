@@ -42,6 +42,7 @@ import {
   upsertBillingAccount,
   getBillingAssignmentsByProfile,
   getBillingAssignmentsBySubscription,
+  findFamilyLiveSubscriptions,
 } from '../billing'
 
 describe('getBillingAccountByPerson', () => {
@@ -151,6 +152,23 @@ describe('getBillingAssignmentsBySubscription', () => {
       expect.objectContaining({
         relationLoadStrategy: 'join',
       })
+    )
+  })
+})
+
+describe('findFamilyLiveSubscriptions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('includes trialing in the live-fallback status filter', async () => {
+    mockAssignmentFindMany.mockResolvedValue([])
+
+    await findFamilyLiveSubscriptions('fam-1')
+
+    const callArgs = mockAssignmentFindMany.mock.calls[0][0]
+    expect(callArgs.where.subscription.status.in).toEqual(
+      expect.arrayContaining(['trialing', 'active', 'past_due', 'paused'])
     )
   })
 })

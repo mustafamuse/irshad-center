@@ -14,10 +14,13 @@ import { DatabaseClient } from '@/lib/db/types'
 
 // Deliberately narrower than LIVE_SUBSCRIPTION_STATUSES: this fallback only
 // covers the "subscription is still live and billing" cases relevant to
-// resurrecting a fully-withdrawn family (active/past_due/paused), not
-// incomplete/trialing/unpaid states with no assignment history to fall back to.
+// resurrecting a fully-withdrawn family (active/trialing/past_due/paused),
+// not incomplete/unpaid states with no assignment history to fall back to.
+// trialing is included so a fully-withdrawn family still in its trial gets
+// un-canceled on re-enroll instead of being stranded.
 const LIVE_FALLBACK_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
   'active',
+  'trialing',
   'past_due',
   'paused',
 ]
