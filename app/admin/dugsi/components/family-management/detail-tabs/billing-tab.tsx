@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 
 import * as Sentry from '@sentry/nextjs'
 import {
@@ -13,8 +13,10 @@ import {
   Loader2,
   Pause,
   Play,
+  RefreshCw,
   XCircle,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -31,16 +33,19 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { cn } from '@/lib/utils'
 
-import { useActionHandler } from '@/hooks/use-action-handler'
 import { Family, StripePaymentHistoryItem } from '../../../_types'
 import { getBillingStatus } from '../../../_utils/billing'
+import {
+  getFamilyPaymentHistory,
+  recalculateFamilyRate,
+} from '../../../actions'
 import {
   pauseFamilyBillingAction,
   resumeFamilyBillingAction,
 } from '../../../actions/billing-actions'
-import { getFamilyPaymentHistory } from '../../../actions'
 
 interface BillingTabProps {
   family: Family
@@ -115,6 +120,8 @@ export function BillingTab({ family }: BillingTabProps) {
     resumeFamilyBillingAction
   )
 
+  const [isRecalculating, startRecalculate] = useTransition()
+
   const handlePause = async () => {
     if (!familyReferenceId) return
     await executePause({ familyReferenceId })
@@ -123,6 +130,30 @@ export function BillingTab({ family }: BillingTabProps) {
   const handleResume = async () => {
     if (!familyReferenceId) return
     await executeResume({ familyReferenceId })
+  }
+
+  const handleRecalculateRate = () => {
+    if (!familyReferenceId) return
+    startRecalculate(async () => {
+      const result = await recalculateFamilyRate({ familyReferenceId })
+      if (result?.serverError) {
+        toast.error(result.serverError)
+        return
+      }
+      if (result?.validationErrors) {
+        toast.error('Failed to recalculate rate')
+        return
+      }
+      if (result?.data?.warning) {
+        toast.warning(result.data.warning)
+        return
+      }
+      if (result?.data) {
+        toast.success(
+          `Rate synced: $${(result.data.rate / 100).toFixed(0)}/mo for ${result.data.childCount} children`
+        )
+      }
+    })
   }
 
   const billing = firstMember ? getBillingStatus(firstMember) : null
@@ -335,6 +366,26 @@ export function BillingTab({ family }: BillingTabProps) {
               </p>
             </div>
           </div>
+        )}
+
+        {familyReferenceId && (
+          <>
+            <Separator />
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={isRecalculating}
+              onClick={handleRecalculateRate}
+            >
+              {isRecalculating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              {isRecalculating ? 'Recalculating...' : 'Recalculate rate'}
+            </Button>
+          </>
         )}
       </div>
 

@@ -29,7 +29,10 @@ import {
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
 import { createServiceLogger, logError, logInfo } from '@/lib/logger'
-import { adminActionClient } from '@/lib/safe-action'
+import {
+  adminActionClient,
+  rateLimitedAdminActionClient,
+} from '@/lib/safe-action'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -44,6 +47,7 @@ import {
   addSecondParent as addSecondParentService,
   updateChildInfo as updateChildInfoService,
   addChildToFamily as addChildToFamilyService,
+  reEnrollChild as reEnrollChildService,
   setPrimaryPayer as setPrimaryPayerService,
   updateFamilyShift as updateFamilyShiftService,
   // Payment service
@@ -56,6 +60,9 @@ import {
   consolidateStripeSubscription as consolidateStripeSubscriptionService,
   type StripeSubscriptionPreview,
   type ConsolidateSubscriptionResult,
+  // Billing sync service
+  syncFamilyBillingRate as syncFamilyBillingRateService,
+  type SyncFamilyBillingResult,
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
@@ -65,7 +72,11 @@ import {
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
 import { formatFullName } from '@/lib/utils/formatters'
-import { UpdateFamilyShiftSchema } from '@/lib/validations/dugsi'
+import {
+  FamilyBillingControlSchema,
+  ReEnrollChildSchema,
+  UpdateFamilyShiftSchema,
+} from '@/lib/validations/dugsi'
 import {
   AssignTeacherToClassSchema,
   RemoveTeacherFromClassSchema,
@@ -864,8 +875,8 @@ const _updateFamilyShift = adminActionClient
     return { message: 'Successfully updated family shift' }
   })
 
-const _addChildToFamily = adminActionClient
-  .metadata({ actionName: 'addChildToFamily' })
+const _addChildToFamily = rateLimitedAdminActionClient
+  .metadata({ actionName: 'addChildToFamily', maxAttempts: 10 })
   .schema(AddChildToFamilySchema)
   .action(
     async ({ parsedInput }): Promise<{ childId: string; message: string }> => {
@@ -877,6 +888,58 @@ const _addChildToFamily = adminActionClient
       return { ...result, message: 'Successfully added child to family' }
     }
   )
+
+const _reEnrollChild = rateLimitedAdminActionClient
+  .metadata({ actionName: 'reEnrollChild', maxAttempts: 10 })
+  .schema(ReEnrollChildSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      const result = await reEnrollChildService(parsedInput.profileId)
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
+      return result
+    } catch (error) {
+      if (error instanceof ActionError) throw error
+      await logError(logger, error, 'Failed to re-enroll child', {
+        profileId: parsedInput.profileId,
+      })
+      throw new ActionError(
+        'Failed to re-enroll child',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
+    }
+  })
+
+const _recalculateFamilyRate = rateLimitedAdminActionClient
+  .metadata({ actionName: 'recalculateFamilyRate', maxAttempts: 30 })
+  .schema(FamilyBillingControlSchema)
+  .action(async ({ parsedInput }): Promise<SyncFamilyBillingResult> => {
+    try {
+      const result = await syncFamilyBillingRateService(
+        parsedInput.familyReferenceId
+      )
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
+      return result
+    } catch (error) {
+      if (error instanceof ActionError) throw error
+      await logError(logger, error, 'Failed to recalculate family rate', {
+        familyReferenceId: parsedInput.familyReferenceId,
+      })
+      throw new ActionError(
+        'Failed to recalculate family rate',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
+    }
+  })
 
 const _generateFamilyPaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
@@ -1449,6 +1512,16 @@ export async function addChildToFamily(
   ...args: Parameters<typeof _addChildToFamily>
 ) {
   return _addChildToFamily(...args)
+}
+export async function reEnrollChild(
+  ...args: Parameters<typeof _reEnrollChild>
+) {
+  return _reEnrollChild(...args)
+}
+export async function recalculateFamilyRate(
+  ...args: Parameters<typeof _recalculateFamilyRate>
+) {
+  return _recalculateFamilyRate(...args)
 }
 export async function generateFamilyPaymentLinkAction(
   ...args: Parameters<typeof _generateFamilyPaymentLinkAction>

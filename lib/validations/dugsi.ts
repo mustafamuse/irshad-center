@@ -7,7 +7,7 @@
 import { Shift } from '@prisma/client'
 import { z } from 'zod'
 
-import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
+import { SHIFT_FILTER_ALL, WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 
 // ============================================================================
 // FAMILY SHIFT VALIDATION
@@ -67,6 +67,10 @@ export const WithdrawChildrenSchema = z.object({
     .min(1, 'At least one child must be selected for withdrawal')
     .max(50, 'Too many children selected')
     .refine(uniqueProfileIds, 'Duplicate children selected'),
+  reason: z.enum(WITHDRAWAL_REASONS, {
+    errorMap: () => ({ message: 'Select a withdrawal reason' }),
+  }),
+  note: z.string().max(200, 'Note is too long').optional(),
 })
 
 export const WithdrawalPreviewSchema = z.object({
@@ -76,6 +80,19 @@ export const WithdrawalPreviewSchema = z.object({
     .min(1, 'At least one child must be selected')
     .max(50, 'Too many children selected')
     .refine(uniqueProfileIds, 'Duplicate children selected'),
+})
+
+export function formatWithdrawalReason(reason: string, note?: string): string {
+  const trimmed = note?.trim()
+  return trimmed ? `${reason}: ${trimmed}` : reason
+}
+
+// ============================================================================
+// RE-ENROLLMENT VALIDATION
+// ============================================================================
+
+export const ReEnrollChildSchema = z.object({
+  profileId: z.string().uuid('Invalid profile ID format'),
 })
 
 // ============================================================================
@@ -88,3 +105,4 @@ export type DugsiRegistrationFilters = z.infer<
 >
 export type WithdrawChildrenInput = z.infer<typeof WithdrawChildrenSchema>
 export type WithdrawalPreviewInput = z.infer<typeof WithdrawalPreviewSchema>
+export type ReEnrollChildInput = z.infer<typeof ReEnrollChildSchema>

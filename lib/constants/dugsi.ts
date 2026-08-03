@@ -125,6 +125,15 @@ export const SHIFT_COLORS = {
 // Shift Filter Constants
 export const SHIFT_FILTER_ALL = 'all' as const
 
+// Withdrawal Constants
+export const WITHDRAWAL_REASONS = [
+  'Moved away',
+  'Schedule conflict',
+  'Financial',
+  'Switched program',
+  'Other',
+] as const
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

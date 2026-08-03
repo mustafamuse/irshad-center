@@ -21,7 +21,7 @@ import { useActionHandler } from '@/hooks/use-action-handler'
 
 import { Family, DugsiRegistration } from '../../../_types'
 import { getOrderedParentData } from '../../../_utils/format'
-import { setPrimaryPayer } from '../../../actions'
+import { reEnrollChild, setPrimaryPayer } from '../../../actions'
 import { ChildInfoCard } from '../../ui/child-info-card'
 
 interface OverviewTabProps {
@@ -148,6 +148,9 @@ export function OverviewTab({
 
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
+
+  const { execute: executeReEnrollChild, isPending: isReEnrolling } =
+    useActionHandler(reEnrollChild)
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
@@ -313,15 +316,31 @@ export function OverviewTab({
                             <UserMinus className="h-3.5 w-3.5" />
                           </Button>
                         ) : (
-                          <Badge
-                            variant="outline"
-                            className="h-5 px-1.5 text-[10px] font-medium text-muted-foreground"
-                          >
-                            {child.status === 'WITHDRAWN'
-                              ? 'Withdrawn'
-                              : child.status.charAt(0) +
-                                child.status.slice(1).toLowerCase()}
-                          </Badge>
+                          <>
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 text-[10px] font-medium text-muted-foreground"
+                            >
+                              {child.status === 'WITHDRAWN'
+                                ? 'Withdrawn'
+                                : child.status.charAt(0) +
+                                  child.status.slice(1).toLowerCase()}
+                            </Badge>
+                            {child.status === 'WITHDRAWN' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  executeReEnrollChild({ profileId: child.id })
+                                }
+                                disabled={isReEnrolling}
+                                className="h-7 px-1.5 text-muted-foreground hover:text-foreground"
+                                title="Re-enroll child"
+                              >
+                                <UserPlus className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </>
                         )}
                         <Button
                           variant="ghost"

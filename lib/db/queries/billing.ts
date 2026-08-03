@@ -6,10 +6,24 @@
 
 import { Prisma, StripeAccountType, SubscriptionStatus } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { personMinimalSelect } from '@/lib/db/prisma-helpers'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
+
+// Deliberately narrower than LIVE_SUBSCRIPTION_STATUSES: this fallback only
+// covers the "subscription is still live and billing" cases relevant to
+// resurrecting a fully-withdrawn family (active/trialing/past_due/paused),
+// not incomplete/unpaid states with no assignment history to fall back to.
+// trialing is included so a fully-withdrawn family still in its trial gets
+// un-canceled on re-enroll instead of being stranded.
+const LIVE_FALLBACK_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
+  'active',
+  'trialing',
+  'past_due',
+  'paused',
+]
 
 /**
  * Get billing account by person ID and account type
@@ -394,36 +408,30 @@ export async function updateSubscriptionStatus(
 }
 
 /**
+ * Get active billing assignments for a subscription
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getActiveBillingAssignmentsForSubscription(
+  subscriptionId: string,
+  client: DatabaseClient = prisma
+): Promise<{ id: string; programProfileId: string; amount: number }[]> {
+  return client.billingAssignment.findMany({
+    where: { subscriptionId, isActive: true },
+    select: { id: true, programProfileId: true, amount: true },
+  })
+}
+
+/**
  * Create billing assignment
  * @param client - Optional database client (for transaction support)
  */
 export async function createBillingAssignment(
-  data: {
-    subscriptionId: string
-    programProfileId: string
-    amount: number
-    percentage?: number | null
-    notes?: string | null
-  },
+  data: { subscriptionId: string; programProfileId: string; amount: number },
   client: DatabaseClient = prisma
-) {
+): Promise<{ id: string }> {
   return client.billingAssignment.create({
-    data: {
-      subscriptionId: data.subscriptionId,
-      programProfileId: data.programProfileId,
-      amount: data.amount,
-      percentage: data.percentage,
-      notes: data.notes,
-      isActive: true,
-    },
-    include: {
-      subscription: true,
-      programProfile: {
-        include: {
-          person: personMinimalSelect,
-        },
-      },
-    },
+    data: { ...data, isActive: true },
+    select: { id: true },
   })
 }
 
@@ -606,6 +614,36 @@ export async function getBillingAssignmentsByProfile(
       startDate: 'desc',
     },
   })
+}
+
+/**
+ * Find a family's still-live Dugsi subscriptions via ANY billing assignment
+ * (active or not), not just an active one. Used as a fallback when a family
+ * has no active assignment (e.g. every child was withdrawn) but Stripe still
+ * has a subscription with cancel_at_period_end pending.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findFamilyLiveSubscriptions(
+  familyReferenceId: string,
+  client: DatabaseClient = prisma
+) {
+  const assignments = await client.billingAssignment.findMany({
+    where: {
+      programProfile: {
+        familyReferenceId,
+        program: DUGSI_PROGRAM,
+      },
+      subscription: {
+        stripeAccountType: StripeAccountType.DUGSI,
+        status: { in: LIVE_FALLBACK_SUBSCRIPTION_STATUSES },
+      },
+    },
+    distinct: ['subscriptionId'],
+    include: { subscription: true },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  return assignments.map((a) => a.subscription)
 }
 
 /**
