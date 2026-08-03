@@ -25,7 +25,6 @@ import {
   updateProgramProfileStatusMany,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { getDugsiKeys } from '@/lib/keys/stripe'
 import {
   createServiceLogger,
   logError,
@@ -35,12 +34,7 @@ import {
 import { calculateSplitAmounts } from '@/lib/services/shared/billing-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { isValidStatusTransition } from '@/lib/types/enrollment'
-import {
-  calculateDugsiRate,
-  formatRateDisplay,
-  getRateTierDescription,
-  getStripeInterval,
-} from '@/lib/utils/dugsi-tuition'
+import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { isPrismaError } from '@/lib/utils/type-guards'
 
 import {
@@ -48,6 +42,7 @@ import {
   findLiveFamilySubscriptionIds,
   handleBillingDivergence,
 } from './billing-helpers'
+import { updateDugsiSubscriptionPricing } from './subscription-pricing'
 
 const logger = createServiceLogger('dugsi-withdrawal')
 
@@ -354,49 +349,12 @@ export async function withdrawChildren(
             },
           })
         } else {
-          const stripeSubscription = await stripe.subscriptions.retrieve(
-            subscription.stripeSubscriptionId
+          await updateDugsiSubscriptionPricing(
+            stripe,
+            subscription.stripeSubscriptionId,
+            newRate,
+            remainingProfiles.map((p) => ({ id: p.id, name: p.name }))
           )
-          const subscriptionItemId = stripeSubscription.items.data[0]?.id
-
-          if (!subscriptionItemId) {
-            throw new ActionError(
-              'Subscription has no line items to update',
-              ERROR_CODES.STRIPE_ERROR
-            )
-          }
-
-          const { productId } = getDugsiKeys()
-          if (!productId) {
-            throw new ActionError(
-              'Stripe product not configured for Dugsi',
-              ERROR_CODES.STRIPE_ERROR
-            )
-          }
-          const intervalConfig = getStripeInterval()
-
-          await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-            items: [
-              {
-                id: subscriptionItemId,
-                price_data: {
-                  product: productId,
-                  unit_amount: newRate,
-                  currency: 'usd',
-                  recurring: intervalConfig,
-                },
-              },
-            ],
-            proration_behavior: 'none',
-            metadata: {
-              Children: remainingProfiles.map((p) => p.name).join(', '),
-              Rate: formatRateDisplay(newRate),
-              Tier: getRateTierDescription(remainingCount),
-              childCount: remainingCount.toString(),
-              calculatedRate: newRate.toString(),
-              profileIds: remainingProfiles.map((p) => p.id).join(','),
-            },
-          })
         }
       } catch (stripeError) {
         if (isAmbiguousStripeOutcome(stripeError)) {
