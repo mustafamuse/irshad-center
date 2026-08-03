@@ -4,6 +4,7 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   createBillingAssignment,
+  deactivateBillingAssignmentsForProfiles,
   getActiveBillingAssignmentsForSubscription,
   updateBillingAssignmentAmount,
   updateSubscriptionAmount,
@@ -33,6 +34,14 @@ export interface SyncFamilyBillingResult {
   warning?: string
 }
 
+// Roster, subscription, and existing assignments are read here OUTSIDE any
+// transaction, unlike withdrawChildren's Serializable-isolated read+write.
+// The spec's Stripe-first ordering (roster/rate must be known before the
+// Stripe call, and the Stripe call can't happen inside a DB transaction)
+// makes a single consistent snapshot impossible: two concurrent syncs for
+// the same family can race, and the later write wins. There is no
+// compensating lock here by design — the "Recalculate rate" action is the
+// reconvergence path an admin uses if a race leaves billing stale.
 export async function syncFamilyBillingRate(
   familyReferenceId: string
 ): Promise<SyncFamilyBillingResult> {
@@ -85,9 +94,16 @@ export async function syncFamilyBillingRate(
   const existingAssignments = await getActiveBillingAssignmentsForSubscription(
     subscription.id
   )
+  const rosterProfileIds = new Set(roster.map((p) => p.id))
+  const rosterAssignments = existingAssignments.filter((a) =>
+    rosterProfileIds.has(a.programProfileId)
+  )
+  const staleAssignments = existingAssignments.filter(
+    (a) => !rosterProfileIds.has(a.programProfileId)
+  )
   const overrideWarning =
     subscription.amount !== rate &&
-    subscription.amount !== calculateDugsiRate(existingAssignments.length)
+    subscription.amount !== calculateDugsiRate(rosterAssignments.length)
       ? 'Admin override was replaced by the calculated rate'
       : undefined
 
@@ -113,9 +129,10 @@ export async function syncFamilyBillingRate(
   }
 
   try {
+    const now = new Date()
     await prisma.$transaction(async (tx) => {
       const byProfile = new Map(
-        existingAssignments.map((a) => [a.programProfileId, a])
+        rosterAssignments.map((a) => [a.programProfileId, a])
       )
       for (const [index, profile] of roster.entries()) {
         const share = splits[index]
@@ -132,6 +149,13 @@ export async function syncFamilyBillingRate(
             tx
           )
         }
+      }
+      if (staleAssignments.length > 0) {
+        await deactivateBillingAssignmentsForProfiles(
+          staleAssignments.map((a) => a.programProfileId),
+          now,
+          tx
+        )
       }
       await updateSubscriptionAmount(subscription.id, rate, tx)
     })

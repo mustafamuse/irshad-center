@@ -11,6 +11,7 @@ const {
   mockCreateBillingAssignment,
   mockUpdateBillingAssignmentAmount,
   mockUpdateSubscriptionAmount,
+  mockDeactivateBillingAssignmentsForProfiles,
   mockUpdatePricing,
 } = vi.hoisted(() => ({
   mockFindFamilySubscription: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockCreateBillingAssignment: vi.fn(),
   mockUpdateBillingAssignmentAmount: vi.fn(),
   mockUpdateSubscriptionAmount: vi.fn(),
+  mockDeactivateBillingAssignmentsForProfiles: vi.fn(),
   mockUpdatePricing: vi.fn(),
 }))
 
@@ -47,6 +49,8 @@ vi.mock('@/lib/db/queries/billing', () => ({
     mockUpdateBillingAssignmentAmount(...args),
   updateSubscriptionAmount: (...args: unknown[]) =>
     mockUpdateSubscriptionAmount(...args),
+  deactivateBillingAssignmentsForProfiles: (...args: unknown[]) =>
+    mockDeactivateBillingAssignmentsForProfiles(...args),
 }))
 
 vi.mock('../subscription-pricing', () => ({
@@ -185,6 +189,31 @@ describe('syncFamilyBillingRate', () => {
     )
     expect(mockUpdateBillingAssignmentAmount).not.toHaveBeenCalled()
     expect(mockUpdateSubscriptionAmount).not.toHaveBeenCalled()
+  })
+
+  it('deactivates active assignments for profiles no longer on the roster', async () => {
+    mockGetActiveAssignmentsForSubscription.mockResolvedValueOnce([
+      { id: 'a1', programProfileId: 'p1', amount: 8000 },
+      { id: 'a2', programProfileId: 'p2', amount: 8000 },
+      { id: 'stale-a', programProfileId: 'p-withdrawn', amount: 8000 },
+    ])
+    const result = await syncFamilyBillingRate(FAMILY)
+    expect(mockDeactivateBillingAssignmentsForProfiles).toHaveBeenCalledWith(
+      ['p-withdrawn'],
+      expect.any(Date),
+      'tx-client'
+    )
+    expect(mockUpdateBillingAssignmentAmount).toHaveBeenCalledWith(
+      'a1',
+      8000,
+      'tx-client'
+    )
+    expect(mockUpdateBillingAssignmentAmount).toHaveBeenCalledWith(
+      'a2',
+      8000,
+      'tx-client'
+    )
+    expect(result.synced).toBe(true)
   })
 
   it('returns divergence warning when DB fails after Stripe success', async () => {
