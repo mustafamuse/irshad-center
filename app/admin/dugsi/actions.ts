@@ -29,7 +29,10 @@ import {
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
 import { createServiceLogger, logError, logInfo } from '@/lib/logger'
-import { adminActionClient } from '@/lib/safe-action'
+import {
+  adminActionClient,
+  rateLimitedAdminActionClient,
+} from '@/lib/safe-action'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -44,6 +47,7 @@ import {
   addSecondParent as addSecondParentService,
   updateChildInfo as updateChildInfoService,
   addChildToFamily as addChildToFamilyService,
+  reEnrollChild as reEnrollChildService,
   setPrimaryPayer as setPrimaryPayerService,
   updateFamilyShift as updateFamilyShiftService,
   // Payment service
@@ -65,7 +69,10 @@ import {
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
 import { formatFullName } from '@/lib/utils/formatters'
-import { UpdateFamilyShiftSchema } from '@/lib/validations/dugsi'
+import {
+  ReEnrollChildSchema,
+  UpdateFamilyShiftSchema,
+} from '@/lib/validations/dugsi'
 import {
   AssignTeacherToClassSchema,
   RemoveTeacherFromClassSchema,
@@ -878,6 +885,18 @@ const _addChildToFamily = adminActionClient
     }
   )
 
+const _reEnrollChild = rateLimitedAdminActionClient
+  .metadata({ actionName: 'reEnrollChild', maxAttempts: 10 })
+  .schema(ReEnrollChildSchema)
+  .action(async ({ parsedInput }) => {
+    const result = await reEnrollChildService(parsedInput.profileId)
+    after(() => {
+      revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
+    })
+    return result
+  })
+
 const _generateFamilyPaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
   .schema(GenerateFamilyPaymentLinkSchema)
@@ -1449,6 +1468,11 @@ export async function addChildToFamily(
   ...args: Parameters<typeof _addChildToFamily>
 ) {
   return _addChildToFamily(...args)
+}
+export async function reEnrollChild(
+  ...args: Parameters<typeof _reEnrollChild>
+) {
+  return _reEnrollChild(...args)
 }
 export async function generateFamilyPaymentLinkAction(
   ...args: Parameters<typeof _generateFamilyPaymentLinkAction>

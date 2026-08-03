@@ -3,10 +3,12 @@ import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import { createRegisteredEnrollment } from '@/lib/db/queries/enrollment'
 import {
   getProgramProfileById,
   findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
+  updateProgramProfileStatus,
 } from '@/lib/db/queries/program-profile'
 import {
   ActionError,
@@ -18,6 +20,8 @@ import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+import { syncFamilyBillingRate } from './billing-sync-service'
 
 const logger = createServiceLogger('dugsi-family-service')
 
@@ -546,4 +550,58 @@ export async function updateFamilyShift(
   }
 
   return { updated: result.count }
+}
+
+/**
+ * @security Authorization must be enforced at the action layer. This service does not verify caller permissions.
+ */
+export async function reEnrollChild(
+  profileId: string
+): Promise<{ childId: string; warning?: string }> {
+  const profile = await getProgramProfileById(profileId)
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+  if (profile.status !== 'WITHDRAWN') {
+    throw new ActionError(
+      'Child is not withdrawn and cannot be re-enrolled',
+      ERROR_CODES.INVALID_INPUT,
+      undefined,
+      409
+    )
+  }
+  if (!profile.familyReferenceId) {
+    throw new ActionError(
+      'Family reference ID not found',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  const now = new Date()
+  await prisma.$transaction(async (tx) => {
+    await updateProgramProfileStatus(profileId, 'REGISTERED', tx)
+    await createRegisteredEnrollment(profileId, now, tx)
+  })
+
+  try {
+    const sync = await syncFamilyBillingRate(profile.familyReferenceId)
+    return { childId: profileId, warning: sync.warning }
+  } catch (error) {
+    await logError(logger, error, 'Billing sync failed after re-enrollment', {
+      profileId,
+      familyReferenceId: profile.familyReferenceId,
+    })
+    return {
+      childId: profileId,
+      warning:
+        'Child re-enrolled, but the billing update failed. Use Recalculate rate to retry.',
+    }
+  }
 }

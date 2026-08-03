@@ -88,6 +88,14 @@ export function formatWithdrawalReason(reason: string, note?: string): string {
 }
 
 // ============================================================================
+// RE-ENROLLMENT VALIDATION
+// ============================================================================
+
+export const ReEnrollChildSchema = z.object({
+  profileId: z.string().uuid('Invalid profile ID format'),
+})
+
+// ============================================================================
 // TYPE INFERENCE HELPERS
 // ============================================================================
 
@@ -97,3 +105,4 @@ export type DugsiRegistrationFilters = z.infer<
 >
 export type WithdrawChildrenInput = z.infer<typeof WithdrawChildrenSchema>
 export type WithdrawalPreviewInput = z.infer<typeof WithdrawalPreviewSchema>
+export type ReEnrollChildInput = z.infer<typeof ReEnrollChildSchema>
