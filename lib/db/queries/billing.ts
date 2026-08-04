@@ -739,6 +739,7 @@ export async function findParentWithDugsiBillingAccount(
   client: DatabaseClient = prisma
 ) {
   return client.person.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       email: normalizedEmail,
     },

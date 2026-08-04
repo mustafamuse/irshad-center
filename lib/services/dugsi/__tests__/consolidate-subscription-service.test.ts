@@ -19,6 +19,7 @@ const {
   mockUpdateSubscriptionForConsolidation,
   mockLoggerInfo,
   mockLogError,
+  TX_SENTINEL,
 } = vi.hoisted(() => ({
   mockStripeSubscriptionRetrieve: vi.fn(),
   mockStripeSubscriptionUpdate: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockUpdateSubscriptionForConsolidation: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLogError: vi.fn(),
+  TX_SENTINEL: { __tx: 'consolidate-subscription-tx' },
 }))
 
 vi.mock('@/lib/stripe-dugsi', () => ({
@@ -49,8 +51,7 @@ vi.mock('@/lib/stripe-dugsi', () => ({
 vi.mock('@/lib/db', () => ({
   prisma: {
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
-      const mockTx = {}
-      return callback(mockTx)
+      return callback(TX_SENTINEL)
     }),
   },
 }))
@@ -393,8 +394,12 @@ describe('consolidate-subscription-service', () => {
       expect(mockCreateSubscription).not.toHaveBeenCalled()
       expect(mockUpdateSubscriptionForConsolidation).toHaveBeenCalledWith(
         'existing-sub-123',
-        expect.any(Object),
-        expect.any(Object)
+        expect.objectContaining({
+          billingAccountId: 'billing-123',
+          status: 'active',
+          amount: 16000,
+        }),
+        TX_SENTINEL
       )
     })
 
