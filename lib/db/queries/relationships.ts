@@ -106,6 +106,129 @@ export async function updateGuardianRelationshipFields(
 }
 
 /**
+ * Find a guardian relationship by guardian/dependent/role triple (any
+ * status). Distinct from `findGuardianRelationship`, which does not filter
+ * on role.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findGuardianRelationshipByRole(
+  guardianId: string,
+  dependentId: string,
+  role: GuardianRole,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.findFirst({
+    where: { guardianId, dependentId, role },
+  })
+}
+
+/**
+ * Find an active guardian relationship by guardian/dependent/role triple.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findActiveGuardianRelationshipByRole(
+  guardianId: string,
+  dependentId: string,
+  role: GuardianRole,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.findFirst({
+    where: { guardianId, dependentId, role, isActive: true },
+  })
+}
+
+/**
+ * Create an active guardian relationship with a role, no notes or
+ * requires isPrimaryPayer.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createGuardianRelationshipByRole(
+  guardianId: string,
+  dependentId: string,
+  role: GuardianRole,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.create({
+    data: { guardianId, dependentId, role, isActive: true },
+  })
+}
+
+/**
+ * Deactivate a guardian relationship, recording an end date.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function deactivateGuardianRelationship(
+  relationshipId: string,
+  endDate: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.update({
+    where: { id: relationshipId },
+    data: { isActive: false, endDate },
+  })
+}
+
+/**
+ * Get a guardian's dependent relationships, each including the dependent
+ * and their active program profile enrollments.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getGuardianDependentRelationships(
+  guardianId: string,
+  activeOnly: boolean,
+  client: DatabaseClient = prisma
+) {
+  const where = activeOnly ? { guardianId, isActive: true } : { guardianId }
+
+  return client.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
+    where,
+    include: {
+      dependent: {
+        include: {
+          programProfiles: {
+            include: {
+              enrollments: {
+                where: {
+                  status: { not: 'WITHDRAWN' },
+                  endDate: null,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  })
+}
+
+/**
+ * Get a dependent's guardian relationships, each including the guardian.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getDependentGuardianRelationships(
+  dependentId: string,
+  activeOnly: boolean,
+  client: DatabaseClient = prisma
+) {
+  const where = activeOnly ? { dependentId, isActive: true } : { dependentId }
+
+  return client.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
+    where,
+    include: {
+      guardian: true,
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  })
+}
+
+/**
  * Create a guardian relationship record without validation. Callers are
  * responsible for calling validateGuardianRelationship first.
  * @param client - Optional database client (for transaction support)

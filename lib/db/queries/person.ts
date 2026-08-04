@@ -49,6 +49,75 @@ export async function findPersonByBillingCustomerId(
 }
 
 /**
+ * Find a person by exact email match.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmail(
+  email: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({ where: { email } })
+}
+
+/**
+ * Find a person by exact email match (unique lookup). Used for P2002
+ * race-condition recovery when creating a guardian Person.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmailUnique(
+  email: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({ where: { email } })
+}
+
+/**
+ * Find a person by exact email match, including their program profiles.
+ * Used to validate guardian email uniqueness.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmailWithProfiles(
+  email: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    relationLoadStrategy: 'join',
+    where: { email },
+    include: {
+      programProfiles: true,
+    },
+  })
+}
+
+/**
+ * Find a person by exact email match, including their active dependent
+ * relationships and each dependent's program profiles. Used to look up a
+ * guardian and their children by email.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmailWithActiveDependents(
+  email: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    relationLoadStrategy: 'join',
+    where: { email },
+    include: {
+      dependentRelationships: {
+        where: { isActive: true },
+        include: {
+          dependent: {
+            include: {
+              programProfiles: true,
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
  * Get people with multiple roles across the system
  * Useful for identifying staff/students/parents with multiple roles for policy decisions
  */
