@@ -449,7 +449,7 @@ export async function handleSubscriptionCreated(
 
     const priceAmount = subscription.items.data[0]?.price?.unit_amount
     if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
-      const error = new Error('Subscription has invalid amount')
+      const error = new Error('Invalid subscription amount')
       await logError(
         logger,
         error,

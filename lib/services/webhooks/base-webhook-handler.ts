@@ -21,7 +21,7 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
@@ -240,9 +240,65 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
         errorType: err instanceof Error ? err.constructor.name : 'UnknownError',
       })
 
-      // 10. Cleanup webhook event record on error (allows retry)
+      // 10. Classify the error before cleanup: only retryable (5xx) errors
+      // delete the WebhookEvent record. Permanent (4xx) failures keep the
+      // record so a Stripe redelivery is a no-op and the failure stays
+      // auditable in the DB. Response messages are static — raw error text
+      // may embed query arguments (PII) and Stripe persists response bodies.
+      let status: number
+      let message: string
+
+      if (
+        errorMessage.includes('Missing signature') ||
+        errorMessage.includes('verification failed') ||
+        errorMessage.includes('Webhook verification failed') ||
+        errorMessage.includes('Invalid webhook signature')
+      ) {
+        status = 401
+        message = 'Invalid webhook signature'
+      } else if (
+        // Prisma errors must be classified before the string-based validation
+        // check: their messages start with "Invalid `prisma...` invocation",
+        // which would match the 'Invalid' branch below and return 400 —
+        // Stripe would never retry a transient DB conflict (P2034, P2024)
+        err instanceof Prisma.PrismaClientKnownRequestError ||
+        err instanceof Prisma.PrismaClientUnknownRequestError ||
+        err instanceof Prisma.PrismaClientRustPanicError ||
+        err instanceof Prisma.PrismaClientInitializationError ||
+        err instanceof Prisma.PrismaClientValidationError
+      ) {
+        status = 500
+        message = 'Internal server error'
+      } else if (
+        // Validation errors (malformed data, missing required fields).
+        // Stripe retries ALL non-2xx responses for up to 3 days; the kept
+        // WebhookEvent record makes the next retry a 200-skip, which stops
+        // the retry cycle after one redelivery
+        errorMessage.includes('Invalid') ||
+        errorMessage.includes('Missing') ||
+        errorMessage.includes('Required')
+      ) {
+        status = 400
+        message = 'Validation error'
+      } else if (
+        // Database/connection errors should return 500 - Stripe WILL retry
+        errorMessage.toLowerCase().includes('database') ||
+        errorMessage.toLowerCase().includes('connection') ||
+        errorMessage.toLowerCase().includes('timeout') ||
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.toLowerCase().includes('prisma')
+      ) {
+        status = 500
+        message = 'Internal server error'
+      } else {
+        // Default: 500 for unknown server errors (Stripe WILL retry)
+        status = 500
+        message = 'Webhook processing error'
+      }
+
+      // 11. Cleanup webhook event record on retryable errors (allows retry)
       // Only delete if WE created it — guards against deleting another concurrent request's record
-      if (eventId && eventRecordCreated) {
+      if (status >= 500 && eventId && eventRecordCreated) {
         try {
           await deleteWebhookEventByIdAndSource(eventId, source)
           logger.info({ eventId }, 'Cleaned up webhook event for retry')
@@ -252,53 +308,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
         }
       }
 
-      // 11. Return appropriate status codes based on error type
-      // Signature and validation errors should return 400/401 (client errors)
-      if (
-        errorMessage.includes('Missing signature') ||
-        errorMessage.includes('verification failed') ||
-        errorMessage.includes('Webhook verification failed') ||
-        errorMessage.includes('Invalid webhook signature')
-      ) {
-        return NextResponse.json(
-          { message: 'Invalid webhook signature' },
-          { status: 401 }
-        )
-      }
-
-      // Validation errors (malformed data, missing required fields)
-      // Return 400 for client errors - Stripe will NOT retry these
-      if (
-        errorMessage.includes('Invalid') ||
-        errorMessage.includes('Missing') ||
-        errorMessage.includes('Required')
-      ) {
-        return NextResponse.json(
-          { message: `Validation error: ${errorMessage}` },
-          { status: 400 }
-        )
-      }
-
-      // Database/connection errors should return 500 - Stripe WILL retry
-      if (
-        errorMessage.toLowerCase().includes('database') ||
-        errorMessage.toLowerCase().includes('connection') ||
-        errorMessage.toLowerCase().includes('timeout') ||
-        errorMessage.includes('ECONNREFUSED') ||
-        errorMessage.toLowerCase().includes('prisma')
-      ) {
-        return NextResponse.json(
-          { message: 'Internal server error' },
-          { status: 500 }
-        )
-      }
-
-      // Default: 500 for unknown server errors (Stripe WILL retry)
-      // Changed from 400 to ensure transient errors are retried
-      return NextResponse.json(
-        { message: 'Webhook processing error' },
-        { status: 500 }
-      )
+      return NextResponse.json({ message }, { status })
     }
   }
 }
