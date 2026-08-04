@@ -11,7 +11,7 @@
 import * as Sentry from '@sentry/nextjs'
 
 import { featureFlags } from '@/lib/config/feature-flags'
-import { prisma } from '@/lib/db'
+import { findFamilyProfilesForCheckout } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
@@ -137,33 +137,7 @@ export async function createDugsiCheckoutSession(
     input.cancelUrl ?? `${appUrl}/dugsi/payment-complete?payment=canceled`
 
   // Get family profiles with guardian information
-  const familyProfiles = await prisma.programProfile.findMany({
-    relationLoadStrategy: 'join',
-    where: {
-      familyReferenceId: familyId,
-      program: 'DUGSI_PROGRAM',
-      status: { in: ['REGISTERED', 'ENROLLED'] },
-    },
-    include: {
-      person: {
-        include: {
-          dependentRelationships: {
-            where: { isActive: true },
-            include: {
-              guardian: {
-                include: {
-                  billingAccounts: {
-                    select: { stripeCustomerIdDugsi: true },
-                    take: 1,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  })
+  const familyProfiles = await findFamilyProfilesForCheckout(familyId)
 
   if (familyProfiles.length === 0) {
     throw new ActionError(

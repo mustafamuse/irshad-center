@@ -7,6 +7,7 @@
 
 import { Prisma, Program, EnrollmentStatus, Shift } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
@@ -267,6 +268,112 @@ export async function findPersonByActiveContact(
               endDate: null,
             },
           },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Get a Dugsi family's registered/enrolled profiles with guardian and
+ * billing-account data, for calculating checkout rates and locating the
+ * primary payer.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findFamilyProfilesForCheckout(
+  familyId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      familyReferenceId: familyId,
+      program: DUGSI_PROGRAM,
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+    },
+    include: {
+      person: {
+        include: {
+          dependentRelationships: {
+            where: { isActive: true },
+            include: {
+              guardian: {
+                include: {
+                  billingAccounts: {
+                    select: { stripeCustomerIdDugsi: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a parent (by email) with their Dugsi program profiles, including
+ * active enrollments and active billing assignments with subscription and
+ * billing-account data, for the Dugsi payment-status lookup by parent email.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findParentWithDugsiProfilesAndBilling(
+  normalizedEmail: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      programProfiles: {
+        where: {
+          program: DUGSI_PROGRAM,
+        },
+        include: {
+          enrollments: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+            },
+          },
+          assignments: {
+            where: { isActive: true },
+            include: {
+              subscription: {
+                include: {
+                  billingAccount: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a parent (by email) with their Dugsi program profiles (no further
+ * relations), for locating a family's profiles before linking a subscription.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findParentWithDugsiProfiles(
+  normalizedEmail: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      programProfiles: {
+        where: {
+          program: DUGSI_PROGRAM,
         },
       },
     },

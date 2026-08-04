@@ -690,6 +690,80 @@ export async function findFamilyLiveSubscriptions(
 }
 
 /**
+ * Update a subscription's status only, returning the bare row (no relations).
+ * Distinct from updateSubscriptionStatus, which also updates period fields
+ * and returns billingAccount/assignments/history relations.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateSubscriptionStatusOnly(
+  subscriptionId: string,
+  status: SubscriptionStatus,
+  client: DatabaseClient = prisma
+) {
+  return client.subscription.update({
+    where: { id: subscriptionId },
+    data: { status },
+  })
+}
+
+/**
+ * Update a subscription's billing account, status, amount, and period fields
+ * during admin consolidation. Returns the bare row (no relations).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateSubscriptionForConsolidation(
+  subscriptionId: string,
+  data: {
+    billingAccountId: string
+    status: SubscriptionStatus
+    amount: number
+    currentPeriodStart: Date | null
+    currentPeriodEnd: Date | null
+    paidUntil: Date | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.subscription.update({
+    where: { id: subscriptionId },
+    data,
+  })
+}
+
+/**
+ * Find a parent (by email) with their Dugsi billing account and most recent
+ * live subscription, for the Dugsi payment-status lookup by parent email.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findParentWithDugsiBillingAccount(
+  normalizedEmail: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      billingAccounts: {
+        where: {
+          accountType: 'DUGSI',
+        },
+        include: {
+          subscriptions: {
+            where: {
+              status: { in: LIVE_SUBSCRIPTION_STATUSES },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
  * Get billing assignments by subscription
  * @param client - Optional database client (for transaction support)
  */

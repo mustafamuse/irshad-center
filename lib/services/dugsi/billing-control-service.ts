@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 
-import { prisma } from '@/lib/db'
+import { updateSubscriptionStatusOnly } from '@/lib/db/queries/billing'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logInfo } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
@@ -72,10 +72,7 @@ async function toggleFamilyBillingStatus(
       )
 
       try {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: config.dbStatus },
-        })
+        await updateSubscriptionStatusOnly(subscription.id, config.dbStatus)
       } catch (dbError) {
         const error = await handleBillingDivergence(
           logger,

@@ -11,11 +11,14 @@
  * - Handle family-based billing assignments
  */
 
-import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
-import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
-import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import {
+  getSubscriptionByStripeId,
+  findParentWithDugsiBillingAccount,
+} from '@/lib/db/queries/billing'
+import {
+  getProgramProfilesByFamilyId,
+  findParentWithDugsiProfiles,
+} from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import {
   validateStripeSubscription,
@@ -108,19 +111,7 @@ export async function linkDugsiSubscription(
   }
 
   // Find person by email (parent)
-  const person = await prisma.person.findFirst({
-    relationLoadStrategy: 'join',
-    where: {
-      email: normalizedParentEmail,
-    },
-    include: {
-      programProfiles: {
-        where: {
-          program: DUGSI_PROGRAM,
-        },
-      },
-    },
-  })
+  const person = await findParentWithDugsiProfiles(normalizedParentEmail)
 
   if (!person) {
     throw new ActionError(
@@ -194,30 +185,7 @@ export async function getDugsiPaymentStatus(
   }
 
   // Find person by email
-  const person = await prisma.person.findFirst({
-    relationLoadStrategy: 'join',
-    where: {
-      email: normalizedEmail,
-    },
-    include: {
-      billingAccounts: {
-        where: {
-          accountType: 'DUGSI',
-        },
-        include: {
-          subscriptions: {
-            where: {
-              status: { in: LIVE_SUBSCRIPTION_STATUSES },
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-            take: 1,
-          },
-        },
-      },
-    },
-  })
+  const person = await findParentWithDugsiBillingAccount(normalizedEmail)
 
   if (!person) {
     throw new ActionError(

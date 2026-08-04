@@ -16,7 +16,7 @@ const {
   mockGetProgramProfilesByFamilyId,
   mockLinkSubscriptionToProfiles,
   mockUnlinkSubscription,
-  mockPrismaSubscriptionUpdate,
+  mockUpdateSubscriptionForConsolidation,
   mockLoggerInfo,
   mockLogError,
 } = vi.hoisted(() => ({
@@ -29,7 +29,7 @@ const {
   mockGetProgramProfilesByFamilyId: vi.fn(),
   mockLinkSubscriptionToProfiles: vi.fn(),
   mockUnlinkSubscription: vi.fn(),
-  mockPrismaSubscriptionUpdate: vi.fn(),
+  mockUpdateSubscriptionForConsolidation: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLogError: vi.fn(),
 }))
@@ -48,15 +48,8 @@ vi.mock('@/lib/stripe-dugsi', () => ({
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    subscription: {
-      update: mockPrismaSubscriptionUpdate,
-    },
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
-      const mockTx = {
-        subscription: {
-          update: mockPrismaSubscriptionUpdate,
-        },
-      }
+      const mockTx = {}
       return callback(mockTx)
     }),
   },
@@ -66,6 +59,7 @@ vi.mock('@/lib/db/queries/billing', () => ({
   getSubscriptionByStripeId: mockGetSubscriptionByStripeId,
   createSubscription: mockCreateSubscription,
   upsertBillingAccount: mockUpsertBillingAccount,
+  updateSubscriptionForConsolidation: mockUpdateSubscriptionForConsolidation,
 }))
 
 vi.mock('@/lib/db/queries/program-profile', () => ({
@@ -397,10 +391,10 @@ describe('consolidate-subscription-service', () => {
       })
 
       expect(mockCreateSubscription).not.toHaveBeenCalled()
-      expect(mockPrismaSubscriptionUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'existing-sub-123' },
-        })
+      expect(mockUpdateSubscriptionForConsolidation).toHaveBeenCalledWith(
+        'existing-sub-123',
+        expect.any(Object),
+        expect.any(Object)
       )
     })
 
