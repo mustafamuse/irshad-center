@@ -345,7 +345,7 @@ const _deleteTeacherAction = adminActionClient
     const { teacherId } = parsedInput
     await deleteTeacher(teacherId)
 
-    after(() => revalidatePath('/admin/teachers'))
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId }, 'Teacher deleted')
   })
@@ -484,7 +484,7 @@ const _assignTeacherToProgramAction = adminActionClient
       await assignTeacherToProgram(parsedInput)
 
       after(() => {
-        revalidatePath('/admin/teachers')
+        revalidatePath('/admin/dugsi/teachers')
         revalidatePath(
           `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
         )
@@ -528,7 +528,7 @@ const _removeTeacherFromProgramAction = adminActionClient
     await removeTeacherFromProgram(parsedInput)
 
     after(() => {
-      revalidatePath('/admin/teachers')
+      revalidatePath('/admin/dugsi/teachers')
       revalidatePath(
         `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
       )
@@ -557,7 +557,7 @@ const _bulkAssignProgramsAction = adminActionClient
     }
 
     after(() => {
-      revalidatePath('/admin/teachers')
+      revalidatePath('/admin/dugsi/teachers')
       programs.forEach((program) => {
         revalidatePath(
           `/admin/${program.toLowerCase().replace('_program', '')}`

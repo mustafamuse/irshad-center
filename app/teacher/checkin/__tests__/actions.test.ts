@@ -256,9 +256,7 @@ describe('teacherClockInAction', () => {
     await teacherClockInAction(input)
 
     expect(mockRevalidatePath).toHaveBeenCalledWith('/teacher/checkin')
-    expect(mockRevalidatePath).toHaveBeenCalledWith(
-      '/admin/dugsi/teacher-checkins'
-    )
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/teachers')
   })
 
   it('should return late message when late', async () => {
@@ -394,9 +392,7 @@ describe('teacherClockOutAction', () => {
     await teacherClockOutAction(input)
 
     expect(mockRevalidatePath).toHaveBeenCalledWith('/teacher/checkin')
-    expect(mockRevalidatePath).toHaveBeenCalledWith(
-      '/admin/dugsi/teacher-checkins'
-    )
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/teachers')
   })
 
   it('should return validationErrors for invalid checkInId UUID format', async () => {
