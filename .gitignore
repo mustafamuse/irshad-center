@@ -81,3 +81,4 @@ agent-orchestrator.yaml
 
 .claude/tdd-guard/
 .claude/plans/
+*.local.txt

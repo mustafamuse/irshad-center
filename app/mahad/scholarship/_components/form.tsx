@@ -202,16 +202,22 @@ export function ScholarshipForm() {
       // Call Server Action
       const result = await submitScholarshipApplication(formData)
 
-      if (!result.success) {
+      if (result?.serverError || result?.validationErrors) {
         toasts.apiError({
           title: 'Submission Failed',
-          error: new Error(result.error || 'Please try again'),
+          error: new Error(
+            result.serverError ??
+              'Invalid form data. Please check all required fields.'
+          ),
         })
         setIsSubmitting(false)
         return
       }
 
-      toasts.success('Success!', result.message || 'Application submitted')
+      toasts.success(
+        'Success!',
+        result?.data?.message || 'Application submitted'
+      )
       clearDraft() // Clear saved draft on successful submission
       setIsSubmitted(true)
     } catch (error) {
