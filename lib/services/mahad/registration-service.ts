@@ -182,21 +182,44 @@ export async function registerMahadStudent(
           },
         })
         if (invited && invited.program === MAHAD_PROGRAM) {
-          // A conflicting contact value here belongs to a different Person
-          // (e.g. a Dugsi guardian sharing the family email/phone). Writing
-          // it onto the invited recovery Person would violate the
-          // Person.email/phone unique constraint and abort the transaction,
-          // making the invite link unusable. Skip only the conflicting
-          // field(s); non-conflicting fields still fill normally.
-          const conflictsWithOtherPerson =
-            dupResult.existingPerson &&
-            dupResult.existingPerson.id !== invited.person.id
-          const skip = conflictsWithOtherPerson
-            ? {
-                email: dupResult.duplicateField !== 'phone',
-                phone: dupResult.duplicateField !== 'email',
-              }
-            : undefined
+          // checkDuplicate does a single findFirst over OR(email, phone) and
+          // returns at most one conflicting Person. If the submitted email and
+          // phone belong to two DIFFERENT third-party Persons, only one
+          // conflict is reported there — writing the other field onto the
+          // invited Person would still violate the unique constraint and
+          // abort the transaction, making the invite link unusable. So each
+          // field that would actually be written here gets its own ownership
+          // check against a different Person.
+          const willWriteEmail =
+            normalizedEmail !== null && !invited.person.email
+          const willWritePhone =
+            normalizedPhone !== null && !invited.person.phone
+
+          const [emailOwner, phoneOwner] = await Promise.all([
+            willWriteEmail
+              ? tx.person.findFirst({
+                  where: {
+                    email: normalizedEmail,
+                    NOT: { id: invited.person.id },
+                  },
+                  select: { id: true },
+                })
+              : null,
+            willWritePhone
+              ? tx.person.findFirst({
+                  where: {
+                    phone: normalizedPhone,
+                    NOT: { id: invited.person.id },
+                  },
+                  select: { id: true },
+                })
+              : null,
+          ])
+
+          const skip = {
+            email: emailOwner !== null,
+            phone: phoneOwner !== null,
+          }
 
           return enrichExistingProfile(
             tx,

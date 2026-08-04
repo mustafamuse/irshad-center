@@ -7,6 +7,7 @@ const BASE_ENV = {
   DATABASE_URL: 'postgresql://localhost:5432/test',
   ADMIN_PIN: '1234',
   ADMIN_PASSWORD: 'password',
+  MAHAD_INVITE_SECRET: 'test-invite-secret',
   RESEND_API_KEY: 're_test',
   ADMIN_EMAIL: 'admin@example.com',
 } as const

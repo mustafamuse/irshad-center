@@ -4,6 +4,7 @@ const {
   mockPersonCreate,
   mockPersonUpdate,
   mockPersonFindMany,
+  mockPersonFindFirst,
   mockProgramProfileCreate,
   mockProgramProfileFindUnique,
   mockProgramProfileUpdate,
@@ -14,6 +15,7 @@ const {
   mockPersonCreate: vi.fn(),
   mockPersonUpdate: vi.fn(),
   mockPersonFindMany: vi.fn(),
+  mockPersonFindFirst: vi.fn(),
   mockProgramProfileCreate: vi.fn(),
   mockProgramProfileFindUnique: vi.fn(),
   mockProgramProfileUpdate: vi.fn(),
@@ -27,6 +29,7 @@ const mockTx = {
     create: (...args: unknown[]) => mockPersonCreate(...args),
     update: (...args: unknown[]) => mockPersonUpdate(...args),
     findMany: (...args: unknown[]) => mockPersonFindMany(...args),
+    findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
   },
   programProfile: {
     create: (...args: unknown[]) => mockProgramProfileCreate(...args),
@@ -491,6 +494,7 @@ describe('invite enrichment path', () => {
     vi.clearAllMocks()
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
     mockPersonFindMany.mockResolvedValue([])
+    mockPersonFindFirst.mockResolvedValue(null)
     mockProgramProfileFindUnique.mockResolvedValue(inviteProfile)
     mockPersonUpdate.mockResolvedValue({})
     mockProgramProfileUpdate.mockResolvedValue({ id: inviteProfile.id })
@@ -599,6 +603,10 @@ describe('invite enrichment path', () => {
       },
       hasActiveProfile: false,
     })
+    mockPersonFindFirst.mockImplementation(
+      (args: { where: { email?: string; phone?: string } }) =>
+        Promise.resolve(args.where.email ? { id: 'dugsi-guardian' } : null)
+    )
 
     const result = await registerMahadStudent({
       ...baseInput,
@@ -629,6 +637,7 @@ describe('invite enrichment path', () => {
       },
       hasActiveProfile: false,
     })
+    mockPersonFindFirst.mockResolvedValue({ id: 'dugsi-guardian' })
 
     const result = await registerMahadStudent({
       ...baseInput,
@@ -640,6 +649,67 @@ describe('invite enrichment path', () => {
       expect.objectContaining({
         where: { id: 'person-recovery-1' },
         data: {
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('skips both email and phone when they are owned by two DIFFERENT third-party persons (checkDuplicate only reports one)', async () => {
+    // checkDuplicate's findFirst over OR(email, phone) surfaces only the
+    // email conflict here, even though the phone also belongs to a
+    // different, unrelated third party.
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'third-party-a',
+        email: 'ahmed@example.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+    mockPersonFindFirst.mockImplementation(
+      (args: { where: { email?: string; phone?: string } }) => {
+        if (args.where.email) return Promise.resolve({ id: 'third-party-a' })
+        if (args.where.phone) return Promise.resolve({ id: 'third-party-b' })
+        return Promise.resolve(null)
+      }
+    )
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('writes both email and phone when neither has a third-party owner', async () => {
+    mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          email: 'ahmed@example.com',
+          phone: '6125551234',
           dateOfBirth: baseInput.dateOfBirth,
         },
       })

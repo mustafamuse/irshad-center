@@ -32,6 +32,7 @@ const envSchema = z
     // ── Admin Auth ───────────────────────────────────────────────────────────────
     ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
     ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
+    MAHAD_INVITE_SECRET: z.string().min(1, 'MAHAD_INVITE_SECRET is required'),
 
     // ── App Config ───────────────────────────────────────────────────────────────
     // NEXT_PUBLIC_* vars are inlined by Next.js at build time. Client-side code
