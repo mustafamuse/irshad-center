@@ -162,13 +162,17 @@ export type TeacherWithDetails = Prisma.TeacherGetPayload<{
 }>
 
 /**
- * Create a Teacher record for an existing Person, with Person and Programs included.
+ * Create a Teacher record for an existing Person, with Person and ALL
+ * Programs included (unfiltered — a freshly created teacher has none;
+ * intentionally not TeacherWithDetails, which filters to active programs).
  * @param client - Optional database client (for transaction support)
  */
 export async function createTeacherWithDetails(
   personId: string,
   client: DatabaseClient = prisma
-): Promise<TeacherWithDetails> {
+): Promise<
+  Prisma.TeacherGetPayload<{ include: { person: true; programs: true } }>
+> {
   return client.teacher.create({
     data: { personId },
     include: {
