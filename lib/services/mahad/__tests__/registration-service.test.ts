@@ -4,6 +4,8 @@ const {
   mockPersonCreate,
   mockPersonUpdate,
   mockProgramProfileCreate,
+  mockProgramProfileFindUnique,
+  mockProgramProfileUpdate,
   mockEnrollmentCreate,
   mockTransaction,
   mockCheckDuplicate,
@@ -11,6 +13,8 @@ const {
   mockPersonCreate: vi.fn(),
   mockPersonUpdate: vi.fn(),
   mockProgramProfileCreate: vi.fn(),
+  mockProgramProfileFindUnique: vi.fn(),
+  mockProgramProfileUpdate: vi.fn(),
   mockEnrollmentCreate: vi.fn(),
   mockTransaction: vi.fn(),
   mockCheckDuplicate: vi.fn(),
@@ -23,6 +27,8 @@ const mockTx = {
   },
   programProfile: {
     create: (...args: unknown[]) => mockProgramProfileCreate(...args),
+    findUnique: (...args: unknown[]) => mockProgramProfileFindUnique(...args),
+    update: (...args: unknown[]) => mockProgramProfileUpdate(...args),
   },
   enrollment: {
     create: (...args: unknown[]) => mockEnrollmentCreate(...args),
@@ -453,5 +459,139 @@ describe('registerMahadStudent', () => {
     })
 
     expect(result).toEqual({ profileId: 'profile-1' })
+  })
+})
+
+describe('invite enrichment path', () => {
+  const inviteProfile = {
+    id: 'profile-recovery-1',
+    program: 'MAHAD_PROGRAM',
+    gradeLevel: null,
+    schoolName: null,
+    graduationStatus: null,
+    paymentFrequency: null,
+    billingType: null,
+    paymentNotes:
+      'Created from attendance roster during 2026-08 billing recovery; billing pending checkout',
+    person: {
+      id: 'person-recovery-1',
+      name: 'Habib Idris',
+      email: null,
+      phone: null,
+      dateOfBirth: null,
+    },
+    enrollments: [{ id: 'enr-1', endDate: null }],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockProgramProfileFindUnique.mockResolvedValue(inviteProfile)
+    mockPersonUpdate.mockResolvedValue({})
+    mockProgramProfileUpdate.mockResolvedValue({ id: inviteProfile.id })
+  })
+
+  it('enriches the invited profile and returns its id', async () => {
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+    expect(mockProgramProfileCreate).not.toHaveBeenCalled()
+  })
+
+  it('fills person nulls without overwriting existing values', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      ...inviteProfile,
+      person: { ...inviteProfile.person, email: 'kept@example.com' },
+    })
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    const update = mockPersonUpdate.mock.calls[0][0] as {
+      data: Record<string, unknown>
+    }
+    expect(update.data.email).toBeUndefined()
+    expect(update.data.phone).toBeDefined()
+  })
+
+  it('does not create a second enrollment when one is active', async () => {
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(mockEnrollmentCreate).not.toHaveBeenCalled()
+  })
+
+  it('creates an enrollment when the profile has none active', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      ...inviteProfile,
+      enrollments: [],
+    })
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(mockEnrollmentCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls through to normal create when the profile does not exist', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue(null)
+    mockPersonCreate.mockResolvedValue({ id: 'person-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'profile-new' })
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-gone',
+    })
+    expect(result.profileId).toBe('profile-new')
+  })
+
+  it('falls through when the invited profile is not Mahad', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      ...inviteProfile,
+      program: 'DUGSI_PROGRAM',
+    })
+    mockPersonCreate.mockResolvedValue({ id: 'person-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'profile-new' })
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(result.profileId).toBe('profile-new')
+  })
+
+  it('still 409s on duplicate contact even with an invite', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'p-x',
+        email: 'x@x.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: true,
+    })
+    await expect(
+      registerMahadStudent({
+        ...baseInput,
+        inviteProfileId: 'profile-recovery-1',
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('appends the submitted paymentNotes after the recovery marker', async () => {
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+      paymentNotes: 'prefers cash',
+    })
+    const update = mockProgramProfileUpdate.mock.calls[0][0] as {
+      data: Record<string, unknown>
+    }
+    expect(update.data.paymentNotes).toContain('billing pending checkout')
+    expect(update.data.paymentNotes).toContain('prefers cash')
   })
 })

@@ -34,6 +34,82 @@ export interface MahadRegistrationInput {
   billingType?: StudentBillingType | null
   paymentNotes?: string | null
   batchId?: string | null
+  inviteProfileId?: string | null
+}
+
+type EnrichableProfile = {
+  id: string
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
+  paymentNotes: string | null
+  person: {
+    id: string
+    email: string | null
+    phone: string | null
+    dateOfBirth: Date | null
+  }
+  enrollments: { id: string }[]
+}
+
+async function enrichExistingProfile(
+  tx: Prisma.TransactionClient,
+  profile: EnrichableProfile,
+  input: MahadRegistrationInput,
+  normalizedEmail: string | null,
+  normalizedPhone: string | null
+): Promise<{ profileId: string }> {
+  const personUpdates: Prisma.PersonUpdateInput = {}
+  if (normalizedEmail && !profile.person.email)
+    personUpdates.email = normalizedEmail
+  if (normalizedPhone && !profile.person.phone)
+    personUpdates.phone = normalizedPhone
+  if (input.dateOfBirth && !profile.person.dateOfBirth)
+    personUpdates.dateOfBirth = input.dateOfBirth
+  if (Object.keys(personUpdates).length > 0) {
+    await tx.person.update({
+      where: { id: profile.person.id },
+      data: personUpdates,
+    })
+  }
+
+  const profileUpdates: Prisma.ProgramProfileUpdateInput = {}
+  if (input.gradeLevel && !profile.gradeLevel)
+    profileUpdates.gradeLevel = input.gradeLevel
+  if (input.schoolName && !profile.schoolName)
+    profileUpdates.schoolName = input.schoolName
+  if (input.graduationStatus && !profile.graduationStatus)
+    profileUpdates.graduationStatus = input.graduationStatus
+  if (input.paymentFrequency && !profile.paymentFrequency)
+    profileUpdates.paymentFrequency = input.paymentFrequency
+  if (input.billingType && !profile.billingType)
+    profileUpdates.billingType = input.billingType
+  if (input.paymentNotes) {
+    profileUpdates.paymentNotes = profile.paymentNotes
+      ? `${profile.paymentNotes}; ${input.paymentNotes}`
+      : input.paymentNotes
+  }
+  if (Object.keys(profileUpdates).length > 0) {
+    await tx.programProfile.update({
+      where: { id: profile.id },
+      data: profileUpdates,
+    })
+  }
+
+  if (profile.enrollments.length === 0) {
+    await tx.enrollment.create({
+      data: {
+        programProfileId: profile.id,
+        batchId: input.batchId ?? null,
+        status: 'REGISTERED',
+        startDate: new Date(),
+      },
+    })
+  }
+
+  return { profileId: profile.id }
 }
 
 /**
@@ -76,6 +152,43 @@ export async function registerMahadStudent(
             : (dupResult.duplicateField ?? 'email'),
           409
         )
+      }
+
+      if (input.inviteProfileId) {
+        const invited = await tx.programProfile.findUnique({
+          where: { id: input.inviteProfileId },
+          select: {
+            id: true,
+            program: true,
+            gradeLevel: true,
+            schoolName: true,
+            graduationStatus: true,
+            paymentFrequency: true,
+            billingType: true,
+            paymentNotes: true,
+            person: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+                dateOfBirth: true,
+              },
+            },
+            enrollments: {
+              where: { endDate: null },
+              select: { id: true },
+            },
+          },
+        })
+        if (invited && invited.program === MAHAD_PROGRAM) {
+          return enrichExistingProfile(
+            tx,
+            invited,
+            input,
+            normalizedEmail,
+            normalizedPhone
+          )
+        }
       }
 
       let personId: string
