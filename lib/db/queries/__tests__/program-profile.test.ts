@@ -5,11 +5,13 @@ const {
   mockProfileFindUnique,
   mockProfileCount,
   mockPersonFindFirst,
+  mockPersonFindMany,
 } = vi.hoisted(() => ({
   mockProfileFindMany: vi.fn(),
   mockProfileFindUnique: vi.fn(),
   mockProfileCount: vi.fn(),
   mockPersonFindFirst: vi.fn(),
+  mockPersonFindMany: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -21,6 +23,7 @@ vi.mock('@/lib/db', () => ({
     },
     person: {
       findFirst: mockPersonFindFirst,
+      findMany: mockPersonFindMany,
     },
   },
 }))
@@ -30,6 +33,7 @@ import {
   getProgramProfileById,
   getProgramProfilesByPersonId,
   findPersonByActiveContact,
+  findContactlessMahadPersonsByName,
   getProgramProfilesByFamilyId,
   getProgramProfilesWithBilling,
   searchProgramProfilesByNameOrContact,
@@ -217,6 +221,39 @@ describe('getProgramProfilesByStatus', () => {
     expect(mockProfileFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         relationLoadStrategy: 'join',
+      })
+    )
+  })
+})
+
+describe('findContactlessMahadPersonsByName', () => {
+  it('should match only persons with null email and phone', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+
+    await findContactlessMahadPersonsByName('Ahmed Mohamed', 'MAHAD_PROGRAM')
+
+    expect(mockPersonFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          email: null,
+          phone: null,
+        }),
+      })
+    )
+  })
+
+  it('should match name case-insensitively and scope profiles to the given program', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+
+    await findContactlessMahadPersonsByName('Ahmed Mohamed', 'MAHAD_PROGRAM')
+
+    expect(mockPersonFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          name: { equals: 'Ahmed Mohamed', mode: 'insensitive' },
+          programProfiles: { some: { program: 'MAHAD_PROGRAM' } },
+        }),
+        take: 2,
       })
     )
   })

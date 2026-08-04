@@ -1,7 +1,17 @@
 import type { Person } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
+import {
+  findPersonsByContactConditions,
+  findPersonsByLastNameMatch,
+  getPersonWithActiveRelationships,
+} from '@/lib/db/queries/person'
+import { findGuardianRelationshipsBySharedGuardians } from '@/lib/db/queries/relationships'
+import {
+  createSiblingRelationshipRecord,
+  findSiblingRelationshipByOrderedPersons,
+  findSiblingRelationshipsForPerson,
+} from '@/lib/db/queries/siblings'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
 import {
@@ -28,24 +38,7 @@ export interface PotentialSibling {
 export async function detectPotentialSiblings(
   personId: string
 ): Promise<PotentialSibling[]> {
-  const person = await prisma.person.findUnique({
-    relationLoadStrategy: 'join',
-    where: { id: personId },
-    include: {
-      guardianRelationships: {
-        where: { isActive: true },
-        include: {
-          guardian: true,
-        },
-      },
-      dependentRelationships: {
-        where: { isActive: true },
-        include: {
-          dependent: true,
-        },
-      },
-    },
-  })
+  const person = await getPersonWithActiveRelationships(personId)
 
   if (!person) {
     throw new ValidationError('Person not found', 'PERSON_NOT_FOUND', {
@@ -58,11 +51,7 @@ export async function detectPotentialSiblings(
   // Batch fetch all existing sibling relationships for this person
   // This prevents N+1 queries when checking each potential sibling
   const existingSiblingRelationships =
-    await prisma.siblingRelationship.findMany({
-      where: {
-        OR: [{ person1Id: personId }, { person2Id: personId }],
-      },
-    })
+    await findSiblingRelationshipsForPerson(personId)
 
   // Create a Set of person IDs that already have sibling relationships
   const existingSiblingIds = new Set(
@@ -81,18 +70,8 @@ export async function detectPotentialSiblings(
     )
 
     if (guardianIds.length > 0) {
-      const siblingsViaGuardians = await prisma.guardianRelationship.findMany({
-        relationLoadStrategy: 'join',
-        where: {
-          guardianId: { in: guardianIds },
-          dependentId: { not: personId },
-          isActive: true,
-        },
-        include: {
-          dependent: true,
-          guardian: true,
-        },
-      })
+      const siblingsViaGuardians =
+        await findGuardianRelationshipsBySharedGuardians(guardianIds, personId)
 
       for (const rel of siblingsViaGuardians) {
         // Check if relationship already exists using the Set
@@ -114,15 +93,7 @@ export async function detectPotentialSiblings(
   if (nameParts.length >= 2) {
     const lastName = nameParts[nameParts.length - 1]
 
-    const nameMatches = await prisma.person.findMany({
-      where: {
-        id: { not: personId },
-        name: {
-          contains: lastName,
-          mode: 'insensitive',
-        },
-      },
-    })
+    const nameMatches = await findPersonsByLastNameMatch(lastName, personId)
 
     for (const match of nameMatches) {
       // Check if relationship already exists using the Set
@@ -169,12 +140,10 @@ export async function detectPotentialSiblings(
   }
 
   if (contactOrConditions.length > 0) {
-    const contactMatches = await prisma.person.findMany({
-      where: {
-        id: { not: personId },
-        OR: contactOrConditions,
-      },
-    })
+    const contactMatches = await findPersonsByContactConditions(
+      contactOrConditions,
+      personId
+    )
 
     for (const match of contactMatches) {
       if (!existingSiblingIds.has(match.id)) {
@@ -276,17 +245,15 @@ export async function createSiblingRelationship(
   const [p1, p2] = [person1Id, person2Id].sort()
 
   try {
-    return await prisma.siblingRelationship.create({
-      data: {
-        person1Id: p1,
-        person2Id: p2,
-        detectionMethod: method,
-        confidence: options?.confidence ?? (method === 'MANUAL' ? 1.0 : null),
-        verifiedBy: options?.verifiedBy,
-        verifiedAt: options?.verifiedBy ? new Date() : null,
-        notes: options?.notes,
-        isActive: true,
-      },
+    return await createSiblingRelationshipRecord({
+      person1Id: p1,
+      person2Id: p2,
+      detectionMethod: method,
+      confidence: options?.confidence ?? (method === 'MANUAL' ? 1.0 : null),
+      verifiedBy: options?.verifiedBy,
+      verifiedAt: options?.verifiedBy ? new Date() : null,
+      notes: options?.notes,
+      isActive: true,
     })
   } catch (error) {
     // Handle race condition: P2002 means another thread created the relationship
@@ -295,12 +262,7 @@ export async function createSiblingRelationship(
       error.code === 'P2002'
     ) {
       // Return the existing relationship instead of throwing
-      const existing = await prisma.siblingRelationship.findFirst({
-        where: {
-          person1Id: p1,
-          person2Id: p2,
-        },
-      })
+      const existing = await findSiblingRelationshipByOrderedPersons(p1, p2)
       if (existing) {
         return existing
       }

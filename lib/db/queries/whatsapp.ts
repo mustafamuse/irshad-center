@@ -198,6 +198,26 @@ export async function getRecentMessagesToPhone(
   })
 }
 
+export async function upsertWhatsAppMessageByWaId(
+  waMessageId: string,
+  create: Prisma.WhatsAppMessageCreateInput,
+  update: Prisma.WhatsAppMessageUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.whatsAppMessage.upsert({
+    where: { waMessageId },
+    create,
+    update,
+  })
+}
+
+export async function createWhatsAppMessage(
+  data: Prisma.WhatsAppMessageCreateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.whatsAppMessage.create({ data })
+}
+
 export async function hasRecentMessage(
   phoneNumber: string,
   templateName: string,

@@ -23,6 +23,7 @@ import {
   getSubscriptionByStripeId,
   createSubscription,
   upsertBillingAccount,
+  updateSubscriptionForConsolidation,
 } from '@/lib/db/queries/billing'
 import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -379,9 +380,9 @@ export async function consolidateStripeSubscription(
                   'Created subscription record in database'
                 )
               } else {
-                await tx.subscription.update({
-                  where: { id: dbSubscription.id },
-                  data: {
+                await updateSubscriptionForConsolidation(
+                  dbSubscription.id,
+                  {
                     billingAccountId: billingAccount.id,
                     status,
                     amount,
@@ -389,7 +390,8 @@ export async function consolidateStripeSubscription(
                     currentPeriodEnd: periodDates.periodEnd,
                     paidUntil: periodDates.periodEnd,
                   },
-                })
+                  tx
+                )
                 logger.info(
                   {
                     subscriptionId: subscription.id,

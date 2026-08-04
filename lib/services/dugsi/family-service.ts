@@ -4,12 +4,24 @@ import * as Sentry from '@sentry/nextjs'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { createRegisteredEnrollment } from '@/lib/db/queries/enrollment'
+import { createPerson, updatePersonFields } from '@/lib/db/queries/person'
 import {
+  createProgramProfileRecord,
+  findProgramProfilePersonIdsByFamily,
   getProgramProfileById,
   findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
+  updateProgramProfileFields,
   updateProgramProfileStatusMany,
 } from '@/lib/db/queries/program-profile'
+import {
+  clearAllPrimaryPayers,
+  createGuardianRelationshipMinimal,
+  createGuardianRelationshipsMinimalBatch,
+  findGuardianRelationship,
+  reactivateGuardianRelationshipWithEndDate,
+  setPrimaryPayerForGuardian,
+} from '@/lib/db/queries/relationships'
 import {
   ActionError,
   ERROR_CODES,
@@ -137,9 +149,9 @@ export async function updateParentInfo(
     { name: 'family.updateParentInfo', op: 'db' },
     async () => {
       try {
-        await prisma.person.update({
-          where: { id: guardian.id },
-          data: { name: fullName, phone: normalizedPhone },
+        await updatePersonFields(guardian.id, {
+          name: fullName,
+          phone: normalizedPhone,
         })
       } catch (error) {
         throwIfP2002(error)
@@ -216,44 +228,39 @@ export async function addSecondParent(
             if (!existingPerson.email && normalizedEmail)
               updates.email = normalizedEmail
             if (Object.keys(updates).length > 0) {
-              await tx.person.update({
-                where: { id: existingPerson.id },
-                data: updates,
-              })
+              await updatePersonFields(existingPerson.id, updates, tx)
             }
           } else {
             const fullName = `${input.firstName} ${input.lastName}`.trim()
-            const newPerson = await tx.person.create({
-              data: {
+            const newPerson = await createPerson(
+              {
                 name: fullName,
                 email: normalizedEmail,
                 phone: normalizedPhone,
               },
-            })
+              tx
+            )
             parentPersonId = newPerson.id
           }
 
-          const existingRelationship = await tx.guardianRelationship.findFirst({
-            where: {
-              guardianId: parentPersonId,
-              dependentId: profile.person.id,
-            },
-          })
+          const existingRelationship = await findGuardianRelationship(
+            parentPersonId,
+            profile.person.id,
+            tx
+          )
           if (existingRelationship) {
             if (!existingRelationship.isActive) {
-              await tx.guardianRelationship.update({
-                where: { id: existingRelationship.id },
-                data: { isActive: true, endDate: null },
-              })
+              await reactivateGuardianRelationshipWithEndDate(
+                existingRelationship.id,
+                tx
+              )
             }
           } else {
-            await tx.guardianRelationship.create({
-              data: {
-                guardianId: parentPersonId,
-                dependentId: profile.person.id,
-                isActive: true,
-              },
-            })
+            await createGuardianRelationshipMinimal(
+              parentPersonId,
+              profile.person.id,
+              tx
+            )
           }
         })
       }
@@ -300,10 +307,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
         }
 
         if (Object.keys(personUpdateData).length > 0) {
-          await prisma.person.update({
-            where: { id: profile.personId },
-            data: personUpdateData,
-          })
+          await updatePersonFields(profile.personId, personUpdateData)
         }
 
         const profileUpdates: Partial<{
@@ -322,10 +326,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
           profileUpdates.healthInfo = input.healthInfo
 
         if (Object.keys(profileUpdates).length > 0) {
-          await prisma.programProfile.update({
-            where: { id: input.studentId },
-            data: profileUpdates,
-          })
+          await updateProgramProfileFields(input.studentId, profileUpdates)
         }
       }
     )
@@ -376,29 +377,30 @@ export async function addChildToFamily(
 
   const fullName = `${input.firstName} ${input.lastName}`.trim()
 
-  let newProfile: Awaited<ReturnType<typeof prisma.programProfile.create>>
+  let newProfile: Awaited<ReturnType<typeof createProgramProfileRecord>>
   try {
     newProfile = await Sentry.startSpan(
       { name: 'family.addChildToFamily', op: 'db.transaction' },
       async () => {
         return prisma.$transaction(async (tx) => {
-          const newPerson = await tx.person.create({
-            data: {
+          const newPerson = await createPerson(
+            {
               name: fullName,
               dateOfBirth: input.dateOfBirth || null,
             },
-          })
+            tx
+          )
 
-          await tx.guardianRelationship.createMany({
-            data: guardians.map((guardian) => ({
+          await createGuardianRelationshipsMinimalBatch(
+            guardians.map((guardian) => ({
               guardianId: guardian.id,
               dependentId: newPerson.id,
-              isActive: true,
             })),
-          })
+            tx
+          )
 
-          const profile = await tx.programProfile.create({
-            data: {
+          const profile = await createProgramProfileRecord(
+            {
               personId: newPerson.id,
               program: DUGSI_PROGRAM,
               familyReferenceId: familyId,
@@ -409,15 +411,10 @@ export async function addChildToFamily(
               status: 'REGISTERED',
               shift: existingProfile.shift,
             },
-          })
+            tx
+          )
 
-          await tx.enrollment.create({
-            data: {
-              programProfileId: profile.id,
-              status: 'REGISTERED',
-              startDate: new Date(),
-            },
-          })
+          await createRegisteredEnrollment(profile.id, new Date(), tx)
 
           return profile
         })
@@ -492,13 +489,10 @@ export async function setPrimaryPayer(
     )
   }
 
-  const familyProfiles = await prisma.programProfile.findMany({
-    where: {
-      familyReferenceId: familyId,
-      program: DUGSI_PROGRAM,
-    },
-    select: { personId: true },
-  })
+  const familyProfiles = await findProgramProfilePersonIdsByFamily(
+    familyId,
+    DUGSI_PROGRAM
+  )
 
   const childPersonIds = familyProfiles.map((p) => p.personId)
 
@@ -508,22 +502,13 @@ export async function setPrimaryPayer(
       { name: 'family.setPrimaryPayer', op: 'db.transaction' },
       async () => {
         return prisma.$transaction(async (tx) => {
-          await tx.guardianRelationship.updateMany({
-            where: {
-              dependentId: { in: childPersonIds },
-              isActive: true,
-            },
-            data: { isPrimaryPayer: false },
-          })
+          await clearAllPrimaryPayers(childPersonIds, tx)
 
-          const updated = await tx.guardianRelationship.updateMany({
-            where: {
-              guardianId: selectedGuardian.id,
-              dependentId: { in: childPersonIds },
-              isActive: true,
-            },
-            data: { isPrimaryPayer: true },
-          })
+          const updated = await setPrimaryPayerForGuardian(
+            selectedGuardian.id,
+            childPersonIds,
+            tx
+          )
 
           return updated.count
         })

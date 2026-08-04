@@ -8,6 +8,19 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { createMahadRegistrationEnrollment } from '@/lib/db/queries/enrollment'
+import {
+  createPerson,
+  findPersonByEmailExcluding,
+  findPersonByPhoneExcluding,
+  updatePersonFields,
+} from '@/lib/db/queries/person'
+import {
+  createProgramProfileRecord,
+  findContactlessMahadPersonsByName,
+  findProgramProfileForMahadInvite,
+  updateProgramProfileFields,
+} from '@/lib/db/queries/program-profile'
 import {
   ActionError,
   ERROR_CODES,
@@ -70,10 +83,7 @@ async function enrichExistingProfile(
   if (input.dateOfBirth && !profile.person.dateOfBirth)
     personUpdates.dateOfBirth = input.dateOfBirth
   if (Object.keys(personUpdates).length > 0) {
-    await tx.person.update({
-      where: { id: profile.person.id },
-      data: personUpdates,
-    })
+    await updatePersonFields(profile.person.id, personUpdates, tx)
   }
 
   const profileUpdates: Prisma.ProgramProfileUpdateInput = {}
@@ -93,21 +103,11 @@ async function enrichExistingProfile(
       : input.paymentNotes
   }
   if (Object.keys(profileUpdates).length > 0) {
-    await tx.programProfile.update({
-      where: { id: profile.id },
-      data: profileUpdates,
-    })
+    await updateProgramProfileFields(profile.id, profileUpdates, tx)
   }
 
   if (profile.enrollments.length === 0) {
-    await tx.enrollment.create({
-      data: {
-        programProfileId: profile.id,
-        batchId: input.batchId ?? null,
-        status: 'REGISTERED',
-        startDate: new Date(),
-      },
-    })
+    await createMahadRegistrationEnrollment(profile.id, input.batchId, tx)
   }
 
   return { profileId: profile.id }
@@ -118,12 +118,6 @@ async function enrichExistingProfile(
  * the contact already exists in another program) + ProgramProfile + initial
  * Enrollment, atomically. Returns only the fields the caller needs to redirect
  * the user to the stable success URL — never the full profile row.
- *
- * TODO(rule-21): the transactional create chain currently calls
- * `tx.person.create / programProfile.create / enrollment.create` directly
- * rather than going through `lib/db/queries/*`. This is one of the files
- * grandfathered in `.claude/rules/dry-catalog.md`; refactor to query helpers
- * is tracked separately to keep this PR focused.
  */
 export async function registerMahadStudent(
   input: MahadRegistrationInput
@@ -156,31 +150,10 @@ export async function registerMahadStudent(
       }
 
       if (input.inviteProfileId) {
-        const invited = await tx.programProfile.findUnique({
-          where: { id: input.inviteProfileId },
-          select: {
-            id: true,
-            program: true,
-            gradeLevel: true,
-            schoolName: true,
-            graduationStatus: true,
-            paymentFrequency: true,
-            billingType: true,
-            paymentNotes: true,
-            person: {
-              select: {
-                id: true,
-                email: true,
-                phone: true,
-                dateOfBirth: true,
-              },
-            },
-            enrollments: {
-              where: { endDate: null },
-              select: { id: true },
-            },
-          },
-        })
+        const invited = await findProgramProfileForMahadInvite(
+          input.inviteProfileId,
+          tx
+        )
         if (invited && invited.program === MAHAD_PROGRAM) {
           // checkDuplicate does a single findFirst over OR(email, phone) and
           // returns at most one conflicting Person. If the submitted email and
@@ -197,22 +170,18 @@ export async function registerMahadStudent(
 
           const [emailOwner, phoneOwner] = await Promise.all([
             willWriteEmail
-              ? tx.person.findFirst({
-                  where: {
-                    email: normalizedEmail,
-                    NOT: { id: invited.person.id },
-                  },
-                  select: { id: true },
-                })
+              ? findPersonByEmailExcluding(
+                  normalizedEmail!,
+                  invited.person.id,
+                  tx
+                )
               : null,
             willWritePhone
-              ? tx.person.findFirst({
-                  where: {
-                    phone: normalizedPhone,
-                    NOT: { id: invited.person.id },
-                  },
-                  select: { id: true },
-                })
+              ? findPersonByPhoneExcluding(
+                  normalizedPhone!,
+                  invited.person.id,
+                  tx
+                )
               : null,
           ])
 
@@ -252,44 +221,14 @@ export async function registerMahadStudent(
           contactUpdates.dateOfBirth = input.dateOfBirth
 
         if (Object.keys(contactUpdates).length > 0) {
-          await tx.person.update({
-            where: { id: personId },
-            data: contactUpdates,
-          })
+          await updatePersonFields(personId, contactUpdates, tx)
         }
       } else {
-        const fallbackMatches = await tx.person.findMany({
-          where: {
-            name: { equals: input.name, mode: 'insensitive' },
-            email: null,
-            phone: null,
-            programProfiles: { some: { program: MAHAD_PROGRAM } },
-          },
-          select: {
-            id: true,
-            email: true,
-            phone: true,
-            dateOfBirth: true,
-            programProfiles: {
-              where: { program: MAHAD_PROGRAM },
-              select: {
-                id: true,
-                program: true,
-                gradeLevel: true,
-                schoolName: true,
-                graduationStatus: true,
-                paymentFrequency: true,
-                billingType: true,
-                paymentNotes: true,
-                enrollments: {
-                  where: { endDate: null },
-                  select: { id: true },
-                },
-              },
-            },
-          },
-          take: 2,
-        })
+        const fallbackMatches = await findContactlessMahadPersonsByName(
+          input.name,
+          MAHAD_PROGRAM,
+          tx
+        )
 
         // Contact-less persons with a Mahad profile can only come from the
         // recovery backfill: mahadRegistrationSchema requires email and
@@ -315,19 +254,20 @@ export async function registerMahadStudent(
           )
         }
 
-        const newPerson = await tx.person.create({
-          data: {
+        const newPerson = await createPerson(
+          {
             name: input.name,
             dateOfBirth: input.dateOfBirth ?? null,
             email: normalizedEmail,
             phone: normalizedPhone,
           },
-        })
+          tx
+        )
         personId = newPerson.id
       }
 
-      const profile = await tx.programProfile.create({
-        data: {
+      const profile = await createProgramProfileRecord(
+        {
           personId,
           program: MAHAD_PROGRAM,
           gradeLevel: input.gradeLevel ?? null,
@@ -337,16 +277,10 @@ export async function registerMahadStudent(
           billingType: input.billingType ?? null,
           paymentNotes: input.paymentNotes ?? null,
         },
-      })
+        tx
+      )
 
-      await tx.enrollment.create({
-        data: {
-          programProfileId: profile.id,
-          batchId: input.batchId ?? null,
-          status: 'REGISTERED',
-          startDate: new Date(),
-        },
-      })
+      await createMahadRegistrationEnrollment(profile.id, input.batchId, tx)
 
       return { profileId: profile.id }
     })

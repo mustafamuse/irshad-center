@@ -8,7 +8,12 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { withdrawEnrollmentsByProgramProfile } from '@/lib/db/queries/enrollment'
+import { updatePersonFields } from '@/lib/db/queries/person'
+import {
+  getProgramProfileById,
+  updateProgramProfileFields,
+} from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import type { DatabaseClient } from '@/lib/db/types'
 import {
@@ -92,15 +97,12 @@ export async function updateMahadStudent(
     }
 
     if (Object.keys(personData).length > 0) {
-      await tx.person.update({
-        where: { id: personId },
-        data: personData,
-      })
+      await updatePersonFields(personId, personData, tx)
     }
 
-    return await tx.programProfile.update({
-      where: { id: studentId },
-      data: {
+    return await updateProgramProfileFields(
+      studentId,
+      {
         gradeLevel: input.gradeLevel,
         schoolName: input.schoolName,
         graduationStatus: input.graduationStatus,
@@ -108,7 +110,8 @@ export async function updateMahadStudent(
         billingType: input.billingType,
         paymentNotes: input.paymentNotes,
       },
-    })
+      tx
+    )
   }
 
   try {
@@ -176,23 +179,15 @@ export async function deleteMahadStudent(studentId: string) {
         )
       }
 
-      await tx.enrollment.updateMany({
-        where: {
-          programProfileId: studentId,
-          status: { not: 'WITHDRAWN' },
-        },
-        data: {
-          status: 'WITHDRAWN',
-          endDate: new Date(),
-        },
-      })
+      await withdrawEnrollmentsByProgramProfile(studentId, tx)
 
-      return tx.programProfile.update({
-        where: { id: studentId },
-        data: {
+      return updateProgramProfileFields(
+        studentId,
+        {
           status: 'WITHDRAWN',
         },
-      })
+        tx
+      )
     })
   } catch (error) {
     if (error instanceof ActionError) throw error

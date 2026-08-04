@@ -27,17 +27,10 @@ vi.mock('../whatsapp-client', () => ({
   }),
 }))
 
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    whatsAppMessage: {
-      create: mockCreate,
-      upsert: mockUpsert,
-    },
-  },
-}))
-
 vi.mock('@/lib/db/queries/whatsapp', () => ({
   hasRecentMessage: mockHasRecentMessage,
+  createWhatsAppMessage: mockCreate,
+  upsertWhatsAppMessageByWaId: mockUpsert,
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -213,9 +206,9 @@ describe('sendPaymentLink', () => {
 
     await sendPaymentLink(validInput)
 
-    expect(mockUpsert).toHaveBeenCalledWith({
-      where: { waMessageId: 'wamid.success' },
-      create: expect.objectContaining({
+    expect(mockUpsert).toHaveBeenCalledWith(
+      'wamid.success',
+      expect.objectContaining({
         waMessageId: 'wamid.success',
         phoneNumber: '15551234567',
         templateName: 'dugsi_payment_link',
@@ -226,10 +219,10 @@ describe('sendPaymentLink', () => {
         messageType: WhatsAppMessageType.TRANSACTIONAL,
         status: 'sent',
       }),
-      update: expect.objectContaining({
+      expect.objectContaining({
         status: 'sent',
-      }),
-    })
+      })
+    )
   })
 
   it('should create failed WhatsAppMessage record on error', async () => {
@@ -244,12 +237,12 @@ describe('sendPaymentLink', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('API rate limit exceeded')
 
-    expect(mockCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
         status: 'failed',
         failureReason: 'API rate limit exceeded',
-      }),
-    })
+      })
+    )
   })
 
   it('should use first name only for template', async () => {
@@ -328,11 +321,11 @@ describe('sendPaymentConfirmation', () => {
     await sendPaymentConfirmation(validInput)
 
     expect(mockUpsert).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        create: expect.objectContaining({
-          messageType: WhatsAppMessageType.NOTIFICATION,
-        }),
-      })
+        messageType: WhatsAppMessageType.NOTIFICATION,
+      }),
+      expect.anything()
     )
   })
 })
@@ -388,11 +381,11 @@ describe('sendPaymentReminder', () => {
     await sendPaymentReminder(validInput)
 
     expect(mockUpsert).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        create: expect.objectContaining({
-          messageType: WhatsAppMessageType.REMINDER,
-        }),
-      })
+        messageType: WhatsAppMessageType.REMINDER,
+      }),
+      expect.anything()
     )
   })
 })

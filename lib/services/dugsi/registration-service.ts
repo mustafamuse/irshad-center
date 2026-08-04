@@ -18,9 +18,13 @@ import * as Sentry from '@sentry/nextjs'
 
 import { DugsiRegistration } from '@/app/admin/dugsi/_types'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
-import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import {
+  deleteProgramProfileById,
+  deleteProgramProfilesByIds,
+  findProgramProfilesFullByContact,
+  findProgramProfilesFullByFamily,
+  findProgramProfilesFullByProgram,
+  getFamilyChildCountsByProgram,
   getProgramProfileById,
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
@@ -46,14 +50,7 @@ const logger = createServiceLogger('dugsi-registration')
  * @returns Map of familyReferenceId -> child count
  */
 async function getFamilyChildCounts(): Promise<Map<string, number>> {
-  const counts = await prisma.programProfile.groupBy({
-    by: ['familyReferenceId'],
-    where: {
-      program: DUGSI_PROGRAM,
-      status: { in: ['REGISTERED', 'ENROLLED'] },
-    },
-    _count: { id: true },
-  })
+  const counts = await getFamilyChildCountsByProgram(DUGSI_PROGRAM)
 
   const map = new Map<string, number>()
   for (const row of counts) {
@@ -102,17 +99,10 @@ export async function getAllDugsiRegistrations(
       // Get family counts FIRST (unfiltered - for billing accuracy)
       const familyCounts = await getFamilyChildCounts()
 
-      const profiles = await prisma.programProfile.findMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
-        },
-        relationLoadStrategy: 'join',
-        include: programProfileFullInclude,
-        orderBy: {
-          createdAt: 'desc',
-        },
-        ...(limit && { take: limit }),
+      const profiles = await findProgramProfilesFullByProgram({
+        program: DUGSI_PROGRAM,
+        shift: validatedFilters?.shift,
+        limit,
       })
 
       return profiles
@@ -162,17 +152,10 @@ export async function getFamilyMembers(
   }
 
   // Fetch all family profiles with full relations
-  const familyProfiles = await prisma.programProfile.findMany({
-    where: {
-      familyReferenceId: familyId,
-      program: DUGSI_PROGRAM,
-    },
-    relationLoadStrategy: 'join',
-    include: programProfileFullInclude,
-    orderBy: {
-      createdAt: 'asc',
-    },
-  })
+  const familyProfiles = await findProgramProfilesFullByFamily(
+    familyId,
+    DUGSI_PROGRAM
+  )
 
   // Count is derived from the family profiles we just fetched
   const familyCount = familyProfiles.length
@@ -308,9 +291,7 @@ export async function deleteDugsiFamily(
         // Cancel any subscriptions for this single profile
         const subscriptionsCanceled = await cancelFamilySubscriptions([profile])
 
-        await prisma.programProfile.delete({
-          where: { id: studentId },
-        })
+        await deleteProgramProfileById(studentId)
         return { studentsDeleted: 1, subscriptionsCanceled }
       }
 
@@ -324,11 +305,7 @@ export async function deleteDugsiFamily(
 
       // Delete all program profiles in the family
       // Cascade deletes will handle related records
-      await prisma.programProfile.deleteMany({
-        where: {
-          id: { in: profileIds },
-        },
-      })
+      await deleteProgramProfilesByIds(profileIds)
 
       return { studentsDeleted: profileIds.length, subscriptionsCanceled }
     }
@@ -424,28 +401,10 @@ export async function searchDugsiRegistrationsByContact(
           ? { email: normalizedContact }
           : { phone: normalizedContact }
 
-      const profiles = await prisma.programProfile.findMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          OR: [
-            {
-              person: contactFilter,
-            },
-            {
-              person: {
-                guardianRelationships: {
-                  some: {
-                    isActive: true,
-                    guardian: contactFilter,
-                  },
-                },
-              },
-            },
-          ],
-        },
-        relationLoadStrategy: 'join',
-        include: programProfileFullInclude,
-      })
+      const profiles = await findProgramProfilesFullByContact(
+        DUGSI_PROGRAM,
+        contactFilter
+      )
 
       // Map to DTOs
       const registrations: DugsiRegistration[] = []

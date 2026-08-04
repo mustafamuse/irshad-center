@@ -16,8 +16,11 @@
 import { StripeAccountType } from '@prisma/client'
 import Stripe from 'stripe'
 
-import { prisma } from '@/lib/db'
-import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
+import {
+  findLinkedStripeSubscriptionIds,
+  getActiveBillingAssignmentsWithSubscriptionForProfiles,
+  getSubscriptionByStripeId,
+} from '@/lib/db/queries/billing'
 import {
   getProgramProfileById,
   getProgramProfiles,
@@ -136,20 +139,10 @@ async function getLinkedSubscriptionIds(
   subscriptionIds: string[],
   accountType: StripeAccountType
 ): Promise<Set<string>> {
-  const subscriptions = await prisma.subscription.findMany({
-    where: {
-      stripeSubscriptionId: { in: subscriptionIds },
-      stripeAccountType: accountType,
-      assignments: {
-        some: {
-          isActive: true,
-        },
-      },
-    },
-    select: {
-      stripeSubscriptionId: true,
-    },
-  })
+  const subscriptions = await findLinkedStripeSubscriptionIds(
+    subscriptionIds,
+    accountType
+  )
 
   return new Set(subscriptions.map((s) => s.stripeSubscriptionId))
 }
@@ -288,14 +281,8 @@ export async function searchStudentsForLinking(
 
   // Batch fetch all assignments to avoid N+1 queries
   const profileIds = profiles.map((p) => p.id)
-  const allAssignments = await prisma.billingAssignment.findMany({
-    relationLoadStrategy: 'join',
-    where: {
-      programProfileId: { in: profileIds },
-      isActive: true,
-    },
-    include: { subscription: true },
-  })
+  const allAssignments =
+    await getActiveBillingAssignmentsWithSubscriptionForProfiles(profileIds)
   const assignmentsByProfile = new Map<string, typeof allAssignments>()
   for (const assignment of allAssignments) {
     const existing = assignmentsByProfile.get(assignment.programProfileId) || []
@@ -351,14 +338,8 @@ export async function getPotentialStudentMatches(
 
   // Batch fetch all assignments to avoid N+1 queries
   const profileIds = profiles.map((p) => p.id)
-  const allAssignments = await prisma.billingAssignment.findMany({
-    relationLoadStrategy: 'join',
-    where: {
-      programProfileId: { in: profileIds },
-      isActive: true,
-    },
-    include: { subscription: true },
-  })
+  const allAssignments =
+    await getActiveBillingAssignmentsWithSubscriptionForProfiles(profileIds)
   const assignmentsByProfile = new Map<string, typeof allAssignments>()
   for (const assignment of allAssignments) {
     const existing = assignmentsByProfile.get(assignment.programProfileId) || []

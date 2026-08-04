@@ -217,6 +217,221 @@ export async function getPersonWithAllRelations(
   })
 }
 
+/**
+ * Create a Person record with the given contact fields.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createPerson(
+  data: {
+    name: string
+    dateOfBirth?: Date | null
+    email?: string | null
+    phone?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.person.create({ data })
+}
+
+/**
+ * Create a Person record, returning only id/name/email/phone.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createPersonMinimal(
+  data: {
+    name: string
+    dateOfBirth?: Date | null
+    email?: string | null
+    phone?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.person.create({
+    data,
+    select: { id: true, name: true, email: true, phone: true },
+  })
+}
+
+/**
+ * Update arbitrary Person fields, returning the full record.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updatePersonFields(
+  personId: string,
+  data: Prisma.PersonUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.person.update({ where: { id: personId }, data })
+}
+
+/**
+ * Update arbitrary Person fields, returning only id/name/email/phone.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updatePersonFieldsMinimal(
+  personId: string,
+  data: Prisma.PersonUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.person.update({
+    where: { id: personId },
+    data,
+    select: { id: true, name: true, email: true, phone: true },
+  })
+}
+
+/**
+ * Get a Person by ID, throwing if not found.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getPersonByIdOrThrow(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUniqueOrThrow({ where: { id: personId } })
+}
+
+/**
+ * Find a Person by case-insensitive name and exact date of birth.
+ * Used for P2002 race-condition recovery during batch child creation.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByNameAndDob(
+  name: string,
+  dateOfBirth: Date | null | undefined,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      dateOfBirth: { equals: dateOfBirth },
+    },
+    select: { id: true, name: true },
+  })
+}
+
+/**
+ * Find Persons matching a caller-built where clause, returning
+ * id/name/dateOfBirth. Used for batched name+DOB lookups.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonsByConditions(
+  where: Prisma.PersonWhereInput,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where,
+    select: { id: true, name: true, dateOfBirth: true },
+  })
+}
+
+/**
+ * Get a person with active guardian and dependent relationships, each
+ * including the related person. Used for sibling detection via shared
+ * guardians.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getPersonWithActiveRelationships(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({
+    relationLoadStrategy: 'join',
+    where: { id: personId },
+    include: {
+      guardianRelationships: {
+        where: { isActive: true },
+        include: {
+          guardian: true,
+        },
+      },
+      dependentRelationships: {
+        where: { isActive: true },
+        include: {
+          dependent: true,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find persons whose name contains the given substring (case-insensitive),
+ * excluding one person. Used for last-name sibling matching.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonsByLastNameMatch(
+  lastName: string,
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where: {
+      id: { not: excludePersonId },
+      name: {
+        contains: lastName,
+        mode: 'insensitive',
+      },
+    },
+  })
+}
+
+/**
+ * Find persons matching any of the given contact conditions (email/phone),
+ * excluding one person. Used for contact-based sibling matching.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonsByContactConditions(
+  orConditions: Prisma.PersonWhereInput[],
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where: {
+      id: { not: excludePersonId },
+      OR: orConditions,
+    },
+  })
+}
+
+/**
+ * Find a person owning the given email, excluding one person. Used to check
+ * ownership before writing an email onto an invited Mahad profile.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmailExcluding(
+  email: string,
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      email,
+      NOT: { id: excludePersonId },
+    },
+    select: { id: true },
+  })
+}
+
+/**
+ * Find a person owning the given phone, excluding one person. Used to check
+ * ownership before writing a phone onto an invited Mahad profile.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByPhoneExcluding(
+  phone: string,
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      phone,
+      NOT: { id: excludePersonId },
+    },
+    select: { id: true },
+  })
+}
+
 export async function updatePersonContact(
   personId: string,
   data: PersonContactFields,

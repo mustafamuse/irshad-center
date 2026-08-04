@@ -11,10 +11,11 @@
 
 import * as Sentry from '@sentry/nextjs'
 
-import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
 import { getBillingAssignmentsByProfile } from '@/lib/db/queries/billing'
-import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
+import {
+  getProgramProfilesByFamilyId,
+  findParentWithDugsiProfilesAndBilling,
+} from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
@@ -132,38 +133,7 @@ export async function getPaymentStatus(
         parent_email: normalizedParentEmail,
       },
     },
-    async () =>
-      await prisma.person.findFirst({
-        relationLoadStrategy: 'join',
-        where: {
-          email: normalizedParentEmail,
-        },
-        include: {
-          programProfiles: {
-            where: {
-              program: DUGSI_PROGRAM,
-            },
-            include: {
-              enrollments: {
-                where: {
-                  status: { not: 'WITHDRAWN' },
-                  endDate: null,
-                },
-              },
-              assignments: {
-                where: { isActive: true },
-                include: {
-                  subscription: {
-                    include: {
-                      billingAccount: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      })
+    async () => findParentWithDugsiProfilesAndBilling(normalizedParentEmail)
   )
 
   if (!person) {

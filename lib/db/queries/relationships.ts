@@ -51,6 +51,261 @@ export async function createGuardianRelationship(
 }
 
 /**
+ * Clear isPrimaryPayer on all other active guardian relationships for a
+ * dependent, excluding the given guardian.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function clearOtherPrimaryPayers(
+  dependentId: string,
+  excludeGuardianId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.updateMany({
+    where: {
+      dependentId,
+      guardianId: { not: excludeGuardianId },
+      isActive: true,
+      isPrimaryPayer: true,
+    },
+    data: { isPrimaryPayer: false },
+  })
+}
+
+/**
+ * Find a guardian relationship by guardian/dependent pair (any status).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findGuardianRelationship(
+  guardianId: string,
+  dependentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.findFirst({
+    where: { guardianId, dependentId },
+  })
+}
+
+/**
+ * Update arbitrary fields on an existing guardian relationship.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateGuardianRelationshipFields(
+  relationshipId: string,
+  data: {
+    isActive?: boolean
+    role?: GuardianRole
+    notes?: string | null
+    isPrimaryPayer?: boolean
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.update({
+    where: { id: relationshipId },
+    data,
+  })
+}
+
+/**
+ * Create a guardian relationship record without validation. Callers are
+ * responsible for calling validateGuardianRelationship first.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createGuardianRelationshipRecord(
+  data: {
+    guardianId: string
+    dependentId: string
+    role: GuardianRole
+    notes?: string | null
+    isActive: boolean
+    isPrimaryPayer: boolean
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.create({ data })
+}
+
+/**
+ * Find active guardian relationships for a set of guardians, excluding one
+ * dependent, with dependent and guardian included. Used for sibling
+ * detection via shared guardians.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findGuardianRelationshipsBySharedGuardians(
+  guardianIds: string[],
+  excludeDependentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      guardianId: { in: guardianIds },
+      dependentId: { not: excludeDependentId },
+      isActive: true,
+    },
+    include: {
+      dependent: true,
+      guardian: true,
+    },
+  })
+}
+
+/**
+ * Batch lookup guardian relationships for a set of guardian/dependent pairs.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findGuardianRelationshipsForPairs(
+  pairs: Array<{ guardianPersonId: string; dependentPersonId: string }>,
+  client: DatabaseClient = prisma
+) {
+  if (pairs.length === 0) return []
+  return client.guardianRelationship.findMany({
+    where: {
+      OR: pairs.map((r) => ({
+        guardianId: r.guardianPersonId,
+        dependentId: r.dependentPersonId,
+      })),
+    },
+  })
+}
+
+/**
+ * Clear isPrimaryPayer on active guardian relationships for a set of
+ * dependents, excluding a set of guardians.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function clearPrimaryPayersNotIn(
+  dependentIds: string[],
+  excludeGuardianIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.updateMany({
+    where: {
+      dependentId: { in: dependentIds },
+      guardianId: { notIn: excludeGuardianIds },
+      isActive: true,
+      isPrimaryPayer: true,
+    },
+    data: { isPrimaryPayer: false },
+  })
+}
+
+/**
+ * Batch create guardian relationships, skipping duplicates.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createGuardianRelationshipsBatchRecords(
+  data: Array<{
+    guardianId: string
+    dependentId: string
+    role: GuardianRole
+    isPrimaryPayer: boolean
+    isActive: boolean
+  }>,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.createMany({
+    data,
+    skipDuplicates: true,
+  })
+}
+
+/**
+ * Reactivate a set of guardian relationships by ID.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function reactivateGuardianRelationshipsByIds(
+  ids: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.updateMany({
+    where: { id: { in: ids } },
+    data: { isActive: true },
+  })
+}
+
+/**
+ * Reactivate a guardian relationship, clearing its endDate.
+ * @client - Optional database client (for transaction support)
+ */
+export async function reactivateGuardianRelationshipWithEndDate(
+  relationshipId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.update({
+    where: { id: relationshipId },
+    data: { isActive: true, endDate: null },
+  })
+}
+
+/**
+ * Create an active guardian relationship without role/isPrimaryPayer.
+ * Distinct from `createGuardianRelationshipRecord`, which requires both.
+ * @client - Optional database client (for transaction support)
+ */
+export async function createGuardianRelationshipMinimal(
+  guardianId: string,
+  dependentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.create({
+    data: { guardianId, dependentId, isActive: true },
+  })
+}
+
+/**
+ * Batch create active guardian relationships without role/isPrimaryPayer
+ * and without skipDuplicates. Distinct from
+ * `createGuardianRelationshipsBatchRecords`.
+ * @client - Optional database client (for transaction support)
+ */
+export async function createGuardianRelationshipsMinimalBatch(
+  data: Array<{ guardianId: string; dependentId: string }>,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.createMany({
+    data: data.map((d) => ({ ...d, isActive: true })),
+  })
+}
+
+/**
+ * Clear isPrimaryPayer on all active guardian relationships for a set of
+ * dependents (no guardian exclusion). Distinct from
+ * `clearPrimaryPayersNotIn`, which excludes a set of guardians.
+ * @client - Optional database client (for transaction support)
+ */
+export async function clearAllPrimaryPayers(
+  dependentIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.updateMany({
+    where: {
+      dependentId: { in: dependentIds },
+      isActive: true,
+    },
+    data: { isPrimaryPayer: false },
+  })
+}
+
+/**
+ * Set isPrimaryPayer for one guardian across a set of dependents.
+ * @client - Optional database client (for transaction support)
+ */
+export async function setPrimaryPayerForGuardian(
+  guardianId: string,
+  dependentIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.updateMany({
+    where: {
+      guardianId,
+      dependentId: { in: dependentIds },
+      isActive: true,
+    },
+    data: { isPrimaryPayer: true },
+  })
+}
+
+/**
  * Create sibling relationship with validation
  */
 export async function createSiblingRelationship(

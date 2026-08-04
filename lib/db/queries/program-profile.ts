@@ -5,9 +5,11 @@
  * These functions work alongside legacy Student queries during migration.
  */
 
-import { Prisma, Program, EnrollmentStatus } from '@prisma/client'
+import { Prisma, Program, EnrollmentStatus, Shift } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 import {
   normalizeEmail,
@@ -266,6 +268,112 @@ export async function findPersonByActiveContact(
               endDate: null,
             },
           },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Get a Dugsi family's registered/enrolled profiles with guardian and
+ * billing-account data, for calculating checkout rates and locating the
+ * primary payer.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findFamilyProfilesForCheckout(
+  familyId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      familyReferenceId: familyId,
+      program: DUGSI_PROGRAM,
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+    },
+    include: {
+      person: {
+        include: {
+          dependentRelationships: {
+            where: { isActive: true },
+            include: {
+              guardian: {
+                include: {
+                  billingAccounts: {
+                    select: { stripeCustomerIdDugsi: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a parent (by email) with their Dugsi program profiles, including
+ * active enrollments and active billing assignments with subscription and
+ * billing-account data, for the Dugsi payment-status lookup by parent email.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findParentWithDugsiProfilesAndBilling(
+  normalizedEmail: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      programProfiles: {
+        where: {
+          program: DUGSI_PROGRAM,
+        },
+        include: {
+          enrollments: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+            },
+          },
+          assignments: {
+            where: { isActive: true },
+            include: {
+              subscription: {
+                include: {
+                  billingAccount: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a parent (by email) with their Dugsi program profiles (no further
+ * relations), for locating a family's profiles before linking a subscription.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findParentWithDugsiProfiles(
+  normalizedEmail: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      programProfiles: {
+        where: {
+          program: DUGSI_PROGRAM,
         },
       },
     },
@@ -628,6 +736,179 @@ export async function searchProgramProfilesByNameOrContact(
 }
 
 /**
+ * Find a person's ProgramProfile for a program, with active (non-withdrawn)
+ * enrollments included. Used to detect an existing active enrollment before
+ * creating a new one.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findActiveProgramProfileWithEnrollments(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    relationLoadStrategy: 'join',
+    where: { personId, program },
+    include: {
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Create a ProgramProfile record.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createProgramProfileRecord(
+  data: Prisma.ProgramProfileUncheckedCreateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.create({ data })
+}
+
+/**
+ * Find a ProgramProfile by ID with the specific field set the Mahad
+ * registration flow needs to validate and enrich an invite. Distinct from
+ * `getProgramProfileById`, which returns a much larger include shape.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileForMahadInvite(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    select: {
+      id: true,
+      program: true,
+      gradeLevel: true,
+      schoolName: true,
+      graduationStatus: true,
+      paymentFrequency: true,
+      billingType: true,
+      paymentNotes: true,
+      person: {
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          dateOfBirth: true,
+        },
+      },
+      enrollments: {
+        where: { endDate: null },
+        select: { id: true },
+      },
+    },
+  })
+}
+
+/**
+ * Find contact-less persons (no email/phone) with a Mahad ProgramProfile
+ * matching the given name exactly (case-insensitive). Used for the
+ * recovery-backfill auto-merge check in Mahad registration.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findContactlessMahadPersonsByName(
+  name: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      email: null,
+      phone: null,
+      programProfiles: { some: { program } },
+    },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+      dateOfBirth: true,
+      programProfiles: {
+        where: { program },
+        select: {
+          id: true,
+          program: true,
+          gradeLevel: true,
+          schoolName: true,
+          graduationStatus: true,
+          paymentFrequency: true,
+          billingType: true,
+          paymentNotes: true,
+          enrollments: {
+            where: { endDate: null },
+            select: { id: true },
+          },
+        },
+      },
+    },
+    take: 2,
+  })
+}
+
+/**
+ * Find a person's ProgramProfile for a program (no relations).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileByPersonAndProgram(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({ where: { personId, program } })
+}
+
+/**
+ * Update arbitrary ProgramProfile fields.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateProgramProfileFields(
+  profileId: string,
+  data: Prisma.ProgramProfileUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.update({ where: { id: profileId }, data })
+}
+
+/**
+ * Get a ProgramProfile's ID only, for lightweight existence checks.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getProgramProfileIdOnly(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    select: { id: true },
+  })
+}
+
+/**
+ * Batch lookup ProgramProfiles for a set of person IDs and a program.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesByPersonIdsAndProgram(
+  personIds: string[],
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      personId: { in: personIds },
+      program,
+    },
+  })
+}
+
+/**
  * Update shift for all program profiles in a family
  * @param client - Optional database client (for transaction support)
  */
@@ -777,5 +1058,219 @@ export async function updateProgramProfileStatusMany(
       ...(fromStatuses ? { status: { in: fromStatuses } } : {}),
     },
     data: { status },
+  })
+}
+
+/**
+ * Get REGISTERED/ENROLLED child counts per family for a program.
+ * @client - Optional database client (for transaction support)
+ */
+export async function getFamilyChildCountsByProgram(
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.groupBy({
+    by: ['familyReferenceId'],
+    where: {
+      program,
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+    },
+    _count: { id: true },
+  })
+}
+
+/**
+ * Find program profiles for a program with the full relation set
+ * (person + guardians, assignments, dugsi class enrollment), optionally
+ * filtered by shift and limited.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesFullByProgram(
+  params: { program: Program; shift?: Shift; limit?: number },
+  client: DatabaseClient = prisma
+) {
+  const { program, shift, limit } = params
+  return client.programProfile.findMany({
+    where: {
+      program,
+      ...(shift && { shift }),
+    },
+    relationLoadStrategy: 'join',
+    include: programProfileFullInclude,
+    orderBy: {
+      createdAt: 'desc',
+    },
+    ...(limit && { take: limit }),
+  })
+}
+
+/**
+ * Find program profiles for a family with the full relation set, ordered
+ * oldest first. Distinct from `getProgramProfilesByFamilyId`, which uses a
+ * different include shape (active-only guardian relationships, enrollments).
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesFullByFamily(
+  familyId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      familyReferenceId: familyId,
+      program,
+    },
+    relationLoadStrategy: 'join',
+    include: programProfileFullInclude,
+    orderBy: {
+      createdAt: 'asc',
+    },
+  })
+}
+
+/**
+ * Find program profiles for a program matching a contact filter on either
+ * the student's own person record or an active guardian's person record.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesFullByContact(
+  program: Program,
+  contactFilter: Prisma.PersonWhereInput,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      program,
+      OR: [
+        {
+          person: contactFilter,
+        },
+        {
+          person: {
+            guardianRelationships: {
+              some: {
+                isActive: true,
+                guardian: contactFilter,
+              },
+            },
+          },
+        },
+      ],
+    },
+    relationLoadStrategy: 'join',
+    include: programProfileFullInclude,
+  })
+}
+
+/**
+ * Delete a single program profile by ID.
+ * @client - Optional database client (for transaction support)
+ */
+export async function deleteProgramProfileById(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.delete({
+    where: { id: profileId },
+  })
+}
+
+/**
+ * Delete a set of program profiles by ID.
+ * @client - Optional database client (for transaction support)
+ */
+export async function deleteProgramProfilesByIds(
+  profileIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.deleteMany({
+    where: {
+      id: { in: profileIds },
+    },
+  })
+}
+
+/**
+ * Find a program profile by person + program, including only active
+ * billing assignments (with subscription + billing account), most recent
+ * first. Used for billing status lookups.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileWithActiveBilling(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      personId,
+      program,
+    },
+    include: {
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: {
+            include: {
+              billingAccount: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a program profile by person + program, including active
+ * (non-withdrawn, open-ended) enrollments with their batch. Distinct from
+ * `findActiveProgramProfileWithEnrollments`, which does not include batch.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileWithActiveEnrollmentAndBatch(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      personId,
+      program,
+    },
+    include: {
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Get personIds only for program profiles in a family. Used for lightweight
+ * family-member lookups that don't need the full profile.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilePersonIdsByFamily(
+  familyId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      familyReferenceId: familyId,
+      program,
+    },
+    select: { personId: true },
   })
 }

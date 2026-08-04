@@ -8,6 +8,13 @@
 import { Program, GuardianRole, EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import {
+  getActiveBillingAssignmentsForSubscription,
+  getSubscriptionById,
+} from '@/lib/db/queries/billing'
+import { getPersonById } from '@/lib/db/queries/person'
+import { getProgramProfileIdOnly } from '@/lib/db/queries/program-profile'
+import { findSiblingRelationshipByPersons } from '@/lib/db/queries/siblings'
 import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 
@@ -250,14 +257,8 @@ export async function validateSiblingRelationship(data: {
 
   // Check if both persons exist
   const [person1, person2] = await Promise.all([
-    prisma.person.findUnique({
-      where: { id: data.person1Id },
-      select: { id: true },
-    }),
-    prisma.person.findUnique({
-      where: { id: data.person2Id },
-      select: { id: true },
-    }),
+    getPersonById(data.person1Id),
+    getPersonById(data.person2Id),
   ])
 
   if (!person1 || !person2) {
@@ -274,14 +275,10 @@ export async function validateSiblingRelationship(data: {
   }
 
   // Check for existing relationship
-  const existingRelationship = await prisma.siblingRelationship.findUnique({
-    where: {
-      person1Id_person2Id: {
-        person1Id: data.person1Id,
-        person2Id: data.person2Id,
-      },
-    },
-  })
+  const existingRelationship = await findSiblingRelationshipByPersons(
+    data.person1Id,
+    data.person2Id
+  )
 
   if (existingRelationship && existingRelationship.isActive) {
     throw new ValidationError(
@@ -307,14 +304,7 @@ export async function validateBillingAssignment(data: {
   percentage?: number | null
 }) {
   // Get subscription details
-  const subscription = await prisma.subscription.findUnique({
-    where: { id: data.subscriptionId },
-    select: {
-      id: true,
-      amount: true,
-      status: true,
-    },
-  })
+  const subscription = await getSubscriptionById(data.subscriptionId)
 
   if (!subscription) {
     throw new ValidationError(
@@ -325,17 +315,9 @@ export async function validateBillingAssignment(data: {
   }
 
   // Get all active assignments for this subscription
-  const existingAssignments = await prisma.billingAssignment.findMany({
-    where: {
-      subscriptionId: data.subscriptionId,
-      isActive: true,
-    },
-    select: {
-      id: true,
-      amount: true,
-      programProfileId: true,
-    },
-  })
+  const existingAssignments = await getActiveBillingAssignmentsForSubscription(
+    data.subscriptionId
+  )
 
   // Calculate total assigned amount
   const totalAssigned = existingAssignments
@@ -378,10 +360,7 @@ export async function validateBillingAssignment(data: {
   }
 
   // Check if program profile exists
-  const programProfile = await prisma.programProfile.findUnique({
-    where: { id: data.programProfileId },
-    select: { id: true },
-  })
+  const programProfile = await getProgramProfileIdOnly(data.programProfileId)
 
   if (!programProfile) {
     throw new ValidationError(
