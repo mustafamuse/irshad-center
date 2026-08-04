@@ -18,7 +18,14 @@ import type { Stripe } from 'stripe'
 
 import { STRIPE_CUSTOM_FIELDS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
-import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
+import { findBillingAccountByPersonAndType } from '@/lib/db/queries/billing'
+import {
+  findPersonByActiveContact,
+  findProgramProfileByIdAndProgram,
+  findProgramProfilesForCheckoutMatch,
+  findProgramProfilesForPayerMatch,
+} from '@/lib/db/queries/program-profile'
+import { findActiveGuardianRelationshipsWithDugsiDependents } from '@/lib/db/queries/relationships'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger } from '@/lib/logger'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
@@ -122,8 +129,7 @@ export class UnifiedMatcher {
         op: 'db.query',
         attributes: { profile_id: profileId },
       },
-      async () =>
-        prisma.programProfile.findFirst({ where: { id: profileId, program } })
+      async () => findProgramProfileByIdAndProgram(profileId, program)
     )
 
     if (!profile) {
@@ -148,9 +154,7 @@ export class UnifiedMatcher {
         attributes: { person_id: profile.personId },
       },
       async () =>
-        prisma.billingAccount.findFirst({
-          where: { personId: profile.personId, accountType },
-        })
+        findBillingAccountByPersonAndType(profile.personId, accountType)
     )
 
     logger.info(
@@ -241,23 +245,7 @@ export class UnifiedMatcher {
           program,
         },
       },
-      async () =>
-        await prisma.programProfile.findMany({
-          relationLoadStrategy: 'join',
-          where: {
-            personId: person.id,
-            program,
-          },
-          include: {
-            person: true,
-            assignments: {
-              where: { isActive: true },
-              include: {
-                subscription: true,
-              },
-            },
-          },
-        })
+      async () => await findProgramProfilesForCheckoutMatch(person.id, program)
     )
 
     // Filter to only unlinked profiles (no active subscriptions) - in memory
@@ -272,12 +260,10 @@ export class UnifiedMatcher {
       const profile = unlinkedProfiles[0]
 
       // Find or get billing account info
-      const billingAccount = await prisma.billingAccount.findFirst({
-        where: {
-          personId: person.id,
-          accountType,
-        },
-      })
+      const billingAccount = await findBillingAccountByPersonAndType(
+        person.id,
+        accountType
+      )
 
       logger.info(
         {
@@ -370,22 +356,10 @@ export class UnifiedMatcher {
 
     // Find program profile with assignments included to avoid N+1
     const program = accountType === 'MAHAD' ? 'MAHAD_PROGRAM' : 'DUGSI_PROGRAM'
-    const profiles = await prisma.programProfile.findMany({
-      relationLoadStrategy: 'join',
-      where: {
-        personId: person.id,
-        program,
-      },
-      include: {
-        person: true,
-        assignments: {
-          where: { isActive: true },
-          include: {
-            subscription: true,
-          },
-        },
-      },
-    })
+    const profiles = await findProgramProfilesForCheckoutMatch(
+      person.id,
+      program
+    )
 
     const unlinkedProfiles = profiles.filter(
       (profile) =>
@@ -397,12 +371,10 @@ export class UnifiedMatcher {
     if (unlinkedProfiles.length === 1) {
       const profile = unlinkedProfiles[0]
 
-      const billingAccount = await prisma.billingAccount.findFirst({
-        where: {
-          personId: person.id,
-          accountType,
-        },
-      })
+      const billingAccount = await findBillingAccountByPersonAndType(
+        person.id,
+        accountType
+      )
 
       logger.info(
         {
@@ -490,12 +462,10 @@ export class UnifiedMatcher {
     }
 
     // Try to find billing account first (guardian payer)
-    const billingAccount = await prisma.billingAccount.findFirst({
-      where: {
-        personId: person.id,
-        accountType,
-      },
-    })
+    const billingAccount = await findBillingAccountByPersonAndType(
+      person.id,
+      accountType
+    )
 
     // If billing account exists, this might be a guardian paying for dependents
     if (billingAccount) {
@@ -519,21 +489,7 @@ export class UnifiedMatcher {
 
     // Otherwise, try to find program profile (self-pay student)
     const program = accountType === 'MAHAD' ? 'MAHAD_PROGRAM' : 'DUGSI_PROGRAM'
-    const profiles = await prisma.programProfile.findMany({
-      relationLoadStrategy: 'join',
-      where: {
-        personId: person.id,
-        program,
-      },
-      include: {
-        assignments: {
-          where: { isActive: true },
-          include: {
-            subscription: true,
-          },
-        },
-      },
-    })
+    const profiles = await findProgramProfilesForPayerMatch(person.id, program)
 
     const unlinkedProfiles = profiles.filter(
       (profile) =>
@@ -572,22 +528,8 @@ export class UnifiedMatcher {
 
     // For Dugsi, check if this person is a guardian for registered students
     if (accountType === 'DUGSI') {
-      const guardianRelationships = await prisma.guardianRelationship.findMany({
-        relationLoadStrategy: 'join',
-        where: {
-          guardianId: person.id,
-          isActive: true,
-        },
-        include: {
-          dependent: {
-            include: {
-              programProfiles: {
-                where: { program: 'DUGSI_PROGRAM' },
-              },
-            },
-          },
-        },
-      })
+      const guardianRelationships =
+        await findActiveGuardianRelationshipsWithDugsiDependents(person.id)
 
       const hasDugsiDependents = guardianRelationships.some(
         (rel) => rel.dependent.programProfiles.length > 0

@@ -866,6 +866,75 @@ export async function findProgramProfileByPersonAndProgram(
 }
 
 /**
+ * Find a ProgramProfile by its own ID scoped to a program (no relations).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileByIdAndProgram(
+  profileId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({ where: { id: profileId, program } })
+}
+
+/**
+ * Find a person's ProgramProfiles for a program, with the person and active
+ * assignments/subscriptions included. Used by checkout-session matching to
+ * distinguish linked from unlinked profiles.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesForCheckoutMatch(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      personId,
+      program,
+    },
+    include: {
+      person: true,
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a person's ProgramProfiles for a program, with active
+ * assignments/subscriptions included but no person relation. Used by payer
+ * email matching to distinguish linked from unlinked profiles.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesForPayerMatch(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      personId,
+      program,
+    },
+    include: {
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+      },
+    },
+  })
+}
+
+/**
  * Update arbitrary ProgramProfile fields.
  * @param client - Optional database client (for transaction support)
  */

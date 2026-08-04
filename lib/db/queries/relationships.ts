@@ -6,6 +6,7 @@
 
 import type { GuardianRole } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
@@ -224,6 +225,34 @@ export async function getDependentGuardianRelationships(
     },
     orderBy: {
       createdAt: 'asc',
+    },
+  })
+}
+
+/**
+ * Find a guardian's active relationships, each including the dependent's
+ * Dugsi program profiles. Used to determine whether a payer is a guardian
+ * of registered Dugsi students (for checkout-session matching).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findActiveGuardianRelationshipsWithDugsiDependents(
+  guardianId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      guardianId,
+      isActive: true,
+    },
+    include: {
+      dependent: {
+        include: {
+          programProfiles: {
+            where: { program: DUGSI_PROGRAM },
+          },
+        },
+      },
     },
   })
 }
