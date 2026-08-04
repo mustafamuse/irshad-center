@@ -11,5 +11,23 @@
     "analyze-codebase@claude-code-marketplace": true,
     "feature-dev@claude-plugins-official": true
   },
-  "hooks": {}
+  "hooks": {},
+  "permissions": {
+    "ask": [
+      "Edit(lib/services/shared/billing-service.ts)",
+      "Edit(lib/services/webhooks/**)",
+      "Edit(lib/stripe-*.ts)",
+      "Edit(prisma/schema.prisma)",
+      "Edit(prisma/migrations/**)",
+      "Edit(lib/safe-action.ts)",
+      "Edit(app/api/webhook/**)",
+      "Edit(middleware.ts)"
+    ],
+    "deny": [
+      "Bash(prisma migrate reset:*)",
+      "Bash(bunx prisma migrate reset:*)",
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(bun prisma migrate reset:*)"
+    ]
+  }
 }

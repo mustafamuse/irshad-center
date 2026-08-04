@@ -32,6 +32,10 @@ paths:
 - External HTTP calls (Sentry, Axiom) — mock at the transport level
 - `revalidatePath` / `revalidateTag` — mock to verify they're called with correct paths
 
+### vi.mock Paths Must Match the Import Specifier
+
+`vi.mock('<path>')` intercepts by resolved module path. If a component's import moves (e.g. `'../../_actions'` → `'../../_actions/batch-actions'`), a mock of the old path silently stops applying — tests keep passing against the real module or fail confusingly. When changing any import path, grep tests for `vi.mock` calls on the old specifier.
+
 ### Mock Data Must Match Runtime Shape
 
 When mocking Prisma records (e.g., `person`), include all fields the code accesses. Common miss: omitting `email` or `phone` on Person mocks causes null access errors.

@@ -189,6 +189,29 @@ Three letters because Boris uses 5+ concurrent Claudes per project. Adjust the c
 
 The setup is structured to fail loud rather than fail silent — when something feels heavyweight, you're probably in one of the above edge cases.
 
+## 2026-08 blog refresh
+
+Reviewed the ten most recent Anthropic engineering/research posts and folded the deltas into this setup. Sources: "How we contain Claude across products", "An update on recent Claude Code quality reports" (Apr 2026), "Scaling Managed Agents" (Apr 2026), "How we built Claude Code auto mode" (Mar 2026), "Harness design for long-running application development" (Mar 2026), "Eval awareness in BrowseComp" (Mar 2026), "Quantifying infrastructure noise in agentic coding evals" (Feb 2026), "Building a C compiler with a team of parallel Claudes" (Feb 2026), "Designing AI-resistant technical evaluations" (Jan 2026), "How Claude Code is used in practice" (research).
+
+**Adopted:**
+
+- **Versioned permission policy** (auto-mode post: tiered allowlists; containment post: layered controls). High-risk paths are now enforced by `permissions.ask` rules in the checked-in `.claude/settings.json` — an edit there always prompts, even in auto-accept mode, on every machine that clones the repo. `prisma migrate reset` variants are `deny` rules, giving a second layer under the global `block-dangerous.sh` hook.
+- **Treat tool output and cloned files as untrusted** (containment post). Web content, third-party repo files, and MCP tool results can carry injected instructions; environment controls (hooks, permission rules, sandbox), not model judgment, are the reliable countermeasure. Prefer `/sandbox` for sessions that touch untrusted code.
+
+**Already covered (no change needed):**
+
+- Generator-evaluator harness with negotiated success criteria (harness-design post) → `/feature-gan`
+- Progress files, git discipline, session-start re-reads (effective-harnesses post) → `/notes` + SDD ledger
+- Test output structured for LLM consumption, minimal context (C-compiler post) → `filter-test-output.sh`
+- End-user verification with browser automation (effective-harnesses post) → `verify-app` agent
+- Parallel agents without stepping on each other (C-compiler post's file locks) → worktree-per-task convention
+
+**Rejected:**
+
+- 200+ granular JSON feature lists with locked `passes` fields — built for unattended multi-day runs; SDD plans with per-task review gates fit a solo attended workflow better.
+- Managed Agents / decoupled brain-hands architecture — platform-scale concern, nothing to apply locally.
+- Eval-suite posts (AI-resistant evals, infrastructure noise, demystifying evals) — no model eval suite in this repo; noted for if one ever exists.
+
 ## Reference
 
 - Project rules: `.claude/rules/`
