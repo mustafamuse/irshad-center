@@ -15,17 +15,7 @@ const {
   mockGetProgramProfileById: vi.fn(),
 }))
 
-const mockTx = {
-  person: {
-    update: (...args: unknown[]) => mockPersonUpdate(...args),
-  },
-  programProfile: {
-    update: (...args: unknown[]) => mockProgramProfileUpdate(...args),
-  },
-  enrollment: {
-    updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
-  },
-}
+const mockTx = { __marker: 'tx' }
 
 mockTransaction.mockImplementation(
   (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(mockTx)
@@ -37,9 +27,20 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+vi.mock('@/lib/db/queries/person', () => ({
+  updatePersonFields: (...args: unknown[]) => mockPersonUpdate(...args),
+}))
+
 vi.mock('@/lib/db/queries/program-profile', () => ({
   getProgramProfileById: (...args: unknown[]) =>
     mockGetProgramProfileById(...args),
+  updateProgramProfileFields: (...args: unknown[]) =>
+    mockProgramProfileUpdate(...args),
+}))
+
+vi.mock('@/lib/db/queries/enrollment', () => ({
+  withdrawEnrollmentsByProgramProfile: (...args: unknown[]) =>
+    mockEnrollmentUpdateMany(...args),
 }))
 
 vi.mock('@/lib/db/queries/siblings', () => ({
@@ -87,28 +88,31 @@ describe('updateMahadStudent', () => {
   it('should update name directly on Person', async () => {
     await updateMahadStudent('profile-1', { name: 'New Name' })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'person-1' },
-      data: { name: 'New Name' },
-    })
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      'person-1',
+      { name: 'New Name' },
+      mockTx
+    )
   })
 
   it('should update email directly on Person', async () => {
     await updateMahadStudent('profile-1', { email: 'new@test.com' })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'person-1' },
-      data: { email: 'new@test.com' },
-    })
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      'person-1',
+      { email: 'new@test.com' },
+      mockTx
+    )
   })
 
   it('should update phone directly on Person with normalization', async () => {
     await updateMahadStudent('profile-1', { phone: '612-555-9999' })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'person-1' },
-      data: { phone: '6125559999' },
-    })
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      'person-1',
+      { phone: '6125559999' },
+      mockTx
+    )
   })
 
   it('should pass tx to getProgramProfileById', async () => {
@@ -123,13 +127,14 @@ describe('updateMahadStudent', () => {
       billingType: 'FULL_TIME',
     })
 
-    expect(mockProgramProfileUpdate).toHaveBeenCalledWith({
-      where: { id: 'profile-1' },
-      data: expect.objectContaining({
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith(
+      'profile-1',
+      expect.objectContaining({
         gradeLevel: 'GRADE_1',
         billingType: 'FULL_TIME',
       }),
-    })
+      mockTx
+    )
   })
 
   it('should throw ActionError when profile not found', async () => {
@@ -173,17 +178,12 @@ describe('deleteMahadStudent', () => {
 
     const result = await deleteMahadStudent('profile-1')
 
-    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
-      where: {
-        programProfileId: 'profile-1',
-        status: { not: 'WITHDRAWN' },
-      },
-      data: expect.objectContaining({ status: 'WITHDRAWN' }),
-    })
-    expect(mockProgramProfileUpdate).toHaveBeenCalledWith({
-      where: { id: 'profile-1' },
-      data: { status: 'WITHDRAWN' },
-    })
+    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith('profile-1', mockTx)
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith(
+      'profile-1',
+      { status: 'WITHDRAWN' },
+      mockTx
+    )
     expect(result).toMatchObject({ id: 'profile-1', status: 'WITHDRAWN' })
   })
 

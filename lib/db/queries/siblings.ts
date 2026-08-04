@@ -446,6 +446,61 @@ export async function getSiblingsByFamilyId(
 }
 
 /**
+ * Find all sibling relationships (active or not) involving a person, with
+ * no includes. Used to batch-check which candidates already have a sibling
+ * relationship before running detection heuristics.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findSiblingRelationshipsForPerson(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.siblingRelationship.findMany({
+    where: {
+      OR: [{ person1Id: personId }, { person2Id: personId }],
+    },
+  })
+}
+
+/**
+ * Find a sibling relationship by an already-ordered (person1Id, person2Id)
+ * pair. Distinct from `findSiblingRelationshipByPersons`, which uses the
+ * composite unique key — this preserves the detector's findFirst semantics.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findSiblingRelationshipByOrderedPersons(
+  person1Id: string,
+  person2Id: string,
+  client: DatabaseClient = prisma
+) {
+  return client.siblingRelationship.findFirst({
+    where: { person1Id, person2Id },
+  })
+}
+
+/**
+ * Create a sibling relationship record with the detector's full field set
+ * (verifiedBy/verifiedAt/notes). Distinct from `createSiblingRelationship`,
+ * which has different defaulting and reactivation semantics.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createSiblingRelationshipRecord(
+  data: {
+    person1Id: string
+    person2Id: string
+    detectionMethod: string
+    confidence: number | null
+    verifiedBy?: string
+    verifiedAt: Date | null
+    notes?: string
+    isActive: boolean
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.siblingRelationship.create({ data })
+}
+
+/**
  * Batch lookup sibling relationships for a set of ordered person pairs.
  * @param client - Optional database client (for transaction support)
  */

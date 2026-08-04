@@ -336,6 +336,49 @@ export async function withdrawEnrollmentsByIds(
 }
 
 /**
+ * Withdraw all non-withdrawn enrollments for a ProgramProfile, setting
+ * endDate to now. Used by Mahad student soft-delete, which does not go
+ * through `withdrawEnrollmentsByIds` (no `reason`, keyed by profile).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function withdrawEnrollmentsByProgramProfile(
+  programProfileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.updateMany({
+    where: {
+      programProfileId,
+      status: { not: 'WITHDRAWN' },
+    },
+    data: {
+      status: 'WITHDRAWN',
+      endDate: new Date(),
+    },
+  })
+}
+
+/**
+ * Create a REGISTERED enrollment for the Mahad registration flow, bypassing
+ * `createEnrollment`'s validation/logging — Mahad registration writes have
+ * never gone through Dugsi batch-constraint validation.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createMahadRegistrationEnrollment(
+  programProfileId: string,
+  batchId: string | null | undefined,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.create({
+    data: {
+      programProfileId,
+      batchId: batchId ?? null,
+      status: 'REGISTERED',
+      startDate: new Date(),
+    },
+  })
+}
+
+/**
  * Restore an enrollment to a previously captured state, bypassing status
  * transition validation. Only for compensating rollback after a failed
  * external call (e.g. Stripe) — never for user-initiated status changes.

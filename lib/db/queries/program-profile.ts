@@ -664,6 +664,88 @@ export async function createProgramProfileRecord(
 }
 
 /**
+ * Find a ProgramProfile by ID with the specific field set the Mahad
+ * registration flow needs to validate and enrich an invite. Distinct from
+ * `getProgramProfileById`, which returns a much larger include shape.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileForMahadInvite(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    select: {
+      id: true,
+      program: true,
+      gradeLevel: true,
+      schoolName: true,
+      graduationStatus: true,
+      paymentFrequency: true,
+      billingType: true,
+      paymentNotes: true,
+      person: {
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          dateOfBirth: true,
+        },
+      },
+      enrollments: {
+        where: { endDate: null },
+        select: { id: true },
+      },
+    },
+  })
+}
+
+/**
+ * Find contact-less persons (no email/phone) with a Mahad ProgramProfile
+ * matching the given name exactly (case-insensitive). Used for the
+ * recovery-backfill auto-merge check in Mahad registration.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findContactlessMahadPersonsByName(
+  name: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      email: null,
+      phone: null,
+      programProfiles: { some: { program } },
+    },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+      dateOfBirth: true,
+      programProfiles: {
+        where: { program },
+        select: {
+          id: true,
+          program: true,
+          gradeLevel: true,
+          schoolName: true,
+          graduationStatus: true,
+          paymentFrequency: true,
+          billingType: true,
+          paymentNotes: true,
+          enrollments: {
+            where: { endDate: null },
+            select: { id: true },
+          },
+        },
+      },
+    },
+    take: 2,
+  })
+}
+
+/**
  * Find a person's ProgramProfile for a program (no relations).
  * @param client - Optional database client (for transaction support)
  */

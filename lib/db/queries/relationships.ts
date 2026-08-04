@@ -125,6 +125,31 @@ export async function createGuardianRelationshipRecord(
 }
 
 /**
+ * Find active guardian relationships for a set of guardians, excluding one
+ * dependent, with dependent and guardian included. Used for sibling
+ * detection via shared guardians.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findGuardianRelationshipsBySharedGuardians(
+  guardianIds: string[],
+  excludeDependentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      guardianId: { in: guardianIds },
+      dependentId: { not: excludeDependentId },
+      isActive: true,
+    },
+    include: {
+      dependent: true,
+      guardian: true,
+    },
+  })
+}
+
+/**
  * Batch lookup guardian relationships for a set of guardian/dependent pairs.
  * @param client - Optional database client (for transaction support)
  */

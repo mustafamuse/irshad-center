@@ -325,6 +325,113 @@ export async function findPersonsByConditions(
   })
 }
 
+/**
+ * Get a person with active guardian and dependent relationships, each
+ * including the related person. Used for sibling detection via shared
+ * guardians.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getPersonWithActiveRelationships(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({
+    relationLoadStrategy: 'join',
+    where: { id: personId },
+    include: {
+      guardianRelationships: {
+        where: { isActive: true },
+        include: {
+          guardian: true,
+        },
+      },
+      dependentRelationships: {
+        where: { isActive: true },
+        include: {
+          dependent: true,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find persons whose name contains the given substring (case-insensitive),
+ * excluding one person. Used for last-name sibling matching.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonsByLastNameMatch(
+  lastName: string,
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where: {
+      id: { not: excludePersonId },
+      name: {
+        contains: lastName,
+        mode: 'insensitive',
+      },
+    },
+  })
+}
+
+/**
+ * Find persons matching any of the given contact conditions (email/phone),
+ * excluding one person. Used for contact-based sibling matching.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonsByContactConditions(
+  orConditions: Prisma.PersonWhereInput[],
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where: {
+      id: { not: excludePersonId },
+      OR: orConditions,
+    },
+  })
+}
+
+/**
+ * Find a person owning the given email, excluding one person. Used to check
+ * ownership before writing an email onto an invited Mahad profile.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmailExcluding(
+  email: string,
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      email,
+      NOT: { id: excludePersonId },
+    },
+    select: { id: true },
+  })
+}
+
+/**
+ * Find a person owning the given phone, excluding one person. Used to check
+ * ownership before writing a phone onto an invited Mahad profile.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByPhoneExcluding(
+  phone: string,
+  excludePersonId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      phone,
+      NOT: { id: excludePersonId },
+    },
+    select: { id: true },
+  })
+}
+
 export async function updatePersonContact(
   personId: string,
   data: PersonContactFields,
