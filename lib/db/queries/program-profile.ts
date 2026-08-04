@@ -721,7 +721,7 @@ export async function findMahadProfileNameById(
     where: { id: profileId },
     select: { program: true, person: { select: { name: true } } },
   })
-  if (!profile || profile.program !== 'MAHAD_PROGRAM') return null
+  if (!profile || profile.program !== Program.MAHAD_PROGRAM) return null
   return profile.person.name
 }
 

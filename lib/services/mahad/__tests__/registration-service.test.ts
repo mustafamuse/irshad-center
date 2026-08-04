@@ -587,6 +587,96 @@ describe('invite enrichment path', () => {
     ).rejects.toMatchObject({ statusCode: 409 })
   })
 
+  it('skips writing a conflicting email owned by a different person without an active profile', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'dugsi-guardian',
+        email: 'ahmed@example.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('skips writing both email and phone when duplicateField is "both" on a different person', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'both',
+      existingPerson: {
+        id: 'dugsi-guardian',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('fills fields normally when the duplicate person IS the invited person', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'person-recovery-1',
+        email: null,
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          email: 'ahmed@example.com',
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
   it('appends the submitted paymentNotes after the recovery marker', async () => {
     await registerMahadStudent({
       ...baseInput,

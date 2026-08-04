@@ -59,12 +59,13 @@ async function enrichExistingProfile(
   profile: EnrichableProfile,
   input: MahadRegistrationInput,
   normalizedEmail: string | null,
-  normalizedPhone: string | null
+  normalizedPhone: string | null,
+  skip?: { email?: boolean; phone?: boolean }
 ): Promise<{ profileId: string }> {
   const personUpdates: Prisma.PersonUpdateInput = {}
-  if (normalizedEmail && !profile.person.email)
+  if (normalizedEmail && !profile.person.email && !skip?.email)
     personUpdates.email = normalizedEmail
-  if (normalizedPhone && !profile.person.phone)
+  if (normalizedPhone && !profile.person.phone && !skip?.phone)
     personUpdates.phone = normalizedPhone
   if (input.dateOfBirth && !profile.person.dateOfBirth)
     personUpdates.dateOfBirth = input.dateOfBirth
@@ -181,12 +182,29 @@ export async function registerMahadStudent(
           },
         })
         if (invited && invited.program === MAHAD_PROGRAM) {
+          // A conflicting contact value here belongs to a different Person
+          // (e.g. a Dugsi guardian sharing the family email/phone). Writing
+          // it onto the invited recovery Person would violate the
+          // Person.email/phone unique constraint and abort the transaction,
+          // making the invite link unusable. Skip only the conflicting
+          // field(s); non-conflicting fields still fill normally.
+          const conflictsWithOtherPerson =
+            dupResult.existingPerson &&
+            dupResult.existingPerson.id !== invited.person.id
+          const skip = conflictsWithOtherPerson
+            ? {
+                email: dupResult.duplicateField !== 'phone',
+                phone: dupResult.duplicateField !== 'email',
+              }
+            : undefined
+
           return enrichExistingProfile(
             tx,
             invited,
             input,
             normalizedEmail,
-            normalizedPhone
+            normalizedPhone,
+            skip
           )
         }
       }
