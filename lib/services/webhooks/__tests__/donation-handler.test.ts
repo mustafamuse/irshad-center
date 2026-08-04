@@ -63,6 +63,7 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('next/cache', () => ({
   revalidateTag: vi.fn(),
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
 }))
 
 vi.mock('@/lib/utils/type-guards', () => ({
