@@ -20,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 
-import { resolveDuplicatesAction } from '../../_actions'
+import { resolveDuplicatesAction } from '../../_actions/student-actions'
 import { DuplicateGroup } from '../../_types'
 import { useDialogState, useMahadUIStore } from '../../store'
 

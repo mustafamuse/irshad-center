@@ -208,13 +208,15 @@ import {
   deleteBatchAction,
   assignStudentsAction,
   transferStudentsAction,
+} from '../batch-actions'
+import { generatePaymentLinkWithOverrideAction } from '../payment-actions'
+import {
   resolveDuplicatesAction,
   deleteStudentAction,
   bulkDeleteStudentsAction,
   getStudentDeleteWarningsAction,
   updateStudentAction,
-  generatePaymentLinkWithOverrideAction,
-} from '../index'
+} from '../student-actions'
 
 const VALID_BATCH_ID = '550e8400-e29b-41d4-a716-446655440000'
 const VALID_BATCH_ID_2 = '550e8400-e29b-41d4-a716-446655440001'

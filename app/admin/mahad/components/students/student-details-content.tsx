@@ -14,7 +14,7 @@ import {
   BatchWithCount,
 } from '@/lib/types/batch'
 
-import { updateStudentAction } from '../../_actions'
+import { updateStudentAction } from '../../_actions/student-actions'
 import { useStudentForm } from '../../_hooks/use-student-form'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 import { BasicInfoSection } from './sections/BasicInfoSection'
