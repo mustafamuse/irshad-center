@@ -295,6 +295,12 @@ export function FamilyDetailSheet({
           <Button
             className="flex-1"
             variant="outline"
+            disabled={family.hasBlockingSubscription}
+            title={
+              family.hasBlockingSubscription
+                ? 'Family already has a subscription — use billing controls instead'
+                : undefined
+            }
             onClick={() => actions.setPaymentLinkDialog(true)}
           >
             <Send className="mr-2 h-4 w-4" />

@@ -82,6 +82,7 @@ export interface Family {
   members: DugsiRegistration[]
   hasPayment: boolean
   hasSubscription: boolean
+  hasBlockingSubscription: boolean
   hasChurned: boolean
   parentEmail: string | null
   parentPhone: string | null

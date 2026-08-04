@@ -26,7 +26,10 @@ import {
   getProgramProfiles,
   searchProgramProfilesByNameOrContact,
 } from '@/lib/db/queries/program-profile'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import {
+  CANCELABLE_SUBSCRIPTION_STATUSES,
+  LIVE_SUBSCRIPTION_STATUSES,
+} from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -294,7 +297,7 @@ export async function searchStudentsForLinking(
   for (const profile of profiles) {
     const assignments = assignmentsByProfile.get(profile.id) || []
     const hasSubscription = assignments.some((a) =>
-      LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
+      CANCELABLE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
     matches.push({
@@ -351,7 +354,7 @@ export async function getPotentialStudentMatches(
   for (const profile of profiles) {
     const assignments = assignmentsByProfile.get(profile.id) || []
     const hasSubscription = assignments.some((a) =>
-      LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
+      CANCELABLE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
     matches.push({
