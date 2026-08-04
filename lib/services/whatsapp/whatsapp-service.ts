@@ -27,8 +27,11 @@ import {
   MAX_BULK_RECIPIENTS,
   WHATSAPP_DEFAULT_LANGUAGE,
 } from '@/lib/constants/whatsapp'
-import { prisma } from '@/lib/db'
-import { hasRecentMessage } from '@/lib/db/queries/whatsapp'
+import {
+  createWhatsAppMessage,
+  hasRecentMessage,
+  upsertWhatsAppMessageByWaId,
+} from '@/lib/db/queries/whatsapp'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import { isPrismaError } from '@/lib/utils/type-guards'
 
@@ -156,18 +159,16 @@ async function createMessageRecord(
   }
 
   if (waMessageId) {
-    await prisma.whatsAppMessage.upsert({
-      where: { waMessageId },
-      create: { waMessageId, ...messageData },
-      update: {
+    await upsertWhatsAppMessageByWaId(
+      waMessageId,
+      { waMessageId, ...messageData },
+      {
         status,
         ...(status === 'failed' && { failedAt: new Date(), failureReason }),
-      },
-    })
+      }
+    )
   } else {
-    await prisma.whatsAppMessage.create({
-      data: { waMessageId, ...messageData },
-    })
+    await createWhatsAppMessage({ waMessageId, ...messageData })
   }
 }
 

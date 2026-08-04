@@ -802,3 +802,48 @@ export async function getBillingAssignmentsBySubscription(
     },
   })
 }
+
+/**
+ * Get stripeSubscriptionIds already linked (via an active assignment) among
+ * the given IDs, for a given Stripe account type.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findLinkedStripeSubscriptionIds(
+  stripeSubscriptionIds: string[],
+  accountType: StripeAccountType,
+  client: DatabaseClient = prisma
+) {
+  return client.subscription.findMany({
+    where: {
+      stripeSubscriptionId: { in: stripeSubscriptionIds },
+      stripeAccountType: accountType,
+      assignments: {
+        some: {
+          isActive: true,
+        },
+      },
+    },
+    select: {
+      stripeSubscriptionId: true,
+    },
+  })
+}
+
+/**
+ * Get active billing assignments (with subscription) for the given program
+ * profile IDs. Used to batch-check subscription status for a set of profiles.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getActiveBillingAssignmentsWithSubscriptionForProfiles(
+  profileIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.findMany({
+    relationLoadStrategy: 'join',
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: true,
+    },
+    include: { subscription: true },
+  })
+}
