@@ -12,10 +12,30 @@
  * - Validate program authorization
  */
 
-import { Prisma, Program } from '@prisma/client'
+import { Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { executeInTransaction } from '@/lib/db/prisma-helpers'
+import { countActiveClassesForTeacher } from '@/lib/db/queries/dugsi-class'
+import { findPersonByEmailOrPhone, createPerson } from '@/lib/db/queries/person'
+import {
+  createTeacherWithDetails,
+  deactivateAllTeacherPrograms,
+  findTeacherProgramEnrollment,
+  upsertActiveTeacherProgram,
+  deactivateTeacherProgram,
+  deactivateTeacherPrograms,
+  getActiveTeacherPrograms,
+  getActiveTeacherProgramNames,
+  findTeacherIdById,
+  getTeachersByProgramWithDetails,
+  getAllTeachersWithDetails,
+  createTeacherProgramEnrollment,
+  deactivateTeacherDugsiProgramShifts,
+  findActiveTeacherProgramEnrollment,
+  getTeacherById,
+  type TeacherWithDetails,
+} from '@/lib/db/queries/teacher'
 import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -55,15 +75,7 @@ export async function createTeacher(
   await validateTeacherCreation({ personId }, client)
 
   // Create teacher record
-  const teacher = await client.teacher.create({
-    data: {
-      personId,
-    },
-    include: {
-      person: true,
-      programs: true,
-    },
-  })
+  const teacher = await createTeacherWithDetails(personId, client)
 
   logger.info(
     {
@@ -91,10 +103,7 @@ export async function deleteTeacher(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  const { count } = await client.teacherProgram.updateMany({
-    where: { teacherId },
-    data: { isActive: false },
-  })
+  const { count } = await deactivateAllTeacherPrograms(teacherId, client)
   if (count === 0) {
     logger.warn(
       { teacherId },
@@ -125,13 +134,7 @@ export async function assignTeacherToProgram(
   const { teacherId, program } = input
 
   // Check teacher exists
-  const teacher = await client.teacher.findUnique({
-    relationLoadStrategy: 'join',
-    where: { id: teacherId },
-    include: {
-      person: true,
-    },
-  })
+  const teacher = await getTeacherById(teacherId, client)
 
   if (!teacher) {
     throw new ValidationError('Teacher not found', 'TEACHER_NOT_FOUND', {
@@ -140,14 +143,11 @@ export async function assignTeacherToProgram(
   }
 
   // Check for existing active enrollment
-  const existing = await client.teacherProgram.findUnique({
-    where: {
-      teacherId_program: {
-        teacherId,
-        program,
-      },
-    },
-  })
+  const existing = await findTeacherProgramEnrollment(
+    teacherId,
+    program,
+    client
+  )
 
   if (existing && existing.isActive) {
     throw new ValidationError(
@@ -158,22 +158,11 @@ export async function assignTeacherToProgram(
   }
 
   // Create or reactivate enrollment
-  const teacherProgram = await client.teacherProgram.upsert({
-    where: {
-      teacherId_program: {
-        teacherId,
-        program,
-      },
-    },
-    create: {
-      teacherId,
-      program,
-      isActive: true,
-    },
-    update: {
-      isActive: true,
-    },
-  })
+  const teacherProgram = await upsertActiveTeacherProgram(
+    teacherId,
+    program,
+    client
+  )
 
   logger.info(
     {
@@ -200,16 +189,7 @@ export async function removeTeacherFromProgram(
 ) {
   const { teacherId, program } = input
 
-  const { count } = await client.teacherProgram.updateMany({
-    where: {
-      teacherId,
-      program,
-      isActive: true,
-    },
-    data: {
-      isActive: false,
-    },
-  })
+  const { count } = await deactivateTeacherProgram(teacherId, program, client)
   if (count === 0) {
     logger.warn(
       { teacherId, program },
@@ -233,15 +213,7 @@ export async function getTeacherPrograms(
 ): Promise<
   { id: string; teacherId: string; program: Program; isActive: boolean }[]
 > {
-  return client.teacherProgram.findMany({
-    where: {
-      teacherId,
-      isActive: true,
-    },
-    orderBy: {
-      program: 'asc',
-    },
-  })
+  return getActiveTeacherPrograms(teacherId, client)
 }
 
 /**
@@ -276,10 +248,7 @@ export async function bulkAssignPrograms(
   }
 
   // Validate teacher exists before starting transaction
-  const teacher = await client.teacher.findUnique({
-    where: { id: teacherId },
-    select: { id: true },
-  })
+  const teacher = await findTeacherIdById(teacherId, client)
 
   if (!teacher) {
     throw new ValidationError('Teacher not found', 'TEACHER_NOT_FOUND', {
@@ -288,13 +257,7 @@ export async function bulkAssignPrograms(
   }
 
   await executeInTransaction(client, async (tx) => {
-    const currentPrograms = await tx.teacherProgram.findMany({
-      where: {
-        teacherId,
-        isActive: true,
-      },
-      select: { program: true },
-    })
+    const currentPrograms = await getActiveTeacherProgramNames(teacherId, tx)
 
     const currentProgramSet = new Set(currentPrograms.map((p) => p.program))
     const newProgramSet = new Set(programs)
@@ -305,12 +268,7 @@ export async function bulkAssignPrograms(
 
     // Check for Dugsi class assignments before removing from DUGSI_PROGRAM
     if (programsToRemove.includes('DUGSI_PROGRAM' as Program)) {
-      const classAssignments = await tx.dugsiClassTeacher.count({
-        where: {
-          teacherId,
-          isActive: true,
-        },
-      })
+      const classAssignments = await countActiveClassesForTeacher(teacherId, tx)
 
       if (classAssignments > 0) {
         throw new ValidationError(
@@ -322,36 +280,12 @@ export async function bulkAssignPrograms(
     }
 
     if (programsToRemove.length > 0) {
-      await tx.teacherProgram.updateMany({
-        where: {
-          teacherId,
-          program: { in: programsToRemove },
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-        },
-      })
+      await deactivateTeacherPrograms(teacherId, programsToRemove, tx)
     }
 
     await Promise.all(
       programs.map((program) =>
-        tx.teacherProgram.upsert({
-          where: {
-            teacherId_program: {
-              teacherId,
-              program,
-            },
-          },
-          create: {
-            teacherId,
-            program,
-            isActive: true,
-          },
-          update: {
-            isActive: true,
-          },
-        })
+        upsertActiveTeacherProgram(teacherId, program, tx)
       )
     )
 
@@ -371,17 +305,6 @@ export async function bulkAssignPrograms(
 // Teacher Queries
 // ============================================================================
 
-const teacherWithDetailsInclude = {
-  person: true,
-  programs: {
-    where: { isActive: true },
-  },
-} satisfies Prisma.TeacherInclude
-
-export type TeacherWithDetails = Prisma.TeacherGetPayload<{
-  include: typeof teacherWithDetailsInclude
-}>
-
 /**
  * Get all teachers, optionally filtered by program.
  *
@@ -395,39 +318,11 @@ export async function getAllTeachers(
 ): Promise<TeacherWithDetails[]> {
   if (program) {
     // Get teachers enrolled in specific program
-    const teacherPrograms = await client.teacherProgram.findMany({
-      relationLoadStrategy: 'join',
-      where: {
-        program,
-        isActive: true,
-      },
-      include: {
-        teacher: {
-          include: teacherWithDetailsInclude,
-        },
-      },
-      orderBy: {
-        teacher: {
-          person: {
-            name: 'asc',
-          },
-        },
-      },
-    })
-
-    return teacherPrograms.map((tp) => tp.teacher)
+    return getTeachersByProgramWithDetails(program, client)
   }
 
   // Get all teachers
-  return client.teacher.findMany({
-    relationLoadStrategy: 'join',
-    include: teacherWithDetailsInclude,
-    orderBy: {
-      person: {
-        name: 'asc',
-      },
-    },
-  })
+  return getAllTeachersWithDetails(client)
 }
 
 /**
@@ -460,9 +355,7 @@ export async function createTeacherAndAssignDugsi(
   try {
     teacher = await executeInTransaction(client, async (tx) => {
       const newTeacher = await createTeacher(personId, tx)
-      await tx.teacherProgram.create({
-        data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
-      })
+      await createTeacherProgramEnrollment(newTeacher.id, 'DUGSI_PROGRAM', tx)
       return newTeacher
     })
   } catch (error) {
@@ -488,15 +381,11 @@ export async function createPersonTeacherAndAssignDugsi(
   client: DatabaseClient = prisma
 ) {
   if (data.email || data.phone) {
-    const existing = await client.person.findFirst({
-      where: {
-        OR: [
-          ...(data.email ? [{ email: data.email }] : []),
-          ...(data.phone ? [{ phone: data.phone }] : []),
-        ],
-      },
-      select: { id: true },
-    })
+    const existing = await findPersonByEmailOrPhone(
+      data.email,
+      data.phone,
+      client
+    )
     if (existing) {
       throw new ActionError(
         'A person with this email or phone already exists',
@@ -508,13 +397,12 @@ export async function createPersonTeacherAndAssignDugsi(
   let teacher
   try {
     teacher = await executeInTransaction(client, async (tx) => {
-      const person = await tx.person.create({
-        data: { name: data.name, email: data.email, phone: data.phone },
-      })
+      const person = await createPerson(
+        { name: data.name, email: data.email, phone: data.phone },
+        tx
+      )
       const newTeacher = await createTeacher(person.id, tx)
-      await tx.teacherProgram.create({
-        data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
-      })
+      await createTeacherProgramEnrollment(newTeacher.id, 'DUGSI_PROGRAM', tx)
       return newTeacher
     })
   } catch (error) {
@@ -552,10 +440,7 @@ export async function deactivateTeacherFromDugsi(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  const { count } = await client.teacherProgram.updateMany({
-    where: { teacherId, program: 'DUGSI_PROGRAM', isActive: true },
-    data: { shifts: [], isActive: false },
-  })
+  const { count } = await deactivateTeacherDugsiProgramShifts(teacherId, client)
   if (count === 0) {
     logger.warn(
       { teacherId },
@@ -579,13 +464,11 @@ export async function validateTeacherForProgram(
   program: Program,
   client: DatabaseClient = prisma
 ) {
-  const enrollment = await client.teacherProgram.findFirst({
-    where: {
-      teacherId,
-      program,
-      isActive: true,
-    },
-  })
+  const enrollment = await findActiveTeacherProgramEnrollment(
+    teacherId,
+    program,
+    client
+  )
 
   if (!enrollment) {
     throw new ValidationError(

@@ -848,3 +848,121 @@ export async function getActiveBillingAssignmentsWithSubscriptionForProfiles(
     include: { subscription: true },
   })
 }
+
+/**
+ * Find profile IDs that already have an active assignment for a subscription.
+ * Runs inside the caller's transaction to avoid race conditions — no client
+ * default so it cannot silently run outside one.
+ */
+export async function findActiveAssignmentProfileIdsForSubscription(
+  programProfileIds: string[],
+  subscriptionId: string,
+  client: DatabaseClient
+) {
+  return client.billingAssignment.findMany({
+    where: {
+      programProfileId: { in: programProfileIds },
+      subscriptionId,
+      isActive: true,
+    },
+    select: {
+      programProfileId: true,
+    },
+  })
+}
+
+/**
+ * Batch-create billing assignments. Rows are pre-validated by the caller
+ * (amount > 0 per rule 14). Runs inside the caller's transaction — no client
+ * default so it cannot silently run outside one.
+ */
+export async function createBillingAssignmentsBatch(
+  data: {
+    subscriptionId: string
+    programProfileId: string
+    amount: number
+    percentage: number | null
+    notes?: string
+    isActive: boolean
+  }[],
+  client: DatabaseClient
+) {
+  return client.billingAssignment.createMany({
+    data,
+    skipDuplicates: true,
+  })
+}
+
+/**
+ * Deactivate all active billing assignments for a subscription.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function deactivateBillingAssignmentsForSubscription(
+  subscriptionId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.updateMany({
+    where: { subscriptionId, isActive: true },
+    data: { isActive: false, endDate: new Date() },
+  })
+}
+
+/**
+ * Find a person by normalized email with their billing account for an
+ * account type and its most recent active/trialing subscription.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonWithBillingStatusByEmail(
+  normalizedEmail: string,
+  accountType: StripeAccountType,
+  activeStatuses: SubscriptionStatus[],
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({
+    relationLoadStrategy: 'join',
+    where: {
+      email: normalizedEmail,
+    },
+    include: {
+      billingAccounts: {
+        where: {
+          accountType,
+        },
+        include: {
+          subscriptions: {
+            where: {
+              status: {
+                in: activeStatuses,
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find active billing assignments for profiles, selecting profile ID and
+ * amount only.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findActiveAssignmentAmountsForProfiles(
+  programProfileIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.findMany({
+    where: {
+      programProfileId: { in: programProfileIds },
+      isActive: true,
+    },
+    select: {
+      programProfileId: true,
+      amount: true,
+    },
+  })
+}

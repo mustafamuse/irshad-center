@@ -1,41 +1,48 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
-  mockPersonUpdate,
-  mockPersonFindUnique,
-  mockPersonFindFirst,
-  mockPersonCreate,
-  mockGuardianRelationshipFindFirst,
-  mockGuardianRelationshipCreate,
-  mockGuardianRelationshipUpdate,
-  mockTransaction,
+  mockUpdatePersonFields,
+  mockFindPersonByEmail,
+  mockFindPersonByEmailUnique,
+  mockCreatePerson,
+  mockFindGuardianRelationshipByRole,
+  mockCreateGuardianRelationshipByRole,
+  mockReactivateGuardianRelationshipWithEndDate,
 } = vi.hoisted(() => ({
-  mockPersonUpdate: vi.fn(),
-  mockPersonFindUnique: vi.fn(),
-  mockPersonFindFirst: vi.fn(),
-  mockPersonCreate: vi.fn(),
-  mockGuardianRelationshipFindFirst: vi.fn(),
-  mockGuardianRelationshipCreate: vi.fn(),
-  mockGuardianRelationshipUpdate: vi.fn(),
-  mockTransaction: vi.fn(),
+  mockUpdatePersonFields: vi.fn(),
+  mockFindPersonByEmail: vi.fn(),
+  mockFindPersonByEmailUnique: vi.fn(),
+  mockCreatePerson: vi.fn(),
+  mockFindGuardianRelationshipByRole: vi.fn(),
+  mockCreateGuardianRelationshipByRole: vi.fn(),
+  mockReactivateGuardianRelationshipWithEndDate: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    person: {
-      update: (...args: unknown[]) => mockPersonUpdate(...args),
-      findUnique: (...args: unknown[]) => mockPersonFindUnique(...args),
-      findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
-      create: (...args: unknown[]) => mockPersonCreate(...args),
-    },
-    guardianRelationship: {
-      findFirst: (...args: unknown[]) =>
-        mockGuardianRelationshipFindFirst(...args),
-      create: (...args: unknown[]) => mockGuardianRelationshipCreate(...args),
-      update: (...args: unknown[]) => mockGuardianRelationshipUpdate(...args),
-    },
-    $transaction: (...args: unknown[]) => mockTransaction(...args),
-  },
+  prisma: {},
+}))
+
+vi.mock('@/lib/db/queries/person', () => ({
+  updatePersonFields: (...args: unknown[]) => mockUpdatePersonFields(...args),
+  findPersonByEmail: (...args: unknown[]) => mockFindPersonByEmail(...args),
+  findPersonByEmailUnique: (...args: unknown[]) =>
+    mockFindPersonByEmailUnique(...args),
+  createPerson: (...args: unknown[]) => mockCreatePerson(...args),
+  findPersonByEmailWithProfiles: vi.fn(),
+  findPersonByEmailWithActiveDependents: vi.fn(),
+}))
+
+vi.mock('@/lib/db/queries/relationships', () => ({
+  findGuardianRelationshipByRole: (...args: unknown[]) =>
+    mockFindGuardianRelationshipByRole(...args),
+  createGuardianRelationshipByRole: (...args: unknown[]) =>
+    mockCreateGuardianRelationshipByRole(...args),
+  reactivateGuardianRelationshipWithEndDate: (...args: unknown[]) =>
+    mockReactivateGuardianRelationshipWithEndDate(...args),
+  findActiveGuardianRelationshipByRole: vi.fn(),
+  deactivateGuardianRelationship: vi.fn(),
+  getGuardianDependentRelationships: vi.fn(),
+  getDependentGuardianRelationships: vi.fn(),
 }))
 
 vi.mock('@/lib/utils/contact-normalization', () => ({
@@ -51,15 +58,6 @@ import { updateGuardianInfo, addGuardianRelationship } from '../parent-service'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
-    const tx = {
-      person: {
-        update: (...args: unknown[]) => mockPersonUpdate(...args),
-        findUnique: (...args: unknown[]) => mockPersonFindUnique(...args),
-      },
-    }
-    return fn(tx)
-  })
 })
 
 const mockGuardianWithEmail = {
@@ -85,7 +83,7 @@ const mockGuardianWithPhone = {
 
 describe('updateGuardianInfo', () => {
   it('should update guardian name', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianWithEmail)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianWithEmail)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -93,16 +91,15 @@ describe('updateGuardianInfo', () => {
       email: 'new@example.com',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'guardian-1' },
-        data: expect.objectContaining({ name: 'Test Guardian' }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ name: 'Test Guardian' }),
+      expect.anything()
     )
   })
 
   it('should update email on Person when provided', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianWithEmail)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianWithEmail)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -110,15 +107,15 @@ describe('updateGuardianInfo', () => {
       email: 'new@example.com',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ email: 'new@example.com' }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ email: 'new@example.com' }),
+      expect.anything()
     )
   })
 
   it('should update phone on Person when provided', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianWithPhone)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianWithPhone)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -126,15 +123,15 @@ describe('updateGuardianInfo', () => {
       phone: '612-555-9999',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ phone: '6125559999' }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ phone: '6125559999' }),
+      expect.anything()
     )
   })
 
   it('should set email on Person when none exists', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianNoContacts)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianNoContacts)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -142,15 +139,15 @@ describe('updateGuardianInfo', () => {
       email: 'new@example.com',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ email: 'new@example.com' }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ email: 'new@example.com' }),
+      expect.anything()
     )
   })
 
   it('should set phone on Person when none exists', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianNoContacts)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianNoContacts)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -158,15 +155,15 @@ describe('updateGuardianInfo', () => {
       phone: '612-555-9999',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ phone: '6125559999' }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ phone: '6125559999' }),
+      expect.anything()
     )
   })
 
   it('should clear email (set null) when empty string provided', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianWithEmail)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianWithEmail)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -174,15 +171,15 @@ describe('updateGuardianInfo', () => {
       email: '',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ email: null }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ email: null }),
+      expect.anything()
     )
   })
 
   it('should clear phone (set null) when empty string provided', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianWithPhone)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianWithPhone)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
@@ -190,25 +187,25 @@ describe('updateGuardianInfo', () => {
       phone: '',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ phone: null }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ phone: null }),
+      expect.anything()
     )
   })
 
   it('should pass phone as undefined when not provided (Prisma skips field)', async () => {
-    mockPersonFindUnique.mockResolvedValue(mockGuardianWithPhone)
+    mockUpdatePersonFields.mockResolvedValue(mockGuardianWithPhone)
 
     await updateGuardianInfo('guardian-1', {
       firstName: 'Test',
       lastName: 'Guardian',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ phone: undefined }),
-      })
+    expect(mockUpdatePersonFields).toHaveBeenCalledWith(
+      'guardian-1',
+      expect.objectContaining({ phone: undefined }),
+      expect.anything()
     )
   })
 })
@@ -224,19 +221,19 @@ describe('addGuardianRelationship', () => {
   const dependentId = 'dependent-1'
 
   beforeEach(() => {
-    mockGuardianRelationshipFindFirst.mockResolvedValue(null)
+    mockFindGuardianRelationshipByRole.mockResolvedValue(null)
   })
 
   it('should create new Person with normalized email/phone when no match found', async () => {
-    mockPersonFindFirst.mockResolvedValue(null)
+    mockFindPersonByEmail.mockResolvedValue(null)
     const createdPerson = {
       id: 'new-person-1',
       name: 'Jane Doe',
       email: 'jane@example.com',
       phone: '6125551234',
     }
-    mockPersonCreate.mockResolvedValue(createdPerson)
-    mockGuardianRelationshipCreate.mockResolvedValue({
+    mockCreatePerson.mockResolvedValue(createdPerson)
+    mockCreateGuardianRelationshipByRole.mockResolvedValue({
       id: 'rel-1',
       guardianId: 'new-person-1',
       dependentId,
@@ -246,12 +243,10 @@ describe('addGuardianRelationship', () => {
 
     await addGuardianRelationship(dependentId, defaultInput)
 
-    expect(mockPersonCreate).toHaveBeenCalledWith(
+    expect(mockCreatePerson).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          email: 'jane@example.com',
-          phone: '6125551234',
-        }),
+        email: 'jane@example.com',
+        phone: '6125551234',
       })
     )
   })
@@ -263,8 +258,8 @@ describe('addGuardianRelationship', () => {
       email: 'jane@example.com',
       phone: '6125559999',
     }
-    mockPersonFindFirst.mockResolvedValue(existingPerson)
-    mockGuardianRelationshipCreate.mockResolvedValue({
+    mockFindPersonByEmail.mockResolvedValue(existingPerson)
+    mockCreateGuardianRelationshipByRole.mockResolvedValue({
       id: 'rel-1',
       guardianId: 'existing-person-1',
       dependentId,
@@ -274,26 +269,23 @@ describe('addGuardianRelationship', () => {
 
     await addGuardianRelationship(dependentId, defaultInput)
 
-    expect(mockPersonCreate).not.toHaveBeenCalled()
-    expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          guardianId: 'existing-person-1',
-          dependentId,
-        }),
-      })
+    expect(mockCreatePerson).not.toHaveBeenCalled()
+    expect(mockCreateGuardianRelationshipByRole).toHaveBeenCalledWith(
+      'existing-person-1',
+      dependentId,
+      'PARENT'
     )
   })
 
   it('should handle P2002 race condition on person create', async () => {
     const { Prisma } = await import('@prisma/client')
-    mockPersonFindFirst.mockResolvedValue(null)
+    mockFindPersonByEmail.mockResolvedValue(null)
 
     const p2002Error = new Prisma.PrismaClientKnownRequestError(
       'Unique constraint failed on the fields: (`email`)',
       { code: 'P2002', clientVersion: '6.0.0' }
     )
-    mockPersonCreate.mockRejectedValue(p2002Error)
+    mockCreatePerson.mockRejectedValue(p2002Error)
 
     const conflictingPerson = {
       id: 'conflict-person-1',
@@ -301,8 +293,8 @@ describe('addGuardianRelationship', () => {
       email: 'jane@example.com',
       phone: '6125551234',
     }
-    mockPersonFindUnique.mockResolvedValue(conflictingPerson)
-    mockGuardianRelationshipCreate.mockResolvedValue({
+    mockFindPersonByEmailUnique.mockResolvedValue(conflictingPerson)
+    mockCreateGuardianRelationshipByRole.mockResolvedValue({
       id: 'rel-1',
       guardianId: 'conflict-person-1',
       dependentId,
@@ -312,18 +304,11 @@ describe('addGuardianRelationship', () => {
 
     await addGuardianRelationship(dependentId, defaultInput)
 
-    expect(mockPersonFindUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { email: 'jane@example.com' },
-      })
-    )
-    expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          guardianId: 'conflict-person-1',
-          dependentId,
-        }),
-      })
+    expect(mockFindPersonByEmailUnique).toHaveBeenCalledWith('jane@example.com')
+    expect(mockCreateGuardianRelationshipByRole).toHaveBeenCalledWith(
+      'conflict-person-1',
+      dependentId,
+      'PARENT'
     )
   })
 

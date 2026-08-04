@@ -16,6 +16,23 @@
 import { GuardianRole, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import {
+  createPerson,
+  findPersonByEmail,
+  findPersonByEmailUnique,
+  findPersonByEmailWithActiveDependents,
+  findPersonByEmailWithProfiles,
+  updatePersonFields,
+} from '@/lib/db/queries/person'
+import {
+  createGuardianRelationshipByRole,
+  deactivateGuardianRelationship,
+  findActiveGuardianRelationshipByRole,
+  findGuardianRelationshipByRole,
+  getDependentGuardianRelationships,
+  getGuardianDependentRelationships,
+  reactivateGuardianRelationshipWithEndDate,
+} from '@/lib/db/queries/relationships'
 import type { DatabaseClient } from '@/lib/db/types'
 import {
   ActionError,
@@ -80,10 +97,11 @@ export async function updateGuardianInfo(
       : undefined
 
   try {
-    return await client.person.update({
-      where: { id: guardianId },
-      data: { name: fullName, email, phone },
-    })
+    return await updatePersonFields(
+      guardianId,
+      { name: fullName, email, phone },
+      client
+    )
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -124,27 +142,21 @@ export async function addGuardianRelationship(
     )
   }
 
-  let guardianPerson = await prisma.person.findFirst({
-    where: { email: normalizedEmail },
-  })
+  let guardianPerson = await findPersonByEmail(normalizedEmail)
 
   if (!guardianPerson) {
     try {
-      guardianPerson = await prisma.person.create({
-        data: {
-          name: fullName,
-          email: normalizedEmail,
-          phone: normalizedPhone,
-        },
+      guardianPerson = await createPerson({
+        name: fullName,
+        email: normalizedEmail,
+        phone: normalizedPhone,
       })
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        guardianPerson = await prisma.person.findUnique({
-          where: { email: normalizedEmail },
-        })
+        guardianPerson = await findPersonByEmailUnique(normalizedEmail)
         if (!guardianPerson) throwIfP2002(error)
       } else {
         throw error
@@ -152,39 +164,32 @@ export async function addGuardianRelationship(
     }
   }
 
+  const role = input.role || 'PARENT'
+
   // Check if relationship already exists
-  const existingRelationship = await prisma.guardianRelationship.findFirst({
-    where: {
-      guardianId: guardianPerson.id,
-      dependentId,
-      role: input.role || 'PARENT',
-    },
-  })
+  const existingRelationship = await findGuardianRelationshipByRole(
+    guardianPerson.id,
+    dependentId,
+    role
+  )
 
   if (existingRelationship) {
     // Reactivate if exists but inactive
     if (!existingRelationship.isActive) {
-      return await prisma.guardianRelationship.update({
-        where: { id: existingRelationship.id },
-        data: {
-          isActive: true,
-          endDate: null,
-        },
-      })
+      return await reactivateGuardianRelationshipWithEndDate(
+        existingRelationship.id
+      )
     }
 
     return existingRelationship
   }
 
   // Create new relationship
-  return await prisma.guardianRelationship.create({
-    data: {
-      guardianId: guardianPerson.id,
-      dependentId,
-      role: input.role || 'PARENT',
-      isActive: true,
-    },
-  })
+  return await createGuardianRelationshipByRole(
+    guardianPerson.id,
+    dependentId,
+    role
+  )
 }
 
 /**
@@ -203,14 +208,11 @@ export async function removeGuardianRelationship(
   dependentId: string,
   role: GuardianRole = 'PARENT'
 ) {
-  const relationship = await prisma.guardianRelationship.findFirst({
-    where: {
-      guardianId,
-      dependentId,
-      role,
-      isActive: true,
-    },
-  })
+  const relationship = await findActiveGuardianRelationshipByRole(
+    guardianId,
+    dependentId,
+    role
+  )
 
   if (!relationship) {
     throw new ValidationError(
@@ -220,13 +222,7 @@ export async function removeGuardianRelationship(
     )
   }
 
-  return await prisma.guardianRelationship.update({
-    where: { id: relationship.id },
-    data: {
-      isActive: false,
-      endDate: new Date(),
-    },
-  })
+  return await deactivateGuardianRelationship(relationship.id, new Date())
 }
 
 /**
@@ -242,33 +238,7 @@ export async function getGuardianDependents(
   guardianId: string,
   activeOnly: boolean = true
 ) {
-  const whereClause = activeOnly
-    ? { guardianId, isActive: true }
-    : { guardianId }
-
-  return await prisma.guardianRelationship.findMany({
-    relationLoadStrategy: 'join',
-    where: whereClause,
-    include: {
-      dependent: {
-        include: {
-          programProfiles: {
-            include: {
-              enrollments: {
-                where: {
-                  status: { not: 'WITHDRAWN' },
-                  endDate: null,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      createdAt: 'asc',
-    },
-  })
+  return await getGuardianDependentRelationships(guardianId, activeOnly)
 }
 
 /**
@@ -284,20 +254,7 @@ export async function getDependentGuardians(
   dependentId: string,
   activeOnly: boolean = true
 ) {
-  const whereClause = activeOnly
-    ? { dependentId, isActive: true }
-    : { dependentId }
-
-  return await prisma.guardianRelationship.findMany({
-    relationLoadStrategy: 'join',
-    where: whereClause,
-    include: {
-      guardian: true,
-    },
-    orderBy: {
-      createdAt: 'asc',
-    },
-  })
+  return await getDependentGuardianRelationships(dependentId, activeOnly)
 }
 
 /**
@@ -313,13 +270,7 @@ export async function validateGuardianEmail(email: string) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
 
-  return await prisma.person.findFirst({
-    relationLoadStrategy: 'join',
-    where: { email: normalized },
-    include: {
-      programProfiles: true,
-    },
-  })
+  return await findPersonByEmailWithProfiles(normalized)
 }
 
 /**
@@ -332,20 +283,5 @@ export async function findGuardianByEmail(email: string) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
 
-  return await prisma.person.findFirst({
-    relationLoadStrategy: 'join',
-    where: { email: normalized },
-    include: {
-      dependentRelationships: {
-        where: { isActive: true },
-        include: {
-          dependent: {
-            include: {
-              programProfiles: true,
-            },
-          },
-        },
-      },
-    },
-  })
+  return await findPersonByEmailWithActiveDependents(normalized)
 }

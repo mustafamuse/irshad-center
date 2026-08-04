@@ -20,6 +20,11 @@ import { z } from 'zod'
 import { STRIPE_SUBSCRIPTION_STATUS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
 import {
+  createBillingAssignmentsBatch,
+  deactivateBillingAssignmentsForSubscription,
+  findActiveAssignmentAmountsForProfiles,
+  findActiveAssignmentProfileIdsForSubscription,
+  findPersonWithBillingStatusByEmail,
   getBillingAccountByStripeCustomerId as getBillingAccountByCustomerIdQuery,
   upsertBillingAccount as upsertBillingAccountQuery,
 } from '@/lib/db/queries/billing'
@@ -209,16 +214,12 @@ export async function linkSubscriptionToProfiles(
   // Helper to create assignments (includes fetch for transaction safety)
   const createAssignments = async (tx: DatabaseClient): Promise<number> => {
     // Batch fetch inside transaction to avoid race conditions
-    const allExistingAssignments = await tx.billingAssignment.findMany({
-      where: {
-        programProfileId: { in: validated.programProfileIds },
-        subscriptionId: validated.subscriptionId,
-        isActive: true,
-      },
-      select: {
-        programProfileId: true,
-      },
-    })
+    const allExistingAssignments =
+      await findActiveAssignmentProfileIdsForSubscription(
+        validated.programProfileIds,
+        validated.subscriptionId,
+        tx
+      )
 
     const existingProfileIds = new Set(
       allExistingAssignments.map((a) => a.programProfileId)
@@ -230,8 +231,8 @@ export async function linkSubscriptionToProfiles(
 
     if (newAssignments.length === 0) return 0
 
-    const result = await tx.billingAssignment.createMany({
-      data: newAssignments.map(({ profileId, amount }) => ({
+    const result = await createBillingAssignmentsBatch(
+      newAssignments.map(({ profileId, amount }) => ({
         subscriptionId: validated.subscriptionId,
         programProfileId: profileId,
         amount,
@@ -242,8 +243,8 @@ export async function linkSubscriptionToProfiles(
         notes,
         isActive: true,
       })),
-      skipDuplicates: true,
-    })
+      tx
+    )
 
     return result.count
   }
@@ -292,10 +293,10 @@ export async function unlinkSubscription(
   subscriptionId: string,
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const result = await client.billingAssignment.updateMany({
-    where: { subscriptionId, isActive: true },
-    data: { isActive: false, endDate: new Date() },
-  })
+  const result = await deactivateBillingAssignmentsForSubscription(
+    subscriptionId,
+    client
+  )
 
   return result.count
 }
@@ -361,35 +362,11 @@ export async function getBillingStatusByEmail(
   }
 
   // Find person by email
-  const person = await prisma.person.findUnique({
-    relationLoadStrategy: 'join',
-    where: {
-      email: normalizedEmail,
-    },
-    include: {
-      billingAccounts: {
-        where: {
-          accountType,
-        },
-        include: {
-          subscriptions: {
-            where: {
-              status: {
-                in: [
-                  STRIPE_SUBSCRIPTION_STATUS.ACTIVE,
-                  STRIPE_SUBSCRIPTION_STATUS.TRIALING,
-                ],
-              },
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-            take: 1,
-          },
-        },
-      },
-    },
-  })
+  const person = await findPersonWithBillingStatusByEmail(
+    normalizedEmail,
+    accountType,
+    [STRIPE_SUBSCRIPTION_STATUS.ACTIVE, STRIPE_SUBSCRIPTION_STATUS.TRIALING]
+  )
 
   if (!person) {
     throw new ActionError(
@@ -456,16 +433,8 @@ export async function getBillingStatusForProfiles(
   }
 
   // Batch fetch all active assignments for all profiles in a single query
-  const allAssignments = await prisma.billingAssignment.findMany({
-    where: {
-      programProfileId: { in: programProfileIds },
-      isActive: true,
-    },
-    select: {
-      programProfileId: true,
-      amount: true,
-    },
-  })
+  const allAssignments =
+    await findActiveAssignmentAmountsForProfiles(programProfileIds)
 
   // Update status map with found assignments
   for (const assignment of allAssignments) {
