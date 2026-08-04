@@ -7,7 +7,7 @@ import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { handleVCardExport } from '@/lib/vcard-client'
 
-import { generateDugsiVCardContent } from '../../actions'
+import { generateDugsiVCardContent } from '../../actions/read-actions'
 
 interface DashboardHeaderProps {
   title?: string

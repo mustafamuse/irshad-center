@@ -33,7 +33,7 @@ import {
   type ParentFormValues,
 } from '../../_schemas/dialog-schemas'
 import { formatPhoneForDisplay } from '../../_utils/phone-formatting'
-import { updateParentInfo, addSecondParent } from '../../actions'
+import { updateParentInfo, addSecondParent } from '../../actions/family-actions'
 
 interface EditParentDialogProps {
   open: boolean

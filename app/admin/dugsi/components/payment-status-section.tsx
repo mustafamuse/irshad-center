@@ -38,7 +38,7 @@ import {
   type PaymentStatusData,
 } from '@/lib/utils/type-guards'
 
-import { getDugsiPaymentStatus } from '../actions'
+import { getDugsiPaymentStatus } from '../actions/payment-actions'
 import { LinkSubscriptionDialog } from './dialogs/link-subscription-dialog'
 
 interface PaymentStatusSectionProps {

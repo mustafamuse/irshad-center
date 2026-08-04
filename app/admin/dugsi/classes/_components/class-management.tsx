@@ -59,7 +59,7 @@ import type { ClassWithDetails, UnassignedStudent } from '../../_types'
 import {
   assignTeacherToClassAction,
   removeTeacherFromClassAction,
-} from '../../actions'
+} from '../../actions/class-actions'
 
 interface Teacher {
   id: string

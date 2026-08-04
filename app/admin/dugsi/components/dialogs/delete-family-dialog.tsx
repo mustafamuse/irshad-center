@@ -18,7 +18,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { deleteDugsiFamily, getDeleteFamilyPreview } from '../../actions'
+import {
+  deleteDugsiFamily,
+  getDeleteFamilyPreview,
+} from '../../actions/family-actions'
 
 interface DeleteFamilyDialogProps {
   studentId: string

@@ -46,7 +46,7 @@ import {
   generateFamilyPaymentLinkAction,
   sendPaymentLinkViaWhatsAppAction,
   type FamilyPaymentLinkData,
-} from '../../actions'
+} from '../../actions/payment-actions'
 
 const logger = createClientLogger('payment-link-dialog')
 

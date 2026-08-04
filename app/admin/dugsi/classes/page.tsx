@@ -4,7 +4,7 @@ import {
   getClassesWithDetailsAction,
   getAllTeachersForClassAssignmentAction,
   getUnassignedStudentsAction,
-} from '../actions'
+} from '../actions/class-actions'
 import { ClassManagement } from './_components/class-management'
 
 export const dynamic = 'force-dynamic'

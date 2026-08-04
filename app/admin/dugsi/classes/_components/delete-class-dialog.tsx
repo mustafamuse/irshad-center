@@ -19,7 +19,10 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import type { ClassWithDetails } from '../../_types'
-import { deleteClassAction, getClassDeletePreviewAction } from '../../actions'
+import {
+  deleteClassAction,
+  getClassDeletePreviewAction,
+} from '../../actions/class-actions'
 
 interface DeleteClassDialogProps {
   open: boolean

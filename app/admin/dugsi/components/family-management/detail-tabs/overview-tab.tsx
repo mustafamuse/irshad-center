@@ -21,7 +21,7 @@ import { useActionHandler } from '@/hooks/use-action-handler'
 
 import { Family, DugsiRegistration } from '../../../_types'
 import { getOrderedParentData } from '../../../_utils/format'
-import { reEnrollChild, setPrimaryPayer } from '../../../actions'
+import { reEnrollChild, setPrimaryPayer } from '../../../actions/family-actions'
 import { ChildInfoCard } from '../../ui/child-info-card'
 
 interface OverviewTabProps {

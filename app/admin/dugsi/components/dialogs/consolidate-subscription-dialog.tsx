@@ -50,7 +50,7 @@ import {
 import {
   previewStripeSubscriptionForConsolidation,
   consolidateDugsiSubscription,
-} from '../../actions'
+} from '../../actions/subscription-actions'
 
 interface ConsolidateSubscriptionDialogProps {
   open: boolean

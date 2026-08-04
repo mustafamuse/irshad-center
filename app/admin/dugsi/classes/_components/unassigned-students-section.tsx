@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/select'
 
 import type { ClassWithDetails, UnassignedStudent } from '../../_types'
-import { bulkEnrollStudentsAction } from '../../actions'
+import { bulkEnrollStudentsAction } from '../../actions/class-actions'
 
 type Sibling = UnassignedStudent['siblings'][number]
 
