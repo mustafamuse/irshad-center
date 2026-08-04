@@ -34,15 +34,19 @@ paths:
 
 ### Query Functions (`lib/db/queries/`)
 
-| File                 | Functions                                                |
-| -------------------- | -------------------------------------------------------- |
-| `student.ts`         | `getStudents()`, `getStudentById()`, `searchStudents()`  |
-| `program-profile.ts` | `findPersonByActiveContact()`, `getProgramProfiles()`    |
-| `billing.ts`         | `getBillingAccountByPerson()`, `getBillingAssignments()` |
-| `enrollment.ts`      | `getEnrollmentsByBatch()`, `getActiveEnrollment()`       |
-| `siblings.ts`        | `getSiblingGroups()`, `createSiblingRelationship()`      |
+| File                 | Functions                                                                                                             |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `student.ts`         | `getStudents()`, `getStudentById()`, `searchStudents()`                                                               |
+| `program-profile.ts` | `findPersonByActiveContact()`, `getProgramProfiles()`                                                                 |
+| `billing.ts`         | `getBillingAccountByPerson()`, `getBillingAssignments()`                                                              |
+| `enrollment.ts`      | `getEnrollmentsByBatch()`, `getActiveEnrollment()`                                                                    |
+| `siblings.ts`        | `getSiblingGroups()`, `createSiblingRelationship()`                                                                   |
+| `webhook-event.ts`   | Rule-12 idempotency: `findWebhookEventByIdAndSource()`, `createWebhookEventRecord()`; canonical `WebhookSource` union |
+| `donation.ts`        | `upsertDonationByPaymentIntentId()`, `getCachedDonationStats()`                                                       |
 
-**Rule**: Services must use these query functions. Never call `prisma.X.Y()` directly from `lib/services/`. A 2026-08-04 audit found 17 violating service files (~85 raw calls); the migration is Phase 4 of `docs/superpowers/specs/2026-08-04-actions-refactor-design.md` — do not add new violations meanwhile.
+**Rule**: Services must use these query functions. Never call `prisma.X.Y()` directly from `lib/services/` — this includes calls through `tx.X`/`client.X` aliases inside `prisma.$transaction()` callbacks (the wrapper itself stays in the service; the callback calls query functions with the tx client). The 2026-08 query-layer migration (Phase 4 of `docs/superpowers/specs/2026-08-04-actions-refactor-design.md`, PRs 255-257) brought every service into compliance; the only accepted residue is type-only `ReturnType<typeof prisma.X.Y>` references. Do not introduce new violations.
+
+House pattern for query functions: last param `client: DatabaseClient = prisma` (`DatabaseClient` from `@/lib/db/types`). Exception: a function that must run inside a transaction (atomic cascades, race-guarded batch writes — e.g. `deletePersonCascade`, `createBillingAssignmentsBatch`) omits the default so it cannot silently run non-atomically.
 
 ### Admin Action Files (post-2026-08 split — add new actions to the matching domain file)
 
