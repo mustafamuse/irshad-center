@@ -24,8 +24,8 @@ import {
   upsertBillingAccount as upsertBillingAccountQuery,
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 /**
  * Billing account data for creation/update

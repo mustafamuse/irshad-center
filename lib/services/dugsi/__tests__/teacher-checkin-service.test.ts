@@ -9,6 +9,14 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
 import { ValidationError } from '@/lib/services/validation-service'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
+
+import {
+  clockIn,
+  clockOut,
+  updateCheckin,
+  deleteCheckin,
+} from '../teacher-checkin-service'
 
 const {
   mockIsEnrolled,
@@ -79,15 +87,6 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
   })),
 }))
-
-import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
-
-import {
-  clockIn,
-  clockOut,
-  updateCheckin,
-  deleteCheckin,
-} from '../teacher-checkin-service'
 
 const mockTeacher = {
   id: 'teacher-1',

@@ -24,10 +24,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { formatPhoneNumber } from '@/lib/registration/utils/form-utils'
 import { capitalizeName } from '@/lib/utils'
 
-import { useActionHandler } from '@/hooks/use-action-handler'
 import {
   parentFormSchema,
   type ParentFormValues,

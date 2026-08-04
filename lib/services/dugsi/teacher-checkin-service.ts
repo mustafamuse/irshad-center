@@ -14,7 +14,6 @@ import {
   CHECKIN_ERROR_CODES,
   SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
-import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import { prisma } from '@/lib/db'
 import {
   getCheckinById,
@@ -26,6 +25,7 @@ import {
 import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import type {
   ClockInInput,
   ClockOutInput,

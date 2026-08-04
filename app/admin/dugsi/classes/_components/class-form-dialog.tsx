@@ -24,8 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-
 import { useActionHandler } from '@/hooks/use-action-handler'
+
 import type { ClassWithDetails } from '../../_types'
 import { createClassAction, updateClassAction } from '../../actions'
 
