@@ -32,7 +32,7 @@ vi.mock('../../../store', () => ({
 const mockCreateBatchAction = vi.fn()
 const mockUpdateBatchAction = vi.fn()
 
-vi.mock('../../../_actions', () => ({
+vi.mock('../../../_actions/batch-actions', () => ({
   createBatchAction: (input: unknown) => mockCreateBatchAction(input),
   updateBatchAction: (input: unknown) => mockUpdateBatchAction(input),
 }))

@@ -40,7 +40,7 @@ import {
   type ChildFormValues,
 } from '../../_schemas/dialog-schemas'
 import { splitFullName } from '../../_utils/name-formatting'
-import { updateChildInfo } from '../../actions'
+import { updateChildInfo } from '../../actions/family-actions'
 import { GradeLevelSelect } from '../shared/grade-level-select'
 
 interface EditChildDialogProps {

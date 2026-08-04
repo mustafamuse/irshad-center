@@ -26,7 +26,7 @@ import {
   bulkEnrollStudentsAction,
   getAvailableStudentsForClassAction,
   removeStudentFromClassAction,
-} from '../../actions'
+} from '../../actions/class-actions'
 
 interface StudentEnrollmentDialogProps {
   open: boolean

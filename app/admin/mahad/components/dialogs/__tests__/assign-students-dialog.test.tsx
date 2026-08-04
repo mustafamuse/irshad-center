@@ -38,7 +38,7 @@ vi.mock('../../../store', () => ({
 
 const mockAssignStudentsAction = vi.fn()
 
-vi.mock('../../../_actions', () => ({
+vi.mock('../../../_actions/batch-actions', () => ({
   assignStudentsAction: (input: unknown) => mockAssignStudentsAction(input),
 }))
 

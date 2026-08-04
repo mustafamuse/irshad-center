@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
 import { Family, BulkPaymentLinkResult } from '../../_types'
-import { bulkGeneratePaymentLinksAction } from '../../actions'
+import { bulkGeneratePaymentLinksAction } from '../../actions/payment-actions'
 import { useDugsiUIStore } from '../../store'
 
 interface BulkActionsBarProps {

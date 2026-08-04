@@ -20,7 +20,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import { createBatchAction, updateBatchAction } from '../../_actions'
+import {
+  createBatchAction,
+  updateBatchAction,
+} from '../../_actions/batch-actions'
 import { MahadBatch } from '../../_types'
 import { useDialogState, useDialogData, useMahadUIStore } from '../../store'
 

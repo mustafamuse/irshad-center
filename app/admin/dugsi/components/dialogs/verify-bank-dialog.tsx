@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useActionHandler } from '@/hooks/use-action-handler'
 
-import { verifyDugsiBankAccount } from '../../actions'
+import { verifyDugsiBankAccount } from '../../actions/payment-actions'
 
 interface VerifyBankDialogProps {
   open: boolean

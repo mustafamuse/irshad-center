@@ -37,7 +37,7 @@ import {
   parseBillingDay,
 } from '@/lib/utils/billing-date'
 
-import { generatePaymentLinkWithOverrideAction } from '../../_actions'
+import { generatePaymentLinkWithOverrideAction } from '../../_actions/payment-actions'
 
 interface PaymentLinkDialogProps {
   profileId: string

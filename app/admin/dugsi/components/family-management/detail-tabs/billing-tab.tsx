@@ -39,13 +39,11 @@ import { cn } from '@/lib/utils'
 import { Family, StripePaymentHistoryItem } from '../../../_types'
 import { getBillingStatus } from '../../../_utils/billing'
 import {
-  getFamilyPaymentHistory,
-  recalculateFamilyRate,
-} from '../../../actions'
-import {
   pauseFamilyBillingAction,
   resumeFamilyBillingAction,
 } from '../../../actions/billing-actions'
+import { recalculateFamilyRate } from '../../../actions/family-actions'
+import { getFamilyPaymentHistory } from '../../../actions/payment-actions'
 
 interface BillingTabProps {
   family: Family

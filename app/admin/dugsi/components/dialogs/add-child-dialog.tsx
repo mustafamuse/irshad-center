@@ -39,7 +39,7 @@ import {
   childFormSchema,
   type ChildFormValues,
 } from '../../_schemas/dialog-schemas'
-import { addChildToFamily } from '../../actions'
+import { addChildToFamily } from '../../actions/family-actions'
 import { GradeLevelSelect } from '../shared/grade-level-select'
 
 interface AddChildDialogProps {

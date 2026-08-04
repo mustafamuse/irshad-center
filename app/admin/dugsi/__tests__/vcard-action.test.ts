@@ -40,7 +40,7 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import { DugsiRegistration } from '../_types'
-import { generateDugsiVCardContent } from '../actions'
+import { generateDugsiVCardContent } from '../actions/read-actions'
 
 function makeReg(
   overrides: Partial<DugsiRegistration> = {}

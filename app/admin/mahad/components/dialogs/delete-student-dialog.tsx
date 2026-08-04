@@ -21,7 +21,7 @@ import {
 import {
   deleteStudentAction,
   getStudentDeleteWarningsAction,
-} from '../../_actions'
+} from '../../_actions/student-actions'
 import type { DeleteWarnings } from '../../_types'
 
 interface DeleteStudentDialogProps {

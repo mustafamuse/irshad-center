@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-import { assignStudentsAction } from '../../_actions'
+import { assignStudentsAction } from '../../_actions/batch-actions'
 import { MahadBatch, MahadStudent } from '../../_types'
 import { useDialogState, useMahadUIStore } from '../../store'
 
