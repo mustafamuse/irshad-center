@@ -76,10 +76,25 @@ function EstimatedPrice({
   )
 }
 
-export function RegisterForm() {
+interface RegisterFormProps {
+  inviteToken?: string
+  initialFirstName?: string
+  initialLastName?: string
+}
+
+export function RegisterForm({
+  inviteToken,
+  initialFirstName,
+  initialLastName,
+}: RegisterFormProps = {}) {
   const form = useForm<MahadRegistrationValues>({
     resolver: zodResolver(mahadRegistrationSchema),
-    defaultValues: MAHAD_DEFAULT_FORM_VALUES,
+    defaultValues: {
+      ...MAHAD_DEFAULT_FORM_VALUES,
+      firstName: initialFirstName ?? '',
+      lastName: initialLastName ?? '',
+      inviteToken,
+    },
     mode: 'onBlur',
   })
 

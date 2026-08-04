@@ -10,6 +10,7 @@ const {
   mockCheckRateLimit,
   mockHeaders,
   mockAfter,
+  mockVerifyInviteToken,
 } = vi.hoisted(() => ({
   mockRegisterMahadStudent: vi.fn(),
   mockIsEmailRegistered: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockCheckRateLimit: vi.fn(),
   mockHeaders: vi.fn(),
   mockAfter: vi.fn(),
+  mockVerifyInviteToken: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -52,6 +54,10 @@ vi.mock('@/lib/constants/mahad', () => ({
 vi.mock('@/lib/services/mahad/registration-service', () => ({
   registerMahadStudent: (...args: unknown[]) =>
     mockRegisterMahadStudent(...args),
+}))
+
+vi.mock('@/lib/utils/invite-token', () => ({
+  verifyInviteToken: (...args: unknown[]) => mockVerifyInviteToken(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -136,6 +142,7 @@ describe('registerStudent', () => {
       reset: 0,
     })
     mockIsEmailRegistered.mockResolvedValue(false)
+    mockVerifyInviteToken.mockReturnValue(null)
   })
 
   it('should register a student and return success with profileId and name', async () => {
@@ -160,6 +167,7 @@ describe('registerStudent', () => {
       schoolName: undefined,
       graduationStatus: 'NON_GRADUATE',
       paymentFrequency: 'MONTHLY',
+      inviteProfileId: null,
     })
     expect(mockLoggerInfo).toHaveBeenCalled()
   })
@@ -306,6 +314,44 @@ describe('registerStudent', () => {
 
     expect(result?.serverError).toBe('Something went wrong')
     expect(result?.data).toBeUndefined()
+  })
+
+  describe('invite token handling', () => {
+    beforeEach(() => {
+      mockRegisterMahadStudent.mockResolvedValue({
+        profileId: 'profile-123',
+        firstName: 'Ahmed',
+        registeredAt: new Date('2026-01-01T00:00:00.000Z'),
+      })
+    })
+
+    it('passes the verified profileId to the service', async () => {
+      mockVerifyInviteToken.mockReturnValue('profile-recovery-1')
+
+      await registerStudent({ ...validInput, inviteToken: 'id.sig' })
+
+      expect(mockRegisterMahadStudent).toHaveBeenCalledWith(
+        expect.objectContaining({ inviteProfileId: 'profile-recovery-1' })
+      )
+    })
+
+    it('treats an invalid token as absent', async () => {
+      mockVerifyInviteToken.mockReturnValue(null)
+
+      await registerStudent({ ...validInput, inviteToken: 'garbage' })
+
+      expect(mockRegisterMahadStudent).toHaveBeenCalledWith(
+        expect.objectContaining({ inviteProfileId: null })
+      )
+    })
+
+    it('works with no token at all', async () => {
+      await registerStudent(validInput)
+
+      expect(mockRegisterMahadStudent).toHaveBeenCalledWith(
+        expect.objectContaining({ inviteProfileId: null })
+      )
+    })
   })
 })
 

@@ -709,6 +709,22 @@ export async function getProgramProfilesByStatus(
   })
 }
 
+/**
+ * Find a MAHAD program profile's person name by profile ID
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findMahadProfileNameById(
+  profileId: string,
+  client: DatabaseClient = prisma
+): Promise<string | null> {
+  const profile = await client.programProfile.findUnique({
+    where: { id: profileId },
+    select: { program: true, person: { select: { name: true } } },
+  })
+  if (!profile || profile.program !== 'MAHAD_PROGRAM') return null
+  return profile.person.name
+}
+
 export async function updateProgramProfileStatus(
   profileId: string,
   status: EnrollmentStatus,
