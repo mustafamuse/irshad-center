@@ -77,7 +77,7 @@ const _teacherClockInAction = rateLimitedActionClient
       const result = await clockIn(parsedInput)
       after(() => {
         revalidatePath('/teacher/checkin')
-        revalidatePath('/admin/dugsi/teacher-checkins')
+        revalidatePath('/admin/dugsi/teachers')
       })
 
       const status = await getTeacherCurrentStatus(parsedInput.teacherId)
@@ -117,7 +117,7 @@ const _teacherClockOutAction = rateLimitedActionClient
       await clockOut(parsedInput)
       after(() => {
         revalidatePath('/teacher/checkin')
-        revalidatePath('/admin/dugsi/teacher-checkins')
+        revalidatePath('/admin/dugsi/teachers')
       })
 
       const status = await getTeacherCurrentStatus(parsedInput.teacherId)

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
+import { after } from 'next/server'
 
 import { z } from 'zod'
 
@@ -110,8 +111,18 @@ const _linkSubscriptionToStudent = adminActionClient
       studentId,
       program,
     })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
+    after(() => {
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+      if (program === 'DUGSI') {
+        revalidateTag('dugsi-registrations')
+        revalidatePath('/admin/dugsi')
+      } else {
+        revalidateTag('mahad-students')
+        revalidateTag('mahad-stats')
+        revalidatePath('/admin/mahad')
+      }
+    })
     return { linked: true }
   })
 
@@ -144,8 +155,10 @@ const _ignoreSubscription = adminActionClient
       program,
       reason,
     })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
+    after(() => {
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    })
   })
 
 const unignoreSubscriptionSchema = z.object({
@@ -168,8 +181,10 @@ const _unignoreSubscription = adminActionClient
     }
 
     await logInfo(logger, 'Subscription unignored', { subscriptionId, program })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
+    after(() => {
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    })
   })
 
 export async function getOrphanedSubscriptions(

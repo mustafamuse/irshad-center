@@ -68,8 +68,7 @@ export const deletePersonAction = adminActionClient
 
     after(() => {
       revalidatePath('/admin/people/lookup')
-      revalidatePath('/admin/people')
-      revalidatePath('/admin/teachers')
+      revalidatePath('/admin/dugsi/teachers')
       revalidatePath('/admin/dugsi')
       revalidateTag('dugsi-registrations')
       revalidateTag('mahad-stats')
