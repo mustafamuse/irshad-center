@@ -12,6 +12,7 @@ const {
   mockPersonFindUnique,
   mockTransaction,
   mockSentryStartSpan,
+  TX_SENTINEL,
 } = vi.hoisted(() => ({
   mockGetBillingAccountByCustomerId: vi.fn(),
   mockUpsertBillingAccount: vi.fn(),
@@ -21,20 +22,11 @@ const {
   mockPersonFindUnique: vi.fn(),
   mockTransaction: vi.fn(),
   mockSentryStartSpan: vi.fn(),
+  TX_SENTINEL: { __tx: true },
 }))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    billingAssignment: {
-      findMany: (...args: unknown[]) => mockBillingAssignmentFindMany(...args),
-      createMany: (...args: unknown[]) =>
-        mockBillingAssignmentCreateMany(...args),
-      updateMany: (...args: unknown[]) =>
-        mockBillingAssignmentUpdateMany(...args),
-    },
-    person: {
-      findUnique: (...args: unknown[]) => mockPersonFindUnique(...args),
-    },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }))
@@ -44,6 +36,16 @@ vi.mock('@/lib/db/queries/billing', () => ({
     mockGetBillingAccountByCustomerId(...args),
   upsertBillingAccount: (...args: unknown[]) =>
     mockUpsertBillingAccount(...args),
+  findActiveAssignmentProfileIdsForSubscription: (...args: unknown[]) =>
+    mockBillingAssignmentFindMany(...args),
+  createBillingAssignmentsBatch: (...args: unknown[]) =>
+    mockBillingAssignmentCreateMany(...args),
+  deactivateBillingAssignmentsForSubscription: (...args: unknown[]) =>
+    mockBillingAssignmentUpdateMany(...args),
+  findPersonWithBillingStatusByEmail: (...args: unknown[]) =>
+    mockPersonFindUnique(...args),
+  findActiveAssignmentAmountsForProfiles: (...args: unknown[]) =>
+    mockBillingAssignmentFindMany(...args),
 }))
 
 vi.mock('@sentry/nextjs', () => ({
@@ -300,13 +302,7 @@ describe('linkSubscriptionToProfiles', () => {
 
     mockTransaction.mockImplementation(
       async (callback: (tx: unknown) => unknown) => {
-        const tx = {
-          billingAssignment: {
-            findMany: mockBillingAssignmentFindMany,
-            createMany: mockBillingAssignmentCreateMany,
-          },
-        }
-        return callback(tx)
+        return callback(TX_SENTINEL)
       }
     )
   })
@@ -322,8 +318,8 @@ describe('linkSubscriptionToProfiles', () => {
     )
 
     expect(count).toBe(2)
-    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith({
-      data: expect.arrayContaining([
+    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
         expect.objectContaining({
           subscriptionId: 'sub_123',
           programProfileId: validUuid1,
@@ -337,8 +333,8 @@ describe('linkSubscriptionToProfiles', () => {
           isActive: true,
         }),
       ]),
-      skipDuplicates: true,
-    })
+      TX_SENTINEL
+    )
   })
 
   it('should split amounts evenly across profiles', async () => {
@@ -347,9 +343,9 @@ describe('linkSubscriptionToProfiles', () => {
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1, validUuid2], 1000)
 
-    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
-    expect(createManyCall.data[0].amount).toBe(500)
-    expect(createManyCall.data[1].amount).toBe(500)
+    const createManyRows = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyRows[0].amount).toBe(500)
+    expect(createManyRows[1].amount).toBe(500)
   })
 
   it('should assign remainder to last profile', async () => {
@@ -362,10 +358,10 @@ describe('linkSubscriptionToProfiles', () => {
       1000
     )
 
-    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
-    expect(createManyCall.data[0].amount).toBe(333)
-    expect(createManyCall.data[1].amount).toBe(333)
-    expect(createManyCall.data[2].amount).toBe(334)
+    const createManyRows = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyRows[0].amount).toBe(333)
+    expect(createManyRows[1].amount).toBe(333)
+    expect(createManyRows[2].amount).toBe(334)
   })
 
   it('should calculate percentage for multi-profile subscriptions', async () => {
@@ -374,9 +370,9 @@ describe('linkSubscriptionToProfiles', () => {
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1, validUuid2], 1000)
 
-    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
-    expect(createManyCall.data[0].percentage).toBe(50)
-    expect(createManyCall.data[1].percentage).toBe(50)
+    const createManyRows = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyRows[0].percentage).toBe(50)
+    expect(createManyRows[1].percentage).toBe(50)
   })
 
   it('should calculate float percentages for uneven splits', async () => {
@@ -389,10 +385,10 @@ describe('linkSubscriptionToProfiles', () => {
       1000
     )
 
-    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
-    expect(createManyCall.data[0].percentage).toBeCloseTo(33.3, 1)
-    expect(createManyCall.data[1].percentage).toBeCloseTo(33.3, 1)
-    expect(createManyCall.data[2].percentage).toBeCloseTo(33.4, 1)
+    const createManyRows = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyRows[0].percentage).toBeCloseTo(33.3, 1)
+    expect(createManyRows[1].percentage).toBeCloseTo(33.3, 1)
+    expect(createManyRows[2].percentage).toBeCloseTo(33.4, 1)
   })
 
   it('should set percentage to null for single profile', async () => {
@@ -401,8 +397,8 @@ describe('linkSubscriptionToProfiles', () => {
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1], 500)
 
-    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
-    expect(createManyCall.data[0].percentage).toBeNull()
+    const createManyRows = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyRows[0].percentage).toBeNull()
   })
 
   it('should skip profiles that already have active assignments', async () => {
@@ -419,21 +415,19 @@ describe('linkSubscriptionToProfiles', () => {
 
     expect(count).toBe(1)
     expect(mockBillingAssignmentFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          subscriptionId: 'sub_123',
-        }),
-      })
+      [validUuid1, validUuid2],
+      'sub_123',
+      TX_SENTINEL
     )
-    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith({
-      data: [
+    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith(
+      [
         expect.objectContaining({
           programProfileId: validUuid2,
           amount: 500,
         }),
       ],
-      skipDuplicates: true,
-    })
+      TX_SENTINEL
+    )
   })
 
   it('should return 0 when all profiles already have assignments', async () => {
@@ -463,17 +457,12 @@ describe('linkSubscriptionToProfiles', () => {
       'Family billing'
     )
 
-    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
-    expect(createManyCall.data[0].notes).toBe('Family billing')
+    const createManyRows = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyRows[0].notes).toBe('Family billing')
   })
 
   it('should use existing client when provided (transaction path)', async () => {
-    const txClient = {
-      billingAssignment: {
-        findMany: mockBillingAssignmentFindMany,
-        createMany: mockBillingAssignmentCreateMany,
-      },
-    }
+    const txClient = { __externalTx: true }
     mockBillingAssignmentFindMany.mockResolvedValue([])
     mockBillingAssignmentCreateMany.mockResolvedValue({ count: 1 })
 
@@ -489,6 +478,15 @@ describe('linkSubscriptionToProfiles', () => {
     expect(mockSentryStartSpan).toHaveBeenCalledWith(
       expect.objectContaining({ op: 'db' }),
       expect.any(Function)
+    )
+    expect(mockBillingAssignmentFindMany).toHaveBeenCalledWith(
+      [validUuid1],
+      'sub_123',
+      txClient
+    )
+    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith(
+      expect.any(Array),
+      txClient
     )
   })
 
@@ -566,10 +564,10 @@ describe('unlinkSubscription', () => {
     const count = await unlinkSubscription('sub_123')
 
     expect(count).toBe(3)
-    expect(mockBillingAssignmentUpdateMany).toHaveBeenCalledWith({
-      where: { subscriptionId: 'sub_123', isActive: true },
-      data: { isActive: false, endDate: expect.any(Date) },
-    })
+    expect(mockBillingAssignmentUpdateMany).toHaveBeenCalledWith(
+      'sub_123',
+      expect.anything()
+    )
   })
 
   it('should return 0 when no active assignments exist', async () => {
@@ -581,16 +579,16 @@ describe('unlinkSubscription', () => {
   })
 
   it('should use provided client for transaction support', async () => {
-    const mockUpdateMany = vi.fn().mockResolvedValue({ count: 2 })
-    const txClient = {
-      billingAssignment: { updateMany: mockUpdateMany },
-    }
+    const txClient = { __externalTx: true }
+    mockBillingAssignmentUpdateMany.mockResolvedValue({ count: 2 })
 
     const count = await unlinkSubscription('sub_123', txClient as never)
 
     expect(count).toBe(2)
-    expect(mockUpdateMany).toHaveBeenCalled()
-    expect(mockBillingAssignmentUpdateMany).not.toHaveBeenCalled()
+    expect(mockBillingAssignmentUpdateMany).toHaveBeenCalledWith(
+      'sub_123',
+      txClient
+    )
   })
 })
 
@@ -742,24 +740,9 @@ describe('getBillingStatusByEmail', () => {
     expect(result.hasActiveSubscription).toBe(false)
     expect(result.subscriptionStatus).toBeNull()
     expect(mockPersonFindUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        include: expect.objectContaining({
-          billingAccounts: expect.objectContaining({
-            include: expect.objectContaining({
-              subscriptions: expect.objectContaining({
-                where: {
-                  status: {
-                    in: [
-                      STRIPE_SUBSCRIPTION_STATUS.ACTIVE,
-                      STRIPE_SUBSCRIPTION_STATUS.TRIALING,
-                    ],
-                  },
-                },
-              }),
-            }),
-          }),
-        }),
-      })
+      'test@example.com',
+      StripeAccountType.MAHAD,
+      [STRIPE_SUBSCRIPTION_STATUS.ACTIVE, STRIPE_SUBSCRIPTION_STATUS.TRIALING]
     )
   })
 
@@ -797,11 +780,9 @@ describe('getBillingStatusByEmail', () => {
     )
 
     expect(mockPersonFindUnique).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          email: 'test@example.com',
-        },
-      })
+      'test@example.com',
+      StripeAccountType.MAHAD,
+      expect.any(Array)
     )
   })
 })
@@ -867,16 +848,7 @@ describe('getBillingStatusForProfiles', () => {
 
     await getBillingStatusForProfiles(['profile-1'])
 
-    expect(mockBillingAssignmentFindMany).toHaveBeenCalledWith({
-      where: {
-        programProfileId: { in: ['profile-1'] },
-        isActive: true,
-      },
-      select: {
-        programProfileId: true,
-        amount: true,
-      },
-    })
+    expect(mockBillingAssignmentFindMany).toHaveBeenCalledWith(['profile-1'])
   })
 
   it('should batch fetch in a single query (no N+1)', async () => {
