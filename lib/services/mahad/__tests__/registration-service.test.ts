@@ -3,14 +3,22 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 const {
   mockPersonCreate,
   mockPersonUpdate,
+  mockPersonFindMany,
+  mockPersonFindFirst,
   mockProgramProfileCreate,
+  mockProgramProfileFindUnique,
+  mockProgramProfileUpdate,
   mockEnrollmentCreate,
   mockTransaction,
   mockCheckDuplicate,
 } = vi.hoisted(() => ({
   mockPersonCreate: vi.fn(),
   mockPersonUpdate: vi.fn(),
+  mockPersonFindMany: vi.fn(),
+  mockPersonFindFirst: vi.fn(),
   mockProgramProfileCreate: vi.fn(),
+  mockProgramProfileFindUnique: vi.fn(),
+  mockProgramProfileUpdate: vi.fn(),
   mockEnrollmentCreate: vi.fn(),
   mockTransaction: vi.fn(),
   mockCheckDuplicate: vi.fn(),
@@ -20,9 +28,13 @@ const mockTx = {
   person: {
     create: (...args: unknown[]) => mockPersonCreate(...args),
     update: (...args: unknown[]) => mockPersonUpdate(...args),
+    findMany: (...args: unknown[]) => mockPersonFindMany(...args),
+    findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
   },
   programProfile: {
     create: (...args: unknown[]) => mockProgramProfileCreate(...args),
+    findUnique: (...args: unknown[]) => mockProgramProfileFindUnique(...args),
+    update: (...args: unknown[]) => mockProgramProfileUpdate(...args),
   },
   enrollment: {
     create: (...args: unknown[]) => mockEnrollmentCreate(...args),
@@ -77,6 +89,7 @@ describe('registerMahadStudent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonFindMany.mockResolvedValue([])
     mockPersonCreate.mockResolvedValue({
       id: 'person-1',
       name: 'Ahmed Mohamed',
@@ -453,5 +466,387 @@ describe('registerMahadStudent', () => {
     })
 
     expect(result).toEqual({ profileId: 'profile-1' })
+  })
+})
+
+describe('invite enrichment path', () => {
+  const inviteProfile = {
+    id: 'profile-recovery-1',
+    program: 'MAHAD_PROGRAM',
+    gradeLevel: null,
+    schoolName: null,
+    graduationStatus: null,
+    paymentFrequency: null,
+    billingType: null,
+    paymentNotes:
+      'Created from attendance roster during 2026-08 billing recovery; billing pending checkout',
+    person: {
+      id: 'person-recovery-1',
+      name: 'Habib Idris',
+      email: null,
+      phone: null,
+      dateOfBirth: null,
+    },
+    enrollments: [{ id: 'enr-1', endDate: null }],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonFindMany.mockResolvedValue([])
+    mockPersonFindFirst.mockResolvedValue(null)
+    mockProgramProfileFindUnique.mockResolvedValue(inviteProfile)
+    mockPersonUpdate.mockResolvedValue({})
+    mockProgramProfileUpdate.mockResolvedValue({ id: inviteProfile.id })
+  })
+
+  it('enriches the invited profile and returns its id', async () => {
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+    expect(mockProgramProfileCreate).not.toHaveBeenCalled()
+  })
+
+  it('fills person nulls without overwriting existing values', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      ...inviteProfile,
+      person: { ...inviteProfile.person, email: 'kept@example.com' },
+    })
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    const update = mockPersonUpdate.mock.calls[0][0] as {
+      data: Record<string, unknown>
+    }
+    expect(update.data.email).toBeUndefined()
+    expect(update.data.phone).toBeDefined()
+  })
+
+  it('does not create a second enrollment when one is active', async () => {
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(mockEnrollmentCreate).not.toHaveBeenCalled()
+  })
+
+  it('creates an enrollment when the profile has none active', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      ...inviteProfile,
+      enrollments: [],
+    })
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(mockEnrollmentCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls through to normal create when the profile does not exist', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue(null)
+    mockPersonCreate.mockResolvedValue({ id: 'person-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'profile-new' })
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-gone',
+    })
+    expect(result.profileId).toBe('profile-new')
+  })
+
+  it('falls through when the invited profile is not Mahad', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      ...inviteProfile,
+      program: 'DUGSI_PROGRAM',
+    })
+    mockPersonCreate.mockResolvedValue({ id: 'person-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'profile-new' })
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+    expect(result.profileId).toBe('profile-new')
+  })
+
+  it('still 409s on duplicate contact even with an invite', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'p-x',
+        email: 'x@x.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: true,
+    })
+    await expect(
+      registerMahadStudent({
+        ...baseInput,
+        inviteProfileId: 'profile-recovery-1',
+      })
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('skips writing a conflicting email owned by a different person without an active profile', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'dugsi-guardian',
+        email: 'ahmed@example.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+    mockPersonFindFirst.mockImplementation(
+      (args: { where: { email?: string; phone?: string } }) =>
+        Promise.resolve(args.where.email ? { id: 'dugsi-guardian' } : null)
+    )
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('skips writing both email and phone when duplicateField is "both" on a different person', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'both',
+      existingPerson: {
+        id: 'dugsi-guardian',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+    mockPersonFindFirst.mockResolvedValue({ id: 'dugsi-guardian' })
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('skips both email and phone when they are owned by two DIFFERENT third-party persons (checkDuplicate only reports one)', async () => {
+    // checkDuplicate's findFirst over OR(email, phone) surfaces only the
+    // email conflict here, even though the phone also belongs to a
+    // different, unrelated third party.
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'third-party-a',
+        email: 'ahmed@example.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+    mockPersonFindFirst.mockImplementation(
+      (args: { where: { email?: string; phone?: string } }) => {
+        if (args.where.email) return Promise.resolve({ id: 'third-party-a' })
+        if (args.where.phone) return Promise.resolve({ id: 'third-party-b' })
+        return Promise.resolve(null)
+      }
+    )
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('writes both email and phone when neither has a third-party owner', async () => {
+    mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          email: 'ahmed@example.com',
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('fills fields normally when the duplicate person IS the invited person', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'person-recovery-1',
+        email: null,
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+
+    const result = await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+    })
+
+    expect(result.profileId).toBe('profile-recovery-1')
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'person-recovery-1' },
+        data: {
+          email: 'ahmed@example.com',
+          phone: '6125551234',
+          dateOfBirth: baseInput.dateOfBirth,
+        },
+      })
+    )
+  })
+
+  it('appends the submitted paymentNotes after the recovery marker', async () => {
+    await registerMahadStudent({
+      ...baseInput,
+      inviteProfileId: 'profile-recovery-1',
+      paymentNotes: 'prefers cash',
+    })
+    const update = mockProgramProfileUpdate.mock.calls[0][0] as {
+      data: Record<string, unknown>
+    }
+    expect(update.data.paymentNotes).toContain('billing pending checkout')
+    expect(update.data.paymentNotes).toContain('prefers cash')
+  })
+})
+
+describe('name fallback for contact-less recovery profiles', () => {
+  const recoveryPersonMatch = {
+    id: 'person-recovery-2',
+    email: null,
+    phone: null,
+    dateOfBirth: null,
+    programProfiles: [
+      {
+        id: 'profile-recovery-2',
+        program: 'MAHAD_PROGRAM',
+        gradeLevel: null,
+        schoolName: null,
+        graduationStatus: null,
+        paymentFrequency: null,
+        billingType: null,
+        paymentNotes: null,
+        enrollments: [{ id: 'enr-2', endDate: null }],
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonUpdate.mockResolvedValue({})
+    mockProgramProfileUpdate.mockResolvedValue({})
+  })
+
+  it('merges into the single contact-less name match', async () => {
+    mockPersonFindMany.mockResolvedValue([recoveryPersonMatch])
+    const result = await registerMahadStudent(baseInput)
+    expect(result.profileId).toBe('profile-recovery-2')
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+    expect(mockProgramProfileCreate).not.toHaveBeenCalled()
+  })
+
+  it('queries only contact-less persons with a Mahad profile', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+    mockPersonCreate.mockResolvedValue({ id: 'p-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-new' })
+    await registerMahadStudent(baseInput)
+    const query = mockPersonFindMany.mock.calls[0][0] as {
+      where: Record<string, unknown>
+    }
+    expect(query.where.email).toBeNull()
+    expect(query.where.phone).toBeNull()
+    expect(query.where.name).toEqual({
+      equals: baseInput.name,
+      mode: 'insensitive',
+    })
+  })
+
+  it('creates fresh when zero matches', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+    mockPersonCreate.mockResolvedValue({ id: 'p-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-new' })
+    const result = await registerMahadStudent(baseInput)
+    expect(result.profileId).toBe('pp-new')
+    expect(mockPersonCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates fresh when two candidates match', async () => {
+    mockPersonFindMany.mockResolvedValue([
+      recoveryPersonMatch,
+      { ...recoveryPersonMatch, id: 'person-recovery-3' },
+    ])
+    mockPersonCreate.mockResolvedValue({ id: 'p-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-new' })
+    const result = await registerMahadStudent(baseInput)
+    expect(result.profileId).toBe('pp-new')
+  })
+
+  it('does not run the fallback when checkDuplicate found a person', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: false,
+      duplicateField: null,
+      existingPerson: {
+        id: 'person-existing',
+        email: 'x@x.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-reuse' })
+    await registerMahadStudent(baseInput)
+    expect(mockPersonFindMany).not.toHaveBeenCalled()
   })
 })

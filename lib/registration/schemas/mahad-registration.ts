@@ -46,6 +46,7 @@ export const mahadRegistrationSchema = z.object({
   paymentFrequency: z.nativeEnum(PaymentFrequency, {
     required_error: 'Please select a payment frequency',
   }),
+  inviteToken: z.string().max(200).optional(),
 })
 
 export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>

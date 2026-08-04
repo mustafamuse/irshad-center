@@ -34,6 +34,83 @@ export interface MahadRegistrationInput {
   billingType?: StudentBillingType | null
   paymentNotes?: string | null
   batchId?: string | null
+  inviteProfileId?: string | null
+}
+
+type EnrichableProfile = {
+  id: string
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
+  paymentNotes: string | null
+  person: {
+    id: string
+    email: string | null
+    phone: string | null
+    dateOfBirth: Date | null
+  }
+  enrollments: { id: string }[]
+}
+
+async function enrichExistingProfile(
+  tx: Prisma.TransactionClient,
+  profile: EnrichableProfile,
+  input: MahadRegistrationInput,
+  normalizedEmail: string | null,
+  normalizedPhone: string | null,
+  skip?: { email?: boolean; phone?: boolean }
+): Promise<{ profileId: string }> {
+  const personUpdates: Prisma.PersonUpdateInput = {}
+  if (normalizedEmail && !profile.person.email && !skip?.email)
+    personUpdates.email = normalizedEmail
+  if (normalizedPhone && !profile.person.phone && !skip?.phone)
+    personUpdates.phone = normalizedPhone
+  if (input.dateOfBirth && !profile.person.dateOfBirth)
+    personUpdates.dateOfBirth = input.dateOfBirth
+  if (Object.keys(personUpdates).length > 0) {
+    await tx.person.update({
+      where: { id: profile.person.id },
+      data: personUpdates,
+    })
+  }
+
+  const profileUpdates: Prisma.ProgramProfileUpdateInput = {}
+  if (input.gradeLevel && !profile.gradeLevel)
+    profileUpdates.gradeLevel = input.gradeLevel
+  if (input.schoolName && !profile.schoolName)
+    profileUpdates.schoolName = input.schoolName
+  if (input.graduationStatus && !profile.graduationStatus)
+    profileUpdates.graduationStatus = input.graduationStatus
+  if (input.paymentFrequency && !profile.paymentFrequency)
+    profileUpdates.paymentFrequency = input.paymentFrequency
+  if (input.billingType && !profile.billingType)
+    profileUpdates.billingType = input.billingType
+  if (input.paymentNotes) {
+    profileUpdates.paymentNotes = profile.paymentNotes
+      ? `${profile.paymentNotes}; ${input.paymentNotes}`
+      : input.paymentNotes
+  }
+  if (Object.keys(profileUpdates).length > 0) {
+    await tx.programProfile.update({
+      where: { id: profile.id },
+      data: profileUpdates,
+    })
+  }
+
+  if (profile.enrollments.length === 0) {
+    await tx.enrollment.create({
+      data: {
+        programProfileId: profile.id,
+        batchId: input.batchId ?? null,
+        status: 'REGISTERED',
+        startDate: new Date(),
+      },
+    })
+  }
+
+  return { profileId: profile.id }
 }
 
 /**
@@ -78,6 +155,83 @@ export async function registerMahadStudent(
         )
       }
 
+      if (input.inviteProfileId) {
+        const invited = await tx.programProfile.findUnique({
+          where: { id: input.inviteProfileId },
+          select: {
+            id: true,
+            program: true,
+            gradeLevel: true,
+            schoolName: true,
+            graduationStatus: true,
+            paymentFrequency: true,
+            billingType: true,
+            paymentNotes: true,
+            person: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+                dateOfBirth: true,
+              },
+            },
+            enrollments: {
+              where: { endDate: null },
+              select: { id: true },
+            },
+          },
+        })
+        if (invited && invited.program === MAHAD_PROGRAM) {
+          // checkDuplicate does a single findFirst over OR(email, phone) and
+          // returns at most one conflicting Person. If the submitted email and
+          // phone belong to two DIFFERENT third-party Persons, only one
+          // conflict is reported there — writing the other field onto the
+          // invited Person would still violate the unique constraint and
+          // abort the transaction, making the invite link unusable. So each
+          // field that would actually be written here gets its own ownership
+          // check against a different Person.
+          const willWriteEmail =
+            normalizedEmail !== null && !invited.person.email
+          const willWritePhone =
+            normalizedPhone !== null && !invited.person.phone
+
+          const [emailOwner, phoneOwner] = await Promise.all([
+            willWriteEmail
+              ? tx.person.findFirst({
+                  where: {
+                    email: normalizedEmail,
+                    NOT: { id: invited.person.id },
+                  },
+                  select: { id: true },
+                })
+              : null,
+            willWritePhone
+              ? tx.person.findFirst({
+                  where: {
+                    phone: normalizedPhone,
+                    NOT: { id: invited.person.id },
+                  },
+                  select: { id: true },
+                })
+              : null,
+          ])
+
+          const skip = {
+            email: emailOwner !== null,
+            phone: phoneOwner !== null,
+          }
+
+          return enrichExistingProfile(
+            tx,
+            invited,
+            input,
+            normalizedEmail,
+            normalizedPhone,
+            skip
+          )
+        }
+      }
+
       let personId: string
 
       if (dupResult.existingPerson) {
@@ -104,6 +258,63 @@ export async function registerMahadStudent(
           })
         }
       } else {
+        const fallbackMatches = await tx.person.findMany({
+          where: {
+            name: { equals: input.name, mode: 'insensitive' },
+            email: null,
+            phone: null,
+            programProfiles: { some: { program: MAHAD_PROGRAM } },
+          },
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            dateOfBirth: true,
+            programProfiles: {
+              where: { program: MAHAD_PROGRAM },
+              select: {
+                id: true,
+                program: true,
+                gradeLevel: true,
+                schoolName: true,
+                graduationStatus: true,
+                paymentFrequency: true,
+                billingType: true,
+                paymentNotes: true,
+                enrollments: {
+                  where: { endDate: null },
+                  select: { id: true },
+                },
+              },
+            },
+          },
+          take: 2,
+        })
+
+        // Contact-less persons with a Mahad profile can only come from the
+        // recovery backfill: mahadRegistrationSchema requires email and
+        // phone, so every form-created person has contact info. That is
+        // what makes exactly-one an auto-merge-safe condition.
+        if (fallbackMatches.length === 1) {
+          const match = fallbackMatches[0]
+          const profile = match.programProfiles[0]
+          return enrichExistingProfile(
+            tx,
+            {
+              ...profile,
+              person: {
+                id: match.id,
+                email: match.email,
+                phone: match.phone,
+                dateOfBirth: match.dateOfBirth,
+              },
+            },
+            input,
+            normalizedEmail,
+            normalizedPhone
+          )
+        }
+
         const newPerson = await tx.person.create({
           data: {
             name: input.name,

@@ -32,6 +32,10 @@ const envSchema = z
     // ── Admin Auth ───────────────────────────────────────────────────────────────
     ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
     ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
+    MAHAD_INVITE_SECRET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
 
     // ── App Config ───────────────────────────────────────────────────────────────
     // NEXT_PUBLIC_* vars are inlined by Next.js at build time. Client-side code
@@ -295,6 +299,15 @@ const envSchema = z
             path: [key],
           })
         }
+      }
+
+      if (!data.MAHAD_INVITE_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'MAHAD_INVITE_SECRET is required in production — without it every Mahad invite link silently verifies to null',
+          path: ['MAHAD_INVITE_SECRET'],
+        })
       }
     }
 

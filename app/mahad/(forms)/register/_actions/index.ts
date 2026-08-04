@@ -16,6 +16,7 @@ import { emailSchema } from '@/lib/registration/schemas/registration-field-schem
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import { registerMahadStudent } from '@/lib/services/mahad/registration-service'
+import { verifyInviteToken } from '@/lib/utils/invite-token'
 
 const logger = createActionLogger('mahad-registration')
 
@@ -24,6 +25,7 @@ const _registerStudent = rateLimitedActionClient
   .schema(mahadRegistrationSchema)
   .action(async ({ parsedInput: data }) => {
     const fullName = `${data.firstName} ${data.lastName}`.trim()
+    const inviteProfileId = verifyInviteToken(data.inviteToken) ?? null
 
     try {
       const result = await registerMahadStudent({
@@ -35,6 +37,7 @@ const _registerStudent = rateLimitedActionClient
         schoolName: data.schoolName,
         graduationStatus: data.graduationStatus,
         paymentFrequency: data.paymentFrequency,
+        inviteProfileId,
       })
 
       after(() => {

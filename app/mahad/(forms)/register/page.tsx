@@ -4,7 +4,9 @@ import { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
 
+import { findMahadProfileNameById } from '@/lib/db/queries/program-profile'
 import { getAcademicYear } from '@/lib/utils/academic-year'
+import { verifyInviteToken } from '@/lib/utils/invite-token'
 
 import { RegisterForm } from './_components/registration-form'
 import { MahadPageHeader } from '../../_components/mahad-page-header'
@@ -34,7 +36,29 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ invite?: string }>
+}) {
+  const { invite } = await searchParams
+  const inviteProfileId = verifyInviteToken(invite)
+  let inviteProps: {
+    inviteToken?: string
+    initialFirstName?: string
+    initialLastName?: string
+  } = {}
+  if (invite && inviteProfileId) {
+    const name = await findMahadProfileNameById(inviteProfileId)
+    if (name) {
+      const lastSpace = name.lastIndexOf(' ')
+      inviteProps = {
+        inviteToken: invite,
+        initialFirstName: lastSpace > 0 ? name.slice(0, lastSpace) : name,
+        initialLastName: lastSpace > 0 ? name.slice(lastSpace + 1) : '',
+      }
+    }
+  }
   return (
     <>
       <MahadPageHeader
@@ -61,7 +85,7 @@ export default function RegisterPage() {
         }
       />
       <main>
-        <RegisterForm />
+        <RegisterForm {...inviteProps} />
       </main>
     </>
   )
