@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 const {
   mockPersonCreate,
   mockPersonUpdate,
+  mockPersonFindMany,
   mockProgramProfileCreate,
   mockProgramProfileFindUnique,
   mockProgramProfileUpdate,
@@ -12,6 +13,7 @@ const {
 } = vi.hoisted(() => ({
   mockPersonCreate: vi.fn(),
   mockPersonUpdate: vi.fn(),
+  mockPersonFindMany: vi.fn(),
   mockProgramProfileCreate: vi.fn(),
   mockProgramProfileFindUnique: vi.fn(),
   mockProgramProfileUpdate: vi.fn(),
@@ -24,6 +26,7 @@ const mockTx = {
   person: {
     create: (...args: unknown[]) => mockPersonCreate(...args),
     update: (...args: unknown[]) => mockPersonUpdate(...args),
+    findMany: (...args: unknown[]) => mockPersonFindMany(...args),
   },
   programProfile: {
     create: (...args: unknown[]) => mockProgramProfileCreate(...args),
@@ -83,6 +86,7 @@ describe('registerMahadStudent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonFindMany.mockResolvedValue([])
     mockPersonCreate.mockResolvedValue({
       id: 'person-1',
       name: 'Ahmed Mohamed',
@@ -486,6 +490,7 @@ describe('invite enrichment path', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonFindMany.mockResolvedValue([])
     mockProgramProfileFindUnique.mockResolvedValue(inviteProfile)
     mockPersonUpdate.mockResolvedValue({})
     mockProgramProfileUpdate.mockResolvedValue({ id: inviteProfile.id })
@@ -593,5 +598,95 @@ describe('invite enrichment path', () => {
     }
     expect(update.data.paymentNotes).toContain('billing pending checkout')
     expect(update.data.paymentNotes).toContain('prefers cash')
+  })
+})
+
+describe('name fallback for contact-less recovery profiles', () => {
+  const recoveryPersonMatch = {
+    id: 'person-recovery-2',
+    email: null,
+    phone: null,
+    dateOfBirth: null,
+    programProfiles: [
+      {
+        id: 'profile-recovery-2',
+        program: 'MAHAD_PROGRAM',
+        gradeLevel: null,
+        schoolName: null,
+        graduationStatus: null,
+        paymentFrequency: null,
+        billingType: null,
+        paymentNotes: null,
+        enrollments: [{ id: 'enr-2', endDate: null }],
+      },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockPersonUpdate.mockResolvedValue({})
+    mockProgramProfileUpdate.mockResolvedValue({})
+  })
+
+  it('merges into the single contact-less name match', async () => {
+    mockPersonFindMany.mockResolvedValue([recoveryPersonMatch])
+    const result = await registerMahadStudent(baseInput)
+    expect(result.profileId).toBe('profile-recovery-2')
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+    expect(mockProgramProfileCreate).not.toHaveBeenCalled()
+  })
+
+  it('queries only contact-less persons with a Mahad profile', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+    mockPersonCreate.mockResolvedValue({ id: 'p-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-new' })
+    await registerMahadStudent(baseInput)
+    const query = mockPersonFindMany.mock.calls[0][0] as {
+      where: Record<string, unknown>
+    }
+    expect(query.where.email).toBeNull()
+    expect(query.where.phone).toBeNull()
+    expect(query.where.name).toEqual({
+      equals: baseInput.name,
+      mode: 'insensitive',
+    })
+  })
+
+  it('creates fresh when zero matches', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+    mockPersonCreate.mockResolvedValue({ id: 'p-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-new' })
+    const result = await registerMahadStudent(baseInput)
+    expect(result.profileId).toBe('pp-new')
+    expect(mockPersonCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates fresh when two candidates match', async () => {
+    mockPersonFindMany.mockResolvedValue([
+      recoveryPersonMatch,
+      { ...recoveryPersonMatch, id: 'person-recovery-3' },
+    ])
+    mockPersonCreate.mockResolvedValue({ id: 'p-new' })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-new' })
+    const result = await registerMahadStudent(baseInput)
+    expect(result.profileId).toBe('pp-new')
+  })
+
+  it('does not run the fallback when checkDuplicate found a person', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: false,
+      duplicateField: null,
+      existingPerson: {
+        id: 'person-existing',
+        email: 'x@x.com',
+        phone: null,
+        dateOfBirth: null,
+      },
+      hasActiveProfile: false,
+    })
+    mockProgramProfileCreate.mockResolvedValue({ id: 'pp-reuse' })
+    await registerMahadStudent(baseInput)
+    expect(mockPersonFindMany).not.toHaveBeenCalled()
   })
 })

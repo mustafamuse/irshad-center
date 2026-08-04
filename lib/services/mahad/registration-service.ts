@@ -217,6 +217,63 @@ export async function registerMahadStudent(
           })
         }
       } else {
+        const fallbackMatches = await tx.person.findMany({
+          where: {
+            name: { equals: input.name, mode: 'insensitive' },
+            email: null,
+            phone: null,
+            programProfiles: { some: { program: MAHAD_PROGRAM } },
+          },
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            dateOfBirth: true,
+            programProfiles: {
+              where: { program: MAHAD_PROGRAM },
+              select: {
+                id: true,
+                program: true,
+                gradeLevel: true,
+                schoolName: true,
+                graduationStatus: true,
+                paymentFrequency: true,
+                billingType: true,
+                paymentNotes: true,
+                enrollments: {
+                  where: { endDate: null },
+                  select: { id: true },
+                },
+              },
+            },
+          },
+          take: 2,
+        })
+
+        // Contact-less persons with a Mahad profile can only come from the
+        // recovery backfill: mahadRegistrationSchema requires email and
+        // phone, so every form-created person has contact info. That is
+        // what makes exactly-one an auto-merge-safe condition.
+        if (fallbackMatches.length === 1) {
+          const match = fallbackMatches[0]
+          const profile = match.programProfiles[0]
+          return enrichExistingProfile(
+            tx,
+            {
+              ...profile,
+              person: {
+                id: match.id,
+                email: match.email,
+                phone: match.phone,
+                dateOfBirth: match.dateOfBirth,
+              },
+            },
+            input,
+            normalizedEmail,
+            normalizedPhone
+          )
+        }
+
         const newPerson = await tx.person.create({
           data: {
             name: input.name,
