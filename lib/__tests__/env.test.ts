@@ -73,3 +73,34 @@ describe('env schema — Upstash rate limiting vars', () => {
     expect(env.UPSTASH_REDIS_REST_URL).toBeUndefined()
   })
 })
+
+describe('env schema — Mahad invite secret', () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs()
+    vi.stubEnv('VERCEL_ENV', '')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('requires the secret on Vercel production', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await expect(
+      loadEnv({
+        VERCEL_ENV: 'production',
+        UPSTASH_REDIS_REST_URL: 'https://example.upstash.io',
+        UPSTASH_REDIS_REST_TOKEN: 'token',
+        MAHAD_INVITE_SECRET: '',
+      })
+    ).rejects.toThrow('Missing or invalid environment variables')
+  })
+
+  it('does not require it in Vercel preview', async () => {
+    const { env } = await loadEnv({
+      VERCEL_ENV: 'preview',
+      MAHAD_INVITE_SECRET: '',
+    })
+    expect(env.MAHAD_INVITE_SECRET).toBeUndefined()
+  })
+})
