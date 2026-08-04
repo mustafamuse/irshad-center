@@ -39,10 +39,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import type { StripeSubscriptionPreview } from '@/lib/services/dugsi'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
-import { useActionHandler } from '@/hooks/use-action-handler'
 import {
   consolidateSubscriptionSchema,
   type ConsolidateSubscriptionFormValues,

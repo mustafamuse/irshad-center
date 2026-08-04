@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers'
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { mockLoggerWarn, mockLoggerChild } = vi.hoisted(() => {
@@ -21,8 +23,8 @@ vi.mock('@/lib/logger', () => ({
   }),
 }))
 
-import { cookies } from 'next/headers'
 import { ActionError } from '@/lib/errors/action-error'
+
 import { verifyAuthToken } from '../admin-auth'
 import { assertAdmin } from '../assert-admin'
 
