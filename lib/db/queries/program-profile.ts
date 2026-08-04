@@ -5,9 +5,10 @@
  * These functions work alongside legacy Student queries during migration.
  */
 
-import { Prisma, Program, EnrollmentStatus } from '@prisma/client'
+import { Prisma, Program, EnrollmentStatus, Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 import {
   normalizeEmail,
@@ -950,5 +951,219 @@ export async function updateProgramProfileStatusMany(
       ...(fromStatuses ? { status: { in: fromStatuses } } : {}),
     },
     data: { status },
+  })
+}
+
+/**
+ * Get REGISTERED/ENROLLED child counts per family for a program.
+ * @client - Optional database client (for transaction support)
+ */
+export async function getFamilyChildCountsByProgram(
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.groupBy({
+    by: ['familyReferenceId'],
+    where: {
+      program,
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+    },
+    _count: { id: true },
+  })
+}
+
+/**
+ * Find program profiles for a program with the full relation set
+ * (person + guardians, assignments, dugsi class enrollment), optionally
+ * filtered by shift and limited.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesFullByProgram(
+  params: { program: Program; shift?: Shift; limit?: number },
+  client: DatabaseClient = prisma
+) {
+  const { program, shift, limit } = params
+  return client.programProfile.findMany({
+    where: {
+      program,
+      ...(shift && { shift }),
+    },
+    relationLoadStrategy: 'join',
+    include: programProfileFullInclude,
+    orderBy: {
+      createdAt: 'desc',
+    },
+    ...(limit && { take: limit }),
+  })
+}
+
+/**
+ * Find program profiles for a family with the full relation set, ordered
+ * oldest first. Distinct from `getProgramProfilesByFamilyId`, which uses a
+ * different include shape (active-only guardian relationships, enrollments).
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesFullByFamily(
+  familyId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      familyReferenceId: familyId,
+      program,
+    },
+    relationLoadStrategy: 'join',
+    include: programProfileFullInclude,
+    orderBy: {
+      createdAt: 'asc',
+    },
+  })
+}
+
+/**
+ * Find program profiles for a program matching a contact filter on either
+ * the student's own person record or an active guardian's person record.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesFullByContact(
+  program: Program,
+  contactFilter: Prisma.PersonWhereInput,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      program,
+      OR: [
+        {
+          person: contactFilter,
+        },
+        {
+          person: {
+            guardianRelationships: {
+              some: {
+                isActive: true,
+                guardian: contactFilter,
+              },
+            },
+          },
+        },
+      ],
+    },
+    relationLoadStrategy: 'join',
+    include: programProfileFullInclude,
+  })
+}
+
+/**
+ * Delete a single program profile by ID.
+ * @client - Optional database client (for transaction support)
+ */
+export async function deleteProgramProfileById(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.delete({
+    where: { id: profileId },
+  })
+}
+
+/**
+ * Delete a set of program profiles by ID.
+ * @client - Optional database client (for transaction support)
+ */
+export async function deleteProgramProfilesByIds(
+  profileIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.deleteMany({
+    where: {
+      id: { in: profileIds },
+    },
+  })
+}
+
+/**
+ * Find a program profile by person + program, including only active
+ * billing assignments (with subscription + billing account), most recent
+ * first. Used for billing status lookups.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileWithActiveBilling(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      personId,
+      program,
+    },
+    include: {
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: {
+            include: {
+              billingAccount: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find a program profile by person + program, including active
+ * (non-withdrawn, open-ended) enrollments with their batch. Distinct from
+ * `findActiveProgramProfileWithEnrollments`, which does not include batch.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileWithActiveEnrollmentAndBatch(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    relationLoadStrategy: 'join',
+    where: {
+      personId,
+      program,
+    },
+    include: {
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Get personIds only for program profiles in a family. Used for lightweight
+ * family-member lookups that don't need the full profile.
+ * @client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilePersonIdsByFamily(
+  familyId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      familyReferenceId: familyId,
+      program,
+    },
+    select: { personId: true },
   })
 }

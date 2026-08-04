@@ -65,11 +65,13 @@ const {
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    person: {
-      update: mockPersonUpdate,
-    },
     $transaction: mockTransaction,
   },
+}))
+
+vi.mock('@/lib/db/queries/person', () => ({
+  createPerson: (...args: unknown[]) => mockPersonCreate(...args),
+  updatePersonFields: (...args: unknown[]) => mockPersonUpdate(...args),
 }))
 
 vi.mock('@/lib/db/queries/program-profile', () => ({
@@ -77,6 +79,30 @@ vi.mock('@/lib/db/queries/program-profile', () => ({
     mockGetProgramProfileById(...args),
   findPersonByActiveContact: (...args: unknown[]) =>
     mockFindPersonByContact(...args),
+  createProgramProfileRecord: (...args: unknown[]) =>
+    mockProgramProfileCreate(...args),
+  updateProgramProfileFields: vi.fn(),
+  findProgramProfilePersonIdsByFamily: vi.fn(),
+  updateFamilyShift: vi.fn(),
+  updateProgramProfileStatusMany: vi.fn(),
+}))
+
+vi.mock('@/lib/db/queries/relationships', () => ({
+  findGuardianRelationship: (...args: unknown[]) =>
+    mockGuardianRelationshipFindFirst(...args),
+  reactivateGuardianRelationshipWithEndDate: (...args: unknown[]) =>
+    mockGuardianRelationshipUpdate(...args),
+  createGuardianRelationshipMinimal: (...args: unknown[]) =>
+    mockGuardianRelationshipCreate(...args),
+  createGuardianRelationshipsMinimalBatch: (...args: unknown[]) =>
+    mockGuardianRelationshipCreateMany(...args),
+  clearAllPrimaryPayers: vi.fn(),
+  setPrimaryPayerForGuardian: vi.fn(),
+}))
+
+vi.mock('@/lib/db/queries/enrollment', () => ({
+  createRegisteredEnrollment: (...args: unknown[]) =>
+    mockEnrollmentCreate(...args),
 }))
 
 vi.mock('@/lib/constants/dugsi', () => ({
@@ -145,9 +171,10 @@ describe('addChildToFamily', () => {
 
     await addChildToFamily(baseInput)
 
-    expect(mockProgramProfileCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ shift: 'MORNING' }),
-    })
+    expect(mockProgramProfileCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ shift: 'MORNING' }),
+      expect.anything()
+    )
   })
 
   it('should inherit AFTERNOON shift from existing sibling', async () => {
@@ -157,9 +184,10 @@ describe('addChildToFamily', () => {
 
     await addChildToFamily(baseInput)
 
-    expect(mockProgramProfileCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ shift: 'AFTERNOON' }),
-    })
+    expect(mockProgramProfileCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ shift: 'AFTERNOON' }),
+      expect.anything()
+    )
   })
 
   it('should handle null shift gracefully', async () => {
@@ -167,9 +195,10 @@ describe('addChildToFamily', () => {
 
     await addChildToFamily(baseInput)
 
-    expect(mockProgramProfileCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ shift: null }),
-    })
+    expect(mockProgramProfileCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ shift: null }),
+      expect.anything()
+    )
   })
 
   it('should copy guardian relationships from existing sibling', async () => {
@@ -177,12 +206,13 @@ describe('addChildToFamily', () => {
 
     await addChildToFamily(baseInput)
 
-    expect(mockGuardianRelationshipCreateMany).toHaveBeenCalledWith({
-      data: [
+    expect(mockGuardianRelationshipCreateMany).toHaveBeenCalledWith(
+      [
         expect.objectContaining({ guardianId: 'guardian-1' }),
         expect.objectContaining({ guardianId: 'guardian-2' }),
       ],
-    })
+      expect.anything()
+    )
   })
 
   it('should throw when existing student not found', async () => {
@@ -248,9 +278,9 @@ describe('updateParentInfo', () => {
       phone: '612-555-1234',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'guardian-1' },
-      data: { name: 'Fatima Ali', phone: '6125551234' },
+    expect(mockPersonUpdate).toHaveBeenCalledWith('guardian-1', {
+      name: 'Fatima Ali',
+      phone: '6125551234',
     })
   })
 
@@ -272,9 +302,9 @@ describe('updateParentInfo', () => {
       phone: '+1 (612) 555-1234',
     })
 
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'guardian-1' },
-      data: { name: 'Fatima Ali', phone: '6125551234' },
+    expect(mockPersonUpdate).toHaveBeenCalledWith('guardian-1', {
+      name: 'Fatima Ali',
+      phone: '6125551234',
     })
   })
 
@@ -318,12 +348,13 @@ describe('addSecondParent', () => {
       phone: '612-555-1234',
     })
 
-    expect(mockPersonCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockPersonCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
         email: 'ahmed@example.com',
         phone: '6125551234',
       }),
-    })
+      expect.anything()
+    )
   })
 
   it('should reuse existing person and update phone when email already exists', async () => {
@@ -350,14 +381,15 @@ describe('addSecondParent', () => {
     })
 
     expect(mockPersonCreate).not.toHaveBeenCalled()
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'existing-parent-id' },
-      data: { phone: '6125551234' },
-    })
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      'existing-parent-id',
+      { phone: '6125551234' },
+      expect.anything()
+    )
     expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ guardianId: 'existing-parent-id' }),
-      })
+      'existing-parent-id',
+      'person-1',
+      expect.anything()
     )
   })
 
@@ -417,10 +449,10 @@ describe('addSecondParent', () => {
     })
 
     expect(mockGuardianRelationshipCreate).not.toHaveBeenCalled()
-    expect(mockGuardianRelationshipUpdate).toHaveBeenCalledWith({
-      where: { id: 'soft-deleted-rel' },
-      data: { isActive: true, endDate: null },
-    })
+    expect(mockGuardianRelationshipUpdate).toHaveBeenCalledWith(
+      'soft-deleted-rel',
+      expect.anything()
+    )
   })
 
   it('should throw ActionError for invalid phone number', async () => {

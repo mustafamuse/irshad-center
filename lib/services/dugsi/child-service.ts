@@ -12,7 +12,11 @@
  */
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
+import { updatePersonFields } from '@/lib/db/queries/person'
+import {
+  findProgramProfileWithActiveBilling,
+  findProgramProfileWithActiveEnrollmentAndBatch,
+} from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 
@@ -29,28 +33,10 @@ const _logger = createServiceLogger('dugsi-child')
  * @returns Billing status information
  */
 export async function getDugsiStudentBillingStatus(studentId: string) {
-  const profile = await prisma.programProfile.findFirst({
-    relationLoadStrategy: 'join',
-    where: {
-      personId: studentId,
-      program: DUGSI_PROGRAM,
-    },
-    include: {
-      assignments: {
-        where: { isActive: true },
-        include: {
-          subscription: {
-            include: {
-              billingAccount: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      },
-    },
-  })
+  const profile = await findProgramProfileWithActiveBilling(
+    studentId,
+    DUGSI_PROGRAM
+  )
 
   if (!profile) {
     throw new ActionError(
@@ -87,24 +73,10 @@ export async function getDugsiStudentBillingStatus(studentId: string) {
  * @returns Enrollment information
  */
 export async function getDugsiEnrollmentStatus(studentId: string) {
-  const profile = await prisma.programProfile.findFirst({
-    relationLoadStrategy: 'join',
-    where: {
-      personId: studentId,
-      program: DUGSI_PROGRAM,
-    },
-    include: {
-      enrollments: {
-        where: {
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
-        include: {
-          batch: true,
-        },
-      },
-    },
-  })
+  const profile = await findProgramProfileWithActiveEnrollmentAndBatch(
+    studentId,
+    DUGSI_PROGRAM
+  )
 
   if (!profile) {
     throw new ActionError(
@@ -166,11 +138,8 @@ export async function updateDugsiStudent(
     )
   }
 
-  return await prisma.person.update({
-    where: { id: studentId },
-    data: {
-      ...(data.name && { name: data.name }),
-      ...(data.dateOfBirth && { dateOfBirth: data.dateOfBirth }),
-    },
+  return await updatePersonFields(studentId, {
+    ...(data.name && { name: data.name }),
+    ...(data.dateOfBirth && { dateOfBirth: data.dateOfBirth }),
   })
 }

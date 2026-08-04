@@ -24,20 +24,14 @@ const {
   mockLogError: vi.fn(),
 }))
 
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    programProfile: {
-      delete: (...args: unknown[]) => mockPrismaDelete(...args),
-      deleteMany: (...args: unknown[]) => mockPrismaDeleteMany(...args),
-    },
-  },
-}))
-
 vi.mock('@/lib/db/queries/program-profile', () => ({
   getProgramProfileById: (...args: unknown[]) =>
     mockGetProgramProfileById(...args),
   getProgramProfilesByFamilyId: (...args: unknown[]) =>
     mockGetProgramProfilesByFamilyId(...args),
+  deleteProgramProfileById: (...args: unknown[]) => mockPrismaDelete(...args),
+  deleteProgramProfilesByIds: (...args: unknown[]) =>
+    mockPrismaDeleteMany(...args),
 }))
 
 vi.mock('@/lib/services/shared/subscription-service', () => ({
@@ -77,9 +71,7 @@ describe('deleteDugsiFamily', () => {
 
       const result = await deleteDugsiFamily('profile-1')
 
-      expect(mockPrismaDelete).toHaveBeenCalledWith({
-        where: { id: 'profile-1' },
-      })
+      expect(mockPrismaDelete).toHaveBeenCalledWith('profile-1')
       expect(result).toEqual({
         studentsDeleted: 1,
         subscriptionsCanceled: 0,
@@ -139,11 +131,11 @@ describe('deleteDugsiFamily', () => {
 
       const result = await deleteDugsiFamily('profile-1')
 
-      expect(mockPrismaDeleteMany).toHaveBeenCalledWith({
-        where: {
-          id: { in: ['profile-1', 'profile-2', 'profile-3'] },
-        },
-      })
+      expect(mockPrismaDeleteMany).toHaveBeenCalledWith([
+        'profile-1',
+        'profile-2',
+        'profile-3',
+      ])
       expect(result).toEqual({
         studentsDeleted: 3,
         subscriptionsCanceled: 0,
