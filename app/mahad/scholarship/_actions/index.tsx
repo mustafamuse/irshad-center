@@ -2,11 +2,8 @@
 
 import React from 'react'
 
-import { headers } from 'next/headers'
-
 import { render } from '@react-email/components'
 
-import { checkRateLimit } from '@/lib/auth/rate-limit'
 import {
   sendEmail,
   sendConfirmationEmail,
@@ -14,6 +11,7 @@ import {
 } from '@/lib/email/email-service'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createActionLogger, logError, logWarning } from '@/lib/logger'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { sanitizeFilename } from '@/lib/utils/sanitize'
 
 import { formatPDFData } from '../_lib/format-data'
@@ -23,65 +21,12 @@ import { ScholarshipApplicationEmail } from '../_templates/email/scholarship'
 
 const logger = createActionLogger('scholarship-application')
 
-export interface SubmitScholarshipResult {
-  success: boolean
-  error?: string
-  message?: string
-  code?: string
-  field?: string
-}
-
-/**
- * Submit scholarship application
- * Server Action that validates, generates PDF, and sends email
- *
- * @param formData - Unvalidated form data from client (validated server-side)
- * @returns Promise with success/error result
- * @throws Never throws - always returns result object for safe error handling
- *
- * @example
- * const result = await submitScholarshipApplication(formData)
- * if (!result.success) {
- *   console.error(result.error)
- * }
- */
-export async function submitScholarshipApplication(
-  formData: unknown
-): Promise<SubmitScholarshipResult> {
-  try {
-    try {
-      const headerStore = await headers()
-      const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
-      if (ip) {
-        const rateResult = await checkRateLimit(`scholarship-submit:${ip}`, 5)
-        if (!rateResult.success) {
-          return {
-            success: false,
-            error: 'Too many attempts. Please try again later.',
-            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          }
-        }
-      }
-    } catch {
-      // Fail open if headers/rate-limit unavailable
-    }
-
-    // 1. Validate data server-side (never trust client - accept unknown, validate runtime)
-    const validation = scholarshipApplicationSchema.safeParse(formData)
-
-    if (!validation.success) {
-      return {
-        success: false,
-        error: 'Invalid form data. Please check all required fields.',
-      }
-    }
-
-    const validatedData = validation.data
-
-    // 2. Format data for PDF
+const _submitScholarshipApplication = rateLimitedActionClient
+  .metadata({ actionName: 'submitScholarshipApplication', maxAttempts: 5 })
+  .schema(scholarshipApplicationSchema)
+  .action(async ({ parsedInput: validatedData }) => {
     const pdfData = formatPDFData(validatedData)
 
-    // 3. Generate PDF server-side with error handling
     let pdfBuffer: Buffer
     try {
       pdfBuffer = await generateScholarshipPDF(pdfData)
@@ -95,7 +40,6 @@ export async function submitScholarshipApplication(
       )
     }
 
-    // 4. Generate email HTML
     const emailHtml = await render(
       <ScholarshipApplicationEmail
         studentName={validatedData.studentName}
@@ -105,7 +49,6 @@ export async function submitScholarshipApplication(
       />
     )
 
-    // 5. Send email to admin with PDF attachment
     const emailResult = await sendEmail({
       to: EMAIL_CONFIG.adminEmail,
       subject: `Scholarship Application - ${validatedData.studentName}`,
@@ -126,7 +69,6 @@ export async function submitScholarshipApplication(
       )
     }
 
-    // 6. Send confirmation email to student (non-blocking - don't fail submission if this fails)
     try {
       await sendConfirmationEmail({
         to: validatedData.email,
@@ -147,23 +89,11 @@ export async function submitScholarshipApplication(
       })
     }
 
-    return {
-      success: true,
-      message: 'Your application has been submitted successfully',
-    }
-  } catch (error) {
-    await logError(logger, error, 'Scholarship submission failed')
+    return { message: 'Your application has been submitted successfully' }
+  })
 
-    if (error instanceof ActionError) {
-      return error.toJSON()
-    }
-
-    // Generic server error (validation errors handled above via safeParse)
-    return {
-      success: false,
-      error:
-        'An error occurred while submitting your application. Please try again.',
-      code: ERROR_CODES.SERVER_ERROR,
-    }
-  }
+export async function submitScholarshipApplication(
+  ...args: Parameters<typeof _submitScholarshipApplication>
+) {
+  return _submitScholarshipApplication(...args)
 }
