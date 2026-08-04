@@ -287,6 +287,24 @@ export async function getPersonWithAllRelations(
 }
 
 /**
+ * Find a person by email or phone, returning only the ID. Used to
+ * pre-validate uniqueness before creating a new Person.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByEmailOrPhone(
+  email: string | null,
+  phone: string | null,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
+    },
+    select: { id: true },
+  })
+}
+
+/**
  * Create a Person record with the given contact fields.
  * @param client - Optional database client (for transaction support)
  */
