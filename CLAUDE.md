@@ -19,9 +19,9 @@
 
 Per Erik Schluntz's leaf-node restriction pattern. Claude may edit these only with explicit user direction; auto-modes should treat them as read-only.
 
-- `lib/services/shared/billing.ts` — cross-program billing logic
+- `lib/services/shared/billing-service.ts` — cross-program billing logic
 - `lib/services/webhooks/**` — Stripe webhook dispatchers
-- `lib/stripe/**` — Stripe client configuration
+- `lib/stripe-*.ts` — Stripe client configuration (mahad, dugsi, factory, donation)
 - `prisma/schema.prisma` — schema source of truth
 - `prisma/migrations/**` — applied migrations (also covered by `prisma-migration-safety` skill)
 - `lib/safe-action.ts` — auth and rate-limit base

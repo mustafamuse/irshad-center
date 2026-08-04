@@ -11,8 +11,8 @@ paths:
 
 ### Dual Account Architecture
 
-- Mahad account: `stripeServerClient` (from `lib/stripe/server.ts`)
-- Dugsi account: `getDugsiStripeClient()` (from `lib/stripe/dugsi.ts`)
+- Mahad account: `stripeServerClient` (from `lib/stripe-mahad.ts`)
+- Dugsi account: `getDugsiStripeClient()` (from `lib/stripe-dugsi.ts`)
 - NEVER mix clients — each program has its own Stripe secret key and webhook secret
 - When writing code that handles both, always branch on program type early
 
