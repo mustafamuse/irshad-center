@@ -25,8 +25,7 @@ The single source of truth for how this repo uses Claude Code. Read this if you'
 ├── skills/                         # path-attached project skills
 │   ├── stripe-dual-client/         # Mahad vs Dugsi client separation
 │   ├── prisma-migration-safety/    # references Mahad data deletion incident
-│   ├── webhook-handler/            # signature + idempotency conventions
-│   └── safe-action-migration/      # in-flight v8 migration
+│   └── webhook-handler/            # signature + idempotency conventions
 ├── notes/                          # local-only ephemeral notes (gitignored)
 │   ├── <task-slug>.md              # written by /notes skill
 │   └── session-journal/            # written by session-journal.sh SessionEnd hook
@@ -94,7 +93,6 @@ These have `paths:` frontmatter pointing to the files they apply to. They auto-s
 | `stripe-dual-client`      | `lib/stripe/**`, `lib/services/webhooks/**`, `app/api/webhook/**`, `**/actions.ts` | Mahad uses `stripeServerClient`, Dugsi uses `getDugsiStripeClient()` — never mix |
 | `prisma-migration-safety` | `prisma/schema.prisma`, `prisma/migrations/**`                                     | Hard refusals on destructive ops; references Mahad deletion incident             |
 | `webhook-handler`         | `app/api/webhook/**`, `lib/services/webhooks/**`                                   | Signature → idempotency → dispatch structure                                     |
-| `safe-action-migration`   | `app/dugsi/**`, `app/admin/dugsi/**`, `lib/safe-action.ts`                         | Phase 4 of next-safe-action v8 migration                                         |
 
 ## High-risk paths
 
