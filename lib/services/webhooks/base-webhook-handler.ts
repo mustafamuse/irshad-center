@@ -270,8 +270,10 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
         status = 500
         message = 'Internal server error'
       } else if (
-        // Validation errors (malformed data, missing required fields)
-        // Return 400 for client errors - Stripe will NOT retry these
+        // Validation errors (malformed data, missing required fields).
+        // Stripe retries ALL non-2xx responses for up to 3 days; the kept
+        // WebhookEvent record makes the next retry a 200-skip, which stops
+        // the retry cycle after one redelivery
         errorMessage.includes('Invalid') ||
         errorMessage.includes('Missing') ||
         errorMessage.includes('Required')
