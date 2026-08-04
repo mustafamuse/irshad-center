@@ -28,7 +28,7 @@ import {
   getProgramProfileById,
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import { CANCELABLE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
@@ -334,7 +334,9 @@ async function cancelFamilySubscriptions(
         for (const assignment of profile.assignments) {
           if (
             assignment.subscription &&
-            LIVE_SUBSCRIPTION_STATUSES.includes(assignment.subscription.status)
+            CANCELABLE_SUBSCRIPTION_STATUSES.includes(
+              assignment.subscription.status
+            )
           ) {
             subscriptionIds.add(assignment.subscription.stripeSubscriptionId)
           }

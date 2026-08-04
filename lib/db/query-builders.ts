@@ -69,6 +69,14 @@ export const LIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
   'unpaid',
 ]
 
+// Statuses that require a Stripe cancel before deleting the owning family.
+// A paused subscription does not bill today but resumes billing the moment
+// pause_collection clears, so it must be canceled like a live one.
+export const CANCELABLE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
+  ...LIVE_SUBSCRIPTION_STATUSES,
+  'paused',
+]
+
 /**
  * Filter for active billing assignments with a live subscription.
  * Excludes assignments tied to canceled/expired subscriptions whose

@@ -87,6 +87,8 @@ vi.mock('@/lib/utils/type-guards', () => ({
   isValidSubscriptionStatus: vi.fn(() => true),
 }))
 
+import { updateSubscriptionStatus } from '@/lib/db/queries/billing'
+
 import {
   handleSubscriptionCreated,
   handleSubscriptionUpdated,
@@ -277,5 +279,68 @@ describe('handleSubscriptionUpdated', () => {
       { stripeSubscriptionId: 'sub_legacy_123' },
       'Subscription not found in database - student may need to re-register'
     )
+  })
+
+  it('persists paused when pause_collection is set on an active subscription', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
+
+    const subscription = createMockSubscription({
+      status: 'active',
+      pause_collection: { behavior: 'mark_uncollectible', resumes_at: null },
+    })
+    const result = await handleSubscriptionUpdated(subscription, 'DUGSI')
+
+    expect(result.status).toBe('paused')
+    expect(vi.mocked(updateSubscriptionStatus)).toHaveBeenCalledWith(
+      'db_sub_1',
+      'paused',
+      expect.any(Object)
+    )
+  })
+
+  it('persists active when pause_collection is cleared', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
+
+    const subscription = createMockSubscription({
+      status: 'active',
+      pause_collection: null,
+    })
+    const result = await handleSubscriptionUpdated(subscription, 'DUGSI')
+
+    expect(result.status).toBe('active')
+    expect(vi.mocked(updateSubscriptionStatus)).toHaveBeenCalledWith(
+      'db_sub_1',
+      'active',
+      expect.any(Object)
+    )
+  })
+
+  it('does not map paused for Mahad even when pause_collection is set', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
+
+    const subscription = createMockSubscription({
+      status: 'active',
+      pause_collection: { behavior: 'mark_uncollectible', resumes_at: null },
+    })
+    const result = await handleSubscriptionUpdated(subscription, 'MAHAD')
+
+    expect(result.status).toBe('active')
+    expect(vi.mocked(updateSubscriptionStatus)).toHaveBeenCalledWith(
+      'db_sub_1',
+      'active',
+      expect.any(Object)
+    )
+  })
+
+  it('does not mask non-active statuses when pause_collection is set', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
+
+    const subscription = createMockSubscription({
+      status: 'past_due',
+      pause_collection: { behavior: 'void', resumes_at: null },
+    })
+    const result = await handleSubscriptionUpdated(subscription, 'DUGSI')
+
+    expect(result.status).toBe('past_due')
   })
 })
