@@ -531,3 +531,55 @@ export async function updatePersonContact(
     throw error
   }
 }
+
+/**
+ * Cascade-delete a person and every record that references them: teacher
+ * assignments, program profiles, enrollments, guardian relationships, and
+ * billing. Must run inside a transaction — caller passes the tx client.
+ */
+export async function deletePersonCascade(
+  personId: string,
+  client: DatabaseClient
+): Promise<void> {
+  const teachers = await client.teacher.findMany({
+    where: { personId },
+    select: { id: true },
+  })
+  const teacherIds = teachers.map((t) => t.id)
+
+  const profiles = await client.programProfile.findMany({
+    where: { personId },
+    select: { id: true },
+  })
+  const profileIds = profiles.map((p) => p.id)
+
+  await client.dugsiClassTeacher.deleteMany({
+    where: { teacherId: { in: teacherIds } },
+  })
+
+  await client.teacherProgram.deleteMany({
+    where: { teacherId: { in: teacherIds } },
+  })
+
+  await client.teacher.deleteMany({ where: { personId } })
+
+  await client.enrollment.deleteMany({
+    where: { programProfileId: { in: profileIds } },
+  })
+
+  await client.programProfile.deleteMany({ where: { personId } })
+
+  await client.guardianRelationship.deleteMany({
+    where: {
+      OR: [{ guardianId: personId }, { dependentId: personId }],
+    },
+  })
+
+  await client.subscription.deleteMany({
+    where: { billingAccount: { personId } },
+  })
+
+  await client.billingAccount.deleteMany({ where: { personId } })
+
+  await client.person.delete({ where: { id: personId } })
+}
