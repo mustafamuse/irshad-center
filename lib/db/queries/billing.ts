@@ -189,6 +189,49 @@ export async function getOrphanedSubscriptions(
 }
 
 /**
+ * Find a billing account by person ID and account type (no relations).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findBillingAccountByPersonAndType(
+  personId: string,
+  accountType: StripeAccountType,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAccount.findFirst({
+    where: { personId, accountType },
+  })
+}
+
+/**
+ * Create a billing account (no relations returned).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createBillingAccountMinimal(
+  data: { personId: string; accountType: StripeAccountType },
+  client: DatabaseClient = prisma
+) {
+  return client.billingAccount.create({ data })
+}
+
+/**
+ * Get a subscription by ID with id/amount/status only.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getSubscriptionById(
+  subscriptionId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.subscription.findUnique({
+    where: { id: subscriptionId },
+    select: {
+      id: true,
+      amount: true,
+      status: true,
+    },
+  })
+}
+
+/**
  * Create or update billing account
  * @param client - Optional database client (for transaction support)
  */

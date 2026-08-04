@@ -435,6 +435,45 @@ export async function getEnrollmentsByProgram(
 }
 
 /**
+ * Batch lookup program profile IDs with an active (REGISTERED/ENROLLED)
+ * enrollment, for a set of program profiles.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getEnrollmentProfileIdsForActiveStatuses(
+  profileIds: string[],
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.findMany({
+    where: {
+      programProfileId: { in: profileIds },
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+      endDate: null,
+    },
+    select: {
+      programProfileId: true,
+    },
+  })
+}
+
+/**
+ * Batch create enrollments, skipping duplicates.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createEnrollmentsBatch(
+  data: Array<{
+    programProfileId: string
+    batchId: string | null
+    status: EnrollmentStatus
+  }>,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.createMany({
+    data,
+    skipDuplicates: true,
+  })
+}
+
+/**
  * Create a registered enrollment
  * @param client - Optional database client (for transaction support)
  */

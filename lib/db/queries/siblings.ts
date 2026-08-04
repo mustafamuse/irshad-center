@@ -446,6 +446,80 @@ export async function getSiblingsByFamilyId(
 }
 
 /**
+ * Batch lookup sibling relationships for a set of ordered person pairs.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findSiblingRelationshipsForPairs(
+  pairs: Array<{ person1Id: string; person2Id: string }>,
+  client: DatabaseClient = prisma
+) {
+  if (pairs.length === 0) return []
+  return client.siblingRelationship.findMany({
+    where: {
+      OR: pairs.map(({ person1Id, person2Id }) => ({
+        person1Id,
+        person2Id,
+      })),
+    },
+  })
+}
+
+/**
+ * Batch create sibling relationships, skipping duplicates.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createSiblingRelationshipsBatch(
+  data: Array<{
+    person1Id: string
+    person2Id: string
+    detectionMethod: string
+    confidence: number | null
+    isActive: boolean
+  }>,
+  client: DatabaseClient = prisma
+) {
+  return client.siblingRelationship.createMany({
+    data,
+    skipDuplicates: true,
+  })
+}
+
+/**
+ * Reactivate a set of sibling relationships by ID.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function reactivateSiblingRelationshipsByIds(
+  ids: string[],
+  detectionMethod: string,
+  client: DatabaseClient = prisma
+) {
+  return client.siblingRelationship.updateMany({
+    where: { id: { in: ids } },
+    data: {
+      isActive: true,
+      detectionMethod,
+    },
+  })
+}
+
+/**
+ * Find a sibling relationship by its composite (person1Id, person2Id) key.
+ * Callers must pass IDs already ordered person1Id < person2Id.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findSiblingRelationshipByPersons(
+  person1Id: string,
+  person2Id: string,
+  client: DatabaseClient = prisma
+) {
+  return client.siblingRelationship.findUnique({
+    where: {
+      person1Id_person2Id: { person1Id, person2Id },
+    },
+  })
+}
+
+/**
  * Create a sibling relationship between two persons
  * @param person1Id - First person ID
  * @param person2Id - Second person ID

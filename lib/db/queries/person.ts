@@ -217,6 +217,114 @@ export async function getPersonWithAllRelations(
   })
 }
 
+/**
+ * Create a Person record with the given contact fields.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createPerson(
+  data: {
+    name: string
+    dateOfBirth?: Date | null
+    email?: string | null
+    phone?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.person.create({ data })
+}
+
+/**
+ * Create a Person record, returning only id/name/email/phone.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createPersonMinimal(
+  data: {
+    name: string
+    dateOfBirth?: Date | null
+    email?: string | null
+    phone?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.person.create({
+    data,
+    select: { id: true, name: true, email: true, phone: true },
+  })
+}
+
+/**
+ * Update arbitrary Person fields, returning the full record.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updatePersonFields(
+  personId: string,
+  data: Prisma.PersonUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.person.update({ where: { id: personId }, data })
+}
+
+/**
+ * Update arbitrary Person fields, returning only id/name/email/phone.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updatePersonFieldsMinimal(
+  personId: string,
+  data: Prisma.PersonUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.person.update({
+    where: { id: personId },
+    data,
+    select: { id: true, name: true, email: true, phone: true },
+  })
+}
+
+/**
+ * Get a Person by ID, throwing if not found.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getPersonByIdOrThrow(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUniqueOrThrow({ where: { id: personId } })
+}
+
+/**
+ * Find a Person by case-insensitive name and exact date of birth.
+ * Used for P2002 race-condition recovery during batch child creation.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonByNameAndDob(
+  name: string,
+  dateOfBirth: Date | null | undefined,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      dateOfBirth: { equals: dateOfBirth },
+    },
+    select: { id: true, name: true },
+  })
+}
+
+/**
+ * Find Persons matching a caller-built where clause, returning
+ * id/name/dateOfBirth. Used for batched name+DOB lookups.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findPersonsByConditions(
+  where: Prisma.PersonWhereInput,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findMany({
+    where,
+    select: { id: true, name: true, dateOfBirth: true },
+  })
+}
+
 export async function updatePersonContact(
   personId: string,
   data: PersonContactFields,

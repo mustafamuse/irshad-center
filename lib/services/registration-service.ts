@@ -20,8 +20,47 @@ import {
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
-import { createEnrollment } from '@/lib/db/queries/enrollment'
-import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
+import {
+  findBillingAccountByPersonAndType,
+  createBillingAccountMinimal,
+} from '@/lib/db/queries/billing'
+import {
+  createEnrollment,
+  createEnrollmentsBatch,
+  getEnrollmentProfileIdsForActiveStatuses,
+} from '@/lib/db/queries/enrollment'
+import {
+  createPerson,
+  createPersonMinimal,
+  findPersonByNameAndDob,
+  findPersonsByConditions,
+  getPersonByIdOrThrow,
+  updatePersonFields,
+  updatePersonFieldsMinimal,
+} from '@/lib/db/queries/person'
+import {
+  createProgramProfileRecord,
+  findActiveProgramProfileWithEnrollments,
+  findPersonByActiveContact,
+  findProgramProfileByPersonAndProgram,
+  findProgramProfilesByPersonIdsAndProgram,
+  updateProgramProfileFields,
+} from '@/lib/db/queries/program-profile'
+import {
+  clearOtherPrimaryPayers,
+  clearPrimaryPayersNotIn,
+  createGuardianRelationshipRecord,
+  createGuardianRelationshipsBatchRecords,
+  findGuardianRelationship,
+  findGuardianRelationshipsForPairs,
+  reactivateGuardianRelationshipsByIds,
+  updateGuardianRelationshipFields,
+} from '@/lib/db/queries/relationships'
+import {
+  createSiblingRelationshipsBatch,
+  findSiblingRelationshipsForPairs,
+  reactivateSiblingRelationshipsByIds,
+} from '@/lib/db/queries/siblings'
 import type { DatabaseClient } from '@/lib/db/types'
 import {
   throwIfP2002,
@@ -330,26 +369,28 @@ export async function createPersonWithContact(
   // PostgreSQL aborts the tx on constraint violations, so recovery code would be dead.
   if (tx) {
     // return await (not bare return) preserves this frame in rejection stack traces.
-    return await client.person.create({
-      data: {
+    return await createPerson(
+      {
         name,
         dateOfBirth,
         email: normalizedEmail,
         phone: normalizedPhone,
       },
-    })
+      client
+    )
   }
 
   let person
   try {
-    person = await client.person.create({
-      data: {
+    person = await createPerson(
+      {
         name,
         dateOfBirth,
         email: normalizedEmail,
         phone: normalizedPhone,
       },
-    })
+      client
+    )
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -385,19 +426,14 @@ export async function createPersonWithContact(
           updates.phone = normalizedPhone
         if (Object.keys(updates).length > 0) {
           try {
-            return await client.person.update({
-              where: { id: existingPerson.id },
-              data: updates,
-            })
+            return await updatePersonFields(existingPerson.id, updates, client)
           } catch (updateError) {
             if (
               updateError instanceof Prisma.PrismaClientKnownRequestError &&
               updateError.code === 'P2002'
             ) {
               // Concurrent request already set the field — fetch latest state
-              return await client.person.findUniqueOrThrow({
-                where: { id: existingPerson.id },
-              })
+              return await getPersonByIdOrThrow(existingPerson.id, client)
             }
             throw updateError
           }
@@ -505,18 +541,11 @@ export async function createProgramProfileWithEnrollment(
 
     // Check for existing profile with active enrollments to prevent duplicates
     // Allows re-registration if all previous enrollments were withdrawn
-    const existingProfile = await client.programProfile.findFirst({
-      relationLoadStrategy: 'join',
-      where: { personId, program },
-      include: {
-        enrollments: {
-          where: {
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
-          },
-        },
-      },
-    })
+    const existingProfile = await findActiveProgramProfileWithEnrollments(
+      personId,
+      program,
+      client
+    )
 
     if (existingProfile && existingProfile.enrollments.length > 0) {
       logger.warn(
@@ -536,8 +565,8 @@ export async function createProgramProfileWithEnrollment(
     }
 
     // Create ProgramProfile
-    const profile = await client.programProfile.create({
-      data: {
+    const profile = await createProgramProfileRecord(
+      {
         personId,
         program,
         status,
@@ -557,7 +586,8 @@ export async function createProgramProfileWithEnrollment(
             ? Prisma.JsonNull
             : (metadata as Prisma.InputJsonValue),
       },
-    })
+      client
+    )
 
     logger.info(
       {
@@ -719,20 +749,16 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     // Phase 2: Create or get billing account (idempotent find-or-create)
     currentPhase = 'billing'
 
-    const existingBillingAccount = await prisma.billingAccount.findFirst({
-      where: {
-        personId: parent1Person.id,
-        accountType: 'DUGSI',
-      },
-    })
+    const existingBillingAccount = await findBillingAccountByPersonAndType(
+      parent1Person.id,
+      'DUGSI'
+    )
 
     const billingAccount = existingBillingAccount
       ? existingBillingAccount
-      : await prisma.billingAccount.create({
-          data: {
-            personId: parent1Person.id,
-            accountType: 'DUGSI',
-          },
+      : await createBillingAccountMinimal({
+          personId: parent1Person.id,
+          accountType: 'DUGSI',
         })
 
     // Phase 3: Create children sequentially with batch lookups
@@ -756,11 +782,9 @@ export async function createFamilyRegistration(data: unknown): Promise<{
 
       if (!childPerson) {
         try {
-          const newChildPerson = await prisma.person.create({
-            data: {
-              name: childFullName,
-              dateOfBirth: child.dateOfBirth,
-            },
+          const newChildPerson = await createPerson({
+            name: childFullName,
+            dateOfBirth: child.dateOfBirth,
           })
           childPerson = { id: newChildPerson.id, name: newChildPerson.name }
           // Update map so duplicate child entries in the same request reuse this person
@@ -778,13 +802,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             const fromMap = existingChildrenMap.get(lookupKey)
             const raceConditionChild = fromMap
               ? fromMap
-              : await prisma.person.findFirst({
-                  where: {
-                    name: { equals: childFullName, mode: 'insensitive' },
-                    dateOfBirth: { equals: child.dateOfBirth },
-                  },
-                  select: { id: true, name: true },
-                })
+              : await findPersonByNameAndDob(childFullName, child.dateOfBirth)
             if (raceConditionChild) {
               childPerson = raceConditionChild
             } else {
@@ -860,21 +878,18 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           )
         }
 
-        profile = await prisma.programProfile.update({
-          where: { id: existingProfile.id },
-          data: {
-            ...(child.gender !== undefined &&
-              child.gender !== null && { gender: child.gender }),
-            ...(child.gradeLevel !== undefined &&
-              child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
-            ...(child.shift !== undefined &&
-              child.shift !== null && { shift: child.shift }),
-            ...(child.schoolName !== undefined &&
-              child.schoolName !== null && { schoolName: child.schoolName }),
-            ...(child.healthInfo !== undefined &&
-              child.healthInfo !== null && { healthInfo: child.healthInfo }),
-            familyReferenceId,
-          },
+        profile = await updateProgramProfileFields(existingProfile.id, {
+          ...(child.gender !== undefined &&
+            child.gender !== null && { gender: child.gender }),
+          ...(child.gradeLevel !== undefined &&
+            child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
+          ...(child.shift !== undefined &&
+            child.shift !== null && { shift: child.shift }),
+          ...(child.schoolName !== undefined &&
+            child.schoolName !== null && { schoolName: child.schoolName }),
+          ...(child.healthInfo !== undefined &&
+            child.healthInfo !== null && { healthInfo: child.healthInfo }),
+          familyReferenceId,
         })
 
         // Track for batch enrollment check
@@ -891,18 +906,16 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       } else {
         // Create new profile with P2002 race condition handling
         try {
-          profile = await prisma.programProfile.create({
-            data: {
-              personId: childPerson.id,
-              program: 'DUGSI_PROGRAM',
-              status: 'REGISTERED',
-              gender: child.gender,
-              gradeLevel: child.gradeLevel,
-              shift: child.shift,
-              schoolName: child.schoolName,
-              healthInfo: child.healthInfo,
-              familyReferenceId,
-            },
+          profile = await createProgramProfileRecord({
+            personId: childPerson.id,
+            program: 'DUGSI_PROGRAM',
+            status: 'REGISTERED',
+            gender: child.gender,
+            gradeLevel: child.gradeLevel,
+            shift: child.shift,
+            schoolName: child.schoolName,
+            healthInfo: child.healthInfo,
+            familyReferenceId,
           })
         } catch (error) {
           if (
@@ -914,9 +927,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               { personId: childPerson.id, program: 'DUGSI_PROGRAM' },
               'Profile already exists (race condition), fetching existing'
             )
-            const existingProfile = await prisma.programProfile.findFirst({
-              where: { personId: childPerson.id, program: 'DUGSI_PROGRAM' },
-            })
+            const existingProfile = await findProgramProfileByPersonAndProgram(
+              childPerson.id,
+              'DUGSI_PROGRAM'
+            )
             if (existingProfile) {
               profile = existingProfile
             } else {
@@ -978,16 +992,8 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       const profileIds = profilesToCheckEnrollments.map((p) => p.id)
 
       // Batch lookup existing active enrollments
-      const existingEnrollments = await prisma.enrollment.findMany({
-        where: {
-          programProfileId: { in: profileIds },
-          status: { in: ['REGISTERED', 'ENROLLED'] },
-          endDate: null,
-        },
-        select: {
-          programProfileId: true,
-        },
-      })
+      const existingEnrollments =
+        await getEnrollmentProfileIdsForActiveStatuses(profileIds)
 
       const profilesWithEnrollments = new Set(
         existingEnrollments.map((e) => e.programProfileId)
@@ -1003,10 +1009,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
         }))
 
       if (enrollmentsToCreate.length > 0) {
-        const result = await prisma.enrollment.createMany({
-          data: enrollmentsToCreate,
-          skipDuplicates: true,
-        })
+        const result = await createEnrollmentsBatch(enrollmentsToCreate)
 
         if (result.count < enrollmentsToCreate.length) {
           logger.warn(
@@ -1090,14 +1093,12 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       }
 
       // Batch fetch existing sibling relationships
-      const existingRelationships = await prisma.siblingRelationship.findMany({
-        where: {
-          OR: siblingPairs.map(({ p1, p2 }) => ({
-            person1Id: p1,
-            person2Id: p2,
-          })),
-        },
-      })
+      const existingRelationships = await findSiblingRelationshipsForPairs(
+        siblingPairs.map(({ p1, p2 }) => ({
+          person1Id: p1,
+          person2Id: p2,
+        }))
+      )
 
       const existingMap = new Map(
         existingRelationships.map((r) => [`${r.person1Id}-${r.person2Id}`, r])
@@ -1128,20 +1129,11 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       }
 
       if (toCreate.length > 0) {
-        await prisma.siblingRelationship.createMany({
-          data: toCreate,
-          skipDuplicates: true,
-        })
+        await createSiblingRelationshipsBatch(toCreate)
       }
 
       if (toReactivate.length > 0) {
-        await prisma.siblingRelationship.updateMany({
-          where: { id: { in: toReactivate } },
-          data: {
-            isActive: true,
-            detectionMethod: 'manual',
-          },
-        })
+        await reactivateSiblingRelationshipsByIds(toReactivate, 'manual')
       }
     }
 
@@ -1275,11 +1267,11 @@ export async function findOrCreatePersonWithContact(
       }
 
       if (Object.keys(updateData).length > 0) {
-        const updated = await client.person.update({
-          where: { id: existingPerson.id },
-          data: updateData,
-          select: { id: true, name: true, email: true, phone: true },
-        })
+        const updated = await updatePersonFieldsMinimal(
+          existingPerson.id,
+          updateData,
+          client
+        )
         return updated
       }
 
@@ -1293,15 +1285,15 @@ export async function findOrCreatePersonWithContact(
   }
 
   try {
-    return await client.person.create({
-      data: {
+    return await createPersonMinimal(
+      {
         name,
         dateOfBirth,
         email: normalizedEmailVal,
         phone: normalizedPhoneVal,
       },
-      select: { id: true, name: true, email: true, phone: true },
-    })
+      client
+    )
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -1379,10 +1371,10 @@ export async function findExistingChildren(
     }
   })
 
-  const existingPeople = await client.person.findMany({
-    where: { OR: whereConditions },
-    select: { id: true, name: true, dateOfBirth: true },
-  })
+  const existingPeople = await findPersonsByConditions(
+    { OR: whereConditions },
+    client
+  )
 
   const map = new Map<string, { id: string; name: string }>()
   for (const person of existingPeople) {
@@ -1408,19 +1400,18 @@ export async function findExistingDugsiProfiles(
 ): Promise<
   Map<
     string,
-    Awaited<ReturnType<typeof prisma.programProfile.findMany>>[number]
+    Awaited<ReturnType<typeof findProgramProfilesByPersonIdsAndProgram>>[number]
   >
 > {
   if (personIds.length === 0) {
     return new Map()
   }
 
-  const profiles = await client.programProfile.findMany({
-    where: {
-      personId: { in: personIds },
-      program: 'DUGSI_PROGRAM',
-    },
-  })
+  const profiles = await findProgramProfilesByPersonIdsAndProgram(
+    personIds,
+    'DUGSI_PROGRAM',
+    client
+  )
 
   const map = new Map<string, (typeof profiles)[0]>()
   for (const profile of profiles) {
@@ -1522,37 +1513,29 @@ export async function linkGuardianToDependent(
   // Ensure only one guardian can be isPrimaryPayer per dependent
   // Clear other isPrimaryPayer flags before setting new one
   if (isPrimaryPayer) {
-    await client.guardianRelationship.updateMany({
-      where: {
-        dependentId: dependentPersonId,
-        guardianId: { not: guardianPersonId },
-        isActive: true,
-        isPrimaryPayer: true,
-      },
-      data: { isPrimaryPayer: false },
-    })
+    await clearOtherPrimaryPayers(dependentPersonId, guardianPersonId, client)
   }
 
   // Check if relationship already exists
-  const existing = await client.guardianRelationship.findFirst({
-    where: {
-      guardianId: guardianPersonId,
-      dependentId: dependentPersonId,
-    },
-  })
+  const existing = await findGuardianRelationship(
+    guardianPersonId,
+    dependentPersonId,
+    client
+  )
 
   if (existing) {
     // Update isPrimaryPayer or reactivate if inactive
     if (!existing.isActive || isPrimaryPayer !== existing.isPrimaryPayer) {
-      return client.guardianRelationship.update({
-        where: { id: existing.id },
-        data: {
+      return updateGuardianRelationshipFields(
+        existing.id,
+        {
           isActive: true,
           role,
           notes,
           isPrimaryPayer,
         },
-      })
+        client
+      )
     }
     return existing
   }
@@ -1572,8 +1555,8 @@ export async function linkGuardianToDependent(
     tx
   )
 
-  return client.guardianRelationship.create({
-    data: {
+  return createGuardianRelationshipRecord(
+    {
       guardianId: guardianPersonId,
       dependentId: dependentPersonId,
       role,
@@ -1581,7 +1564,8 @@ export async function linkGuardianToDependent(
       isActive: true,
       isPrimaryPayer,
     },
-  })
+    client
+  )
 }
 
 /**
@@ -1607,14 +1591,10 @@ export async function createGuardianRelationshipsBatch(
   )
 
   // 1. Batch fetch existing relationships (1 query instead of N)
-  const existingRelationships = await client.guardianRelationship.findMany({
-    where: {
-      OR: relationships.map((r) => ({
-        guardianId: r.guardianPersonId,
-        dependentId: r.dependentPersonId,
-      })),
-    },
-  })
+  const existingRelationships = await findGuardianRelationshipsForPairs(
+    relationships,
+    client
+  )
 
   const existingMap = new Map(
     existingRelationships.map((r) => [`${r.guardianId}-${r.dependentId}`, r])
@@ -1653,24 +1633,16 @@ export async function createGuardianRelationshipsBatch(
     .map((r) => r.guardianPersonId)
 
   if (primaryPayerGuardianIds.length > 0) {
-    await client.guardianRelationship.updateMany({
-      where: {
-        dependentId: { in: dependentIds },
-        guardianId: { notIn: primaryPayerGuardianIds },
-        isActive: true,
-        isPrimaryPayer: true,
-      },
-      data: { isPrimaryPayer: false },
-    })
+    await clearPrimaryPayersNotIn(dependentIds, primaryPayerGuardianIds, client)
   }
 
   // 4. Batch create new relationships
   if (toCreate.length > 0) {
     try {
-      const result = await client.guardianRelationship.createMany({
-        data: toCreate,
-        skipDuplicates: true,
-      })
+      const result = await createGuardianRelationshipsBatchRecords(
+        toCreate,
+        client
+      )
 
       if (result.count !== toCreate.length) {
         logger.warn(
@@ -1692,9 +1664,6 @@ export async function createGuardianRelationshipsBatch(
 
   // 5. Batch reactivate inactive relationships
   if (toReactivate.length > 0) {
-    await client.guardianRelationship.updateMany({
-      where: { id: { in: toReactivate } },
-      data: { isActive: true },
-    })
+    await reactivateGuardianRelationshipsByIds(toReactivate, client)
   }
 }

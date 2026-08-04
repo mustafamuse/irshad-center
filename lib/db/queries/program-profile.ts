@@ -628,6 +628,97 @@ export async function searchProgramProfilesByNameOrContact(
 }
 
 /**
+ * Find a person's ProgramProfile for a program, with active (non-withdrawn)
+ * enrollments included. Used to detect an existing active enrollment before
+ * creating a new one.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findActiveProgramProfileWithEnrollments(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    relationLoadStrategy: 'join',
+    where: { personId, program },
+    include: {
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Create a ProgramProfile record.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createProgramProfileRecord(
+  data: Prisma.ProgramProfileUncheckedCreateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.create({ data })
+}
+
+/**
+ * Find a person's ProgramProfile for a program (no relations).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileByPersonAndProgram(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({ where: { personId, program } })
+}
+
+/**
+ * Update arbitrary ProgramProfile fields.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateProgramProfileFields(
+  profileId: string,
+  data: Prisma.ProgramProfileUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.update({ where: { id: profileId }, data })
+}
+
+/**
+ * Get a ProgramProfile's ID only, for lightweight existence checks.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getProgramProfileIdOnly(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    select: { id: true },
+  })
+}
+
+/**
+ * Batch lookup ProgramProfiles for a set of person IDs and a program.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfilesByPersonIdsAndProgram(
+  personIds: string[],
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findMany({
+    where: {
+      personId: { in: personIds },
+      program,
+    },
+  })
+}
+
+/**
  * Update shift for all program profiles in a family
  * @param client - Optional database client (for transaction support)
  */
