@@ -25,7 +25,11 @@ import type { Prisma } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
-import { prisma } from '@/lib/db'
+import {
+  createWebhookEventRecord,
+  deleteWebhookEventByIdAndSource,
+  findWebhookEventByIdAndSource,
+} from '@/lib/db/queries/webhook-event'
 import { createWebhookLogger, logError, logInfo } from '@/lib/logger'
 
 /**
@@ -152,15 +156,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
             event_type: event.type,
           },
         },
-        async () =>
-          await prisma.webhookEvent.findUnique({
-            where: {
-              eventId_source: {
-                eventId: event.id,
-                source,
-              },
-            },
-          })
+        async () => await findWebhookEventByIdAndSource(event.id, source)
       )
 
       if (existingEvent) {
@@ -199,13 +195,11 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
           },
         },
         async () =>
-          await prisma.webhookEvent.create({
-            data: {
-              eventId: event.id,
-              eventType: event.type,
-              source,
-              payload,
-            },
+          await createWebhookEventRecord({
+            eventId: event.id,
+            eventType: event.type,
+            source,
+            payload,
           })
       )
       eventRecordCreated = true
@@ -247,14 +241,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       // Only delete if WE created it — guards against deleting another concurrent request's record
       if (eventId && eventRecordCreated) {
         try {
-          await prisma.webhookEvent.delete({
-            where: {
-              eventId_source: {
-                eventId,
-                source,
-              },
-            },
-          })
+          await deleteWebhookEventByIdAndSource(eventId, source)
           logger.info({ eventId }, 'Cleaned up webhook event for retry')
         } catch (deleteErr) {
           // Ignore delete errors - event may not have been created yet

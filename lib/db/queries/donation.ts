@@ -218,3 +218,129 @@ export async function getZakatFitrStats(
     totalPeopleCovered,
   }
 }
+
+/**
+ * Upsert a donation keyed by its Stripe payment intent ID (real or synthetic).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function upsertDonationByPaymentIntentId(
+  stripePaymentIntentId: string,
+  create: Prisma.DonationCreateInput,
+  update: Prisma.DonationUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.donation.upsert({
+    where: { stripePaymentIntentId },
+    create,
+    update,
+  })
+}
+
+/**
+ * Find a succeeded donation for a subscription, excluding synthetic records
+ * whose payment intent ID starts with the given prefix.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findSucceededDonationBySubscriptionExcludingPrefix(
+  stripeSubscriptionId: string,
+  excludedPaymentIntentPrefix: string,
+  client: DatabaseClient = prisma
+) {
+  return client.donation.findFirst({
+    where: {
+      stripeSubscriptionId,
+      status: DonationStatus.succeeded,
+      NOT: {
+        stripePaymentIntentId: { startsWith: excludedPaymentIntentPrefix },
+      },
+    },
+  })
+}
+
+/**
+ * Backfill donor info on all of a subscription's donations, excluding
+ * synthetic records whose payment intent ID starts with the given prefix.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateDonorInfoBySubscriptionExcludingPrefix(
+  stripeSubscriptionId: string,
+  excludedPaymentIntentPrefix: string,
+  data: {
+    isAnonymous: boolean
+    donorName: string | null
+    donorEmail: string | null
+    donorPhone: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.donation.updateMany({
+    where: {
+      stripeSubscriptionId,
+      NOT: {
+        stripePaymentIntentId: { startsWith: excludedPaymentIntentPrefix },
+      },
+    },
+    data,
+  })
+}
+
+/**
+ * Find a donation by its Stripe payment intent ID.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findDonationByPaymentIntentId(
+  stripePaymentIntentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.donation.findUnique({
+    where: { stripePaymentIntentId },
+  })
+}
+
+/**
+ * Update a donation by its Stripe payment intent ID.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateDonationByPaymentIntentId(
+  stripePaymentIntentId: string,
+  data: Prisma.DonationUpdateInput,
+  client: DatabaseClient = prisma
+) {
+  return client.donation.update({
+    where: { stripePaymentIntentId },
+    data,
+  })
+}
+
+/**
+ * Get the oldest donation's donor info for a subscription.
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findOldestDonorInfoBySubscription(
+  stripeSubscriptionId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.donation.findFirst({
+    where: { stripeSubscriptionId },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      isAnonymous: true,
+      donorName: true,
+      donorEmail: true,
+      donorPhone: true,
+    },
+  })
+}
+
+/**
+ * Delete donations by Stripe payment intent ID (placeholder cleanup).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function deleteDonationsByPaymentIntentId(
+  stripePaymentIntentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.donation.deleteMany({
+    where: { stripePaymentIntentId },
+  })
+}
