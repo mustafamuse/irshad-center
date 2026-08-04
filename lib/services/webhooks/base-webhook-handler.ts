@@ -29,13 +29,16 @@ import {
   createWebhookEventRecord,
   deleteWebhookEventByIdAndSource,
   findWebhookEventByIdAndSource,
+  type WebhookSource,
 } from '@/lib/db/queries/webhook-event'
 import { createWebhookLogger, logError, logInfo } from '@/lib/logger'
 
 /**
- * Webhook source identifier
+ * Webhook source identifier — canonical definition lives in the query layer
+ * beside the idempotency functions it namespaces; re-exported here for
+ * existing importers.
  */
-export type WebhookSource = 'mahad' | 'dugsi' | 'donation'
+export type { WebhookSource } from '@/lib/db/queries/webhook-event'
 
 /**
  * Event handler function signature

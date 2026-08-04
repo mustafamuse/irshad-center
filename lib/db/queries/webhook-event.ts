@@ -12,12 +12,19 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
 /**
+ * Webhook source identifier. Idempotency is namespaced per source via the
+ * (eventId, source) composite key — a wrong source would let an event
+ * reprocess, so this stays a closed union, not string.
+ */
+export type WebhookSource = 'mahad' | 'dugsi' | 'donation'
+
+/**
  * Find a processed webhook event by its Stripe event ID and source program.
  * @param client - Optional database client (for transaction support)
  */
 export async function findWebhookEventByIdAndSource(
   eventId: string,
-  source: string,
+  source: WebhookSource,
   client: DatabaseClient = prisma
 ) {
   return client.webhookEvent.findUnique({
@@ -39,7 +46,7 @@ export async function createWebhookEventRecord(
   data: {
     eventId: string
     eventType: string
-    source: string
+    source: WebhookSource
     payload: Prisma.InputJsonValue
   },
   client: DatabaseClient = prisma
@@ -54,7 +61,7 @@ export async function createWebhookEventRecord(
  */
 export async function deleteWebhookEventByIdAndSource(
   eventId: string,
-  source: string,
+  source: WebhookSource,
   client: DatabaseClient = prisma
 ) {
   return client.webhookEvent.delete({
