@@ -139,7 +139,13 @@ export function createColumns(actions: ColumnActions): ColumnDef<Family>[] {
       ),
       accessorFn: (row) => {
         const status = getFamilyStatus(row)
-        return status === 'active' ? 0 : status === 'no-payment' ? 1 : 2
+        return status === 'active'
+          ? 0
+          : status === 'payment-failed'
+            ? 1
+            : status === 'no-payment'
+              ? 2
+              : 3
       },
       cell: ({ row }) => {
         const status = getFamilyStatus(row.original)

@@ -58,6 +58,21 @@ describe('getFamilyKey', () => {
 })
 
 describe('getFamilyStatus', () => {
+  it('should return "payment-failed" when payments failed terminally and no active subscription', () => {
+    const family = {
+      familyKey: 'family-1',
+      members: [],
+      hasPayment: true,
+      hasSubscription: false,
+      hasBlockingSubscription: false,
+      hasChurned: false,
+      hasFailedPayment: true,
+      parentEmail: 'parent@example.com',
+      parentPhone: '123-456-7890',
+    }
+    expect(getFamilyStatus(family)).toBe('payment-failed')
+  })
+
   it('should return "active" when family has subscription', () => {
     const family = {
       familyKey: 'family-1',
@@ -66,6 +81,7 @@ describe('getFamilyStatus', () => {
       hasSubscription: true,
       hasBlockingSubscription: true,
       hasChurned: false,
+      hasFailedPayment: false,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
@@ -80,6 +96,7 @@ describe('getFamilyStatus', () => {
       hasSubscription: false,
       hasBlockingSubscription: false,
       hasChurned: true,
+      hasFailedPayment: false,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
@@ -94,6 +111,7 @@ describe('getFamilyStatus', () => {
       hasSubscription: false,
       hasBlockingSubscription: false,
       hasChurned: false,
+      hasFailedPayment: false,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
@@ -108,6 +126,7 @@ describe('getFamilyStatus', () => {
       hasSubscription: true,
       hasBlockingSubscription: true,
       hasChurned: true,
+      hasFailedPayment: false,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
@@ -377,6 +396,7 @@ describe('getPrimaryPayerPhone', () => {
     hasSubscription: false,
     hasBlockingSubscription: false,
     hasChurned: false,
+    hasFailedPayment: false,
     parentEmail: 'parent1@example.com',
     parentPhone: '5551111111',
     ...familyOverrides,
@@ -488,6 +508,7 @@ describe('getPrimaryPayerPhone', () => {
         hasSubscription: false,
         hasBlockingSubscription: false,
         hasChurned: false,
+        hasFailedPayment: false,
         parentEmail: 'parent@example.com',
         parentPhone: '5553333333',
       }
@@ -566,6 +587,7 @@ describe('getPrimaryPayerName', () => {
     hasSubscription: false,
     hasBlockingSubscription: false,
     hasChurned: false,
+    hasFailedPayment: false,
     parentEmail: 'parent1@example.com',
     parentPhone: '5551111111',
     ...familyOverrides,
@@ -641,6 +663,7 @@ describe('getPrimaryPayerName', () => {
         hasSubscription: false,
         hasBlockingSubscription: false,
         hasChurned: false,
+        hasFailedPayment: false,
         parentEmail: 'parent@example.com',
         parentPhone: '5553333333',
       }

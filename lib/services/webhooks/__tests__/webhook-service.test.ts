@@ -88,6 +88,7 @@ vi.mock('@/lib/utils/type-guards', () => ({
 }))
 
 import { updateSubscriptionStatus } from '@/lib/db/queries/billing'
+import { logError } from '@/lib/logger'
 
 import {
   handleSubscriptionCreated,
@@ -278,6 +279,38 @@ describe('handleSubscriptionUpdated', () => {
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       { stripeSubscriptionId: 'sub_legacy_123' },
       'Subscription not found in database - student may need to re-register'
+    )
+  })
+
+  it('ignores late updated events for a canceled subscription', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({
+      id: 'db_sub_1',
+      status: 'canceled',
+    })
+
+    const subscription = createMockSubscription({ status: 'canceled' })
+    const result = await handleSubscriptionUpdated(subscription, 'DUGSI')
+
+    expect(result.status).toBe('canceled')
+    expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+  })
+
+  it('escalates without writing when DB is canceled but Stripe reports live', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({
+      id: 'db_sub_1',
+      status: 'canceled',
+    })
+
+    const subscription = createMockSubscription({ status: 'active' })
+    const result = await handleSubscriptionUpdated(subscription, 'DUGSI')
+
+    expect(result.status).toBe('canceled')
+    expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+    expect(vi.mocked(logError)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Error),
+      'DB/Stripe subscription status divergence',
+      expect.objectContaining({ eventStatus: 'active' })
     )
   })
 

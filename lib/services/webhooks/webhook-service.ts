@@ -526,6 +526,39 @@ export async function handleSubscriptionUpdated(
     }
   }
 
+  // Stripe does not guarantee event ordering and redelivers failures for up
+  // to 3 days — an updated event landing after subscription.deleted would
+  // resurrect the canceled row to 'active' with a future paidUntil, while
+  // billing assignments stay deactivated. canceled is terminal: ignore.
+  if (dbSubscription.status === 'canceled') {
+    // DB canceled + Stripe live is NOT redelivery noise: the DB is wrong and
+    // the customer may still be charged (e.g. family delete wrote canceled
+    // but the Stripe cancel call failed). Escalate instead of dropping.
+    const liveStatuses: Stripe.Subscription.Status[] = [
+      'active',
+      'trialing',
+      'past_due',
+    ]
+    if (liveStatuses.includes(subscription.status)) {
+      await logError(
+        logger,
+        new Error('DB says canceled but Stripe subscription is still live'),
+        'DB/Stripe subscription status divergence',
+        { stripeSubscriptionId, eventStatus: subscription.status }
+      )
+    } else {
+      logger.warn(
+        { stripeSubscriptionId, eventStatus: subscription.status },
+        'Ignoring subscription.updated for canceled subscription (late or out-of-order event)'
+      )
+    }
+    return {
+      subscriptionId: dbSubscription.id,
+      status: 'canceled',
+      created: false,
+    }
+  }
+
   // Validate status
   const rawStatus = subscription.status as SubscriptionStatus
   if (!isValidSubscriptionStatus(rawStatus)) {
