@@ -52,13 +52,25 @@ export const isBlockingDugsiRegistration = (
   !!member.subscriptionStatus &&
   BLOCKING_SUBSCRIPTION_STATUSES.includes(member.subscriptionStatus)
 
-// Only canceled is treated as definitively churned. past_due/unpaid families
-// are still in Stripe's retry cycle and may recover — they always export.
+// Only canceled is treated as definitively churned. past_due is still in
+// Stripe's retry cycle; unpaid is terminally failed (see below) but both
+// stay in exports so the admin can reach the family.
 export const isChurnedDugsiRegistration = (
   member: SubscriptionFields
 ): boolean =>
   !!member.stripeSubscriptionIdDugsi &&
   member.subscriptionStatus === SubscriptionStatus.canceled
+
+// Terminal payment failure: Stripe exhausted retries (unpaid) or the first
+// payment never completed (incomplete_expired). No deletion event ever fires
+// for these, so without this flag the family silently reads as "no payment"
+// while staying enrolled — the admin must decide: chase, pause, or withdraw.
+export const isPaymentFailedDugsiRegistration = (
+  member: SubscriptionFields
+): boolean =>
+  !!member.stripeSubscriptionIdDugsi &&
+  (member.subscriptionStatus === SubscriptionStatus.unpaid ||
+    member.subscriptionStatus === SubscriptionStatus.incomplete_expired)
 
 /**
  * Get Prisma where clause for family-based database operations.
@@ -159,6 +171,7 @@ export function groupRegistrationsByFamily(
       hasSubscription: sorted.some(isActiveDugsiRegistration),
       hasBlockingSubscription: sorted.some(isBlockingDugsiRegistration),
       hasChurned: sorted.some(isChurnedDugsiRegistration),
+      hasFailedPayment: sorted.some(isPaymentFailedDugsiRegistration),
       parentEmail: sorted[0]?.parentEmail ?? null,
       parentPhone: sorted[0]?.parentPhone ?? null,
     }
@@ -170,6 +183,7 @@ export function groupRegistrationsByFamily(
  */
 export function getFamilyStatus(family: Family): FamilyStatus {
   if (family.hasSubscription) return 'active'
+  if (family.hasFailedPayment) return 'payment-failed'
   if (family.hasChurned) return 'churned'
   return 'no-payment'
 }

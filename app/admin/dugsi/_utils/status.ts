@@ -3,7 +3,7 @@
  * Centralized status badge configuration logic
  */
 
-import { CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react'
+import { CheckCircle2, AlertCircle, RotateCcw, XCircle } from 'lucide-react'
 
 import { FamilyStatus } from '../_types'
 
@@ -23,6 +23,12 @@ export function getStatusBadgeConfig(status: FamilyStatus) {
         label: 'Churned',
         icon: RotateCcw,
         className: 'bg-gray-100 text-gray-600 hover:bg-gray-100',
+      }
+    case 'payment-failed':
+      return {
+        label: 'Payment Failed',
+        icon: XCircle,
+        className: 'bg-red-100 text-red-800 hover:bg-red-100',
       }
     case 'no-payment':
       return {

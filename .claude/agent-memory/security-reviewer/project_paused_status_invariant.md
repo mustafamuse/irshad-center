@@ -13,6 +13,8 @@ metadata:
 
 One consumer is deliberately still active-only and is the remaining known divergence: the admin dashboard's `isActiveDugsiRegistration` / `family.hasSubscription` in `app/admin/dugsi/_utils/family.ts` is `status === 'active'`, so paused/past_due/trialing families render as "no-payment" and the UI still offers Generate-payment-link buttons that the server guard now 409s. Anything that reconciles UI gating with server guards must widen that helper, not narrow the guard.
 
+Amendment (branch `webhook-ordering-guard`, 2026-08-04): `unpaid` / `incomplete_expired` were carved out of that "no-payment" bucket into a `payment-failed` FamilyStatus (`isPaymentFailedDugsiRegistration`). Operator policy is visibility only — deliberately NOT auto-withdrawal. paused/past_due/trialing are untouched and still misrender as "no-payment". Note the badge only works because the family DTO reads `assignments: { where: { isActive: true } }` (`findProgramProfilesFullByProgram`) and nothing deactivates assignments for unpaid/incomplete_expired — only `handleSubscriptionDeleted` unlinks. The corollary is that the `churned` badge is nearly unreachable: once the deletion event cascades, the assignment is inactive and `subscriptionStatus` reads null, so churned families render as "no-payment".
+
 `handleSubscriptionUpdated` is shared with Mahad, so the mapping is deliberately gated on `accountType === 'DUGSI'`. Mahad has no pause/resume UI and `deriveStatus` in `lib/services/mahad/verification-service.ts` renders `'paused'` as a payment problem, so a Stripe-dashboard pause on a Mahad sub intentionally stays `'active'` in the DB. Do not simplify that gate away.
 
 Related: [[webhook-failsoft]].

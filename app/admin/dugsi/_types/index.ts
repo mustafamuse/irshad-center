@@ -84,6 +84,7 @@ export interface Family {
   hasSubscription: boolean
   hasBlockingSubscription: boolean
   hasChurned: boolean
+  hasFailedPayment: boolean
   parentEmail: string | null
   parentPhone: string | null
 }
@@ -104,7 +105,11 @@ export type TabValue =
   | 'billing-mismatch'
   | 'all'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
-export type FamilyStatus = 'active' | 'churned' | 'no-payment'
+export type FamilyStatus =
+  | 'active'
+  | 'churned'
+  | 'payment-failed'
+  | 'no-payment'
 export type SearchField = 'all' | 'childName' | 'parentName' | 'email' | 'phone'
 
 // Stripe payment history types
