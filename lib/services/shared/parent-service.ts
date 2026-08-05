@@ -15,6 +15,7 @@
 
 import { GuardianRole, Prisma } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   createPerson,
@@ -274,14 +275,24 @@ export async function validateGuardianEmail(email: string) {
 }
 
 /**
- * Find guardian by email.
+ * Check whether a guardian email is attached to at least one child with a
+ * non-withdrawn Dugsi profile. Withdrawn-only families must NOT be blocked
+ * from re-registering, so a fully withdrawn guardian returns false.
  *
  * @param email - Guardian email address
- * @returns Person record or null
+ * @returns true only if the guardian has an active Dugsi child
  */
-export async function findGuardianByEmail(email: string) {
+export async function guardianHasActiveDugsiChildren(email: string) {
   const normalized = normalizeEmail(email)
-  if (!normalized) return null
+  if (!normalized) return false
 
-  return await findPersonByEmailWithActiveDependents(normalized)
+  const guardian = await findPersonByEmailWithActiveDependents(normalized)
+  if (!guardian) return false
+
+  return guardian.dependentRelationships.some((relationship) =>
+    relationship.dependent.programProfiles.some(
+      (profile) =>
+        profile.program === DUGSI_PROGRAM && profile.status !== 'WITHDRAWN'
+    )
+  )
 }

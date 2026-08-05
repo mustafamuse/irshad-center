@@ -1,4 +1,5 @@
 import {
+  EnrollmentStatus,
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
@@ -19,6 +20,7 @@ import {
   createProgramProfileRecord,
   findContactlessMahadPersonsByName,
   findProgramProfileForMahadInvite,
+  findProgramProfileForReuse,
   updateProgramProfileFields,
 } from '@/lib/db/queries/program-profile'
 import {
@@ -52,6 +54,7 @@ export interface MahadRegistrationInput {
 
 type EnrichableProfile = {
   id: string
+  status: EnrollmentStatus
   gradeLevel: GradeLevel | null
   schoolName: string | null
   graduationStatus: GraduationStatus | null
@@ -102,11 +105,38 @@ async function enrichExistingProfile(
       ? `${profile.paymentNotes}; ${input.paymentNotes}`
       : input.paymentNotes
   }
+  // A withdrawn returnee must become visible to enrollment and billing
+  // flows again; other statuses (ENROLLED, ON_LEAVE, ...) are preserved.
+  // This is an unauthenticated single-factor (email/phone) mutation, so
+  // every reactivation is audit-logged for Axiom visibility.
+  if (profile.status === 'WITHDRAWN') {
+    profileUpdates.status = 'REGISTERED'
+    logger.info(
+      {
+        event: 'PROFILE_REACTIVATED',
+        profileId: profile.id,
+        personId: profile.person.id,
+        previousStatus: 'WITHDRAWN',
+      },
+      'Withdrawn Mahad profile reactivated via public registration'
+    )
+  }
   if (Object.keys(profileUpdates).length > 0) {
     await updateProgramProfileFields(profile.id, profileUpdates, tx)
   }
 
-  if (profile.enrollments.length === 0) {
+  // Only self-service-enrollable statuses get a fresh enrollment. A
+  // SUSPENDED/COMPLETED/ON_LEAVE profile with no open enrollment must not
+  // self-clear its state by re-registering — that is an admin decision.
+  const enrollableStatuses: EnrollmentStatus[] = [
+    'REGISTERED',
+    'ENROLLED',
+    'WITHDRAWN',
+  ]
+  if (
+    profile.enrollments.length === 0 &&
+    enrollableStatuses.includes(profile.status)
+  ) {
     await createMahadRegistrationEnrollment(profile.id, input.batchId, tx)
   }
 
@@ -205,6 +235,25 @@ export async function registerMahadStudent(
 
       if (dupResult.existingPerson) {
         personId = dupResult.existingPerson.id
+
+        // A withdrawn returnee passes the duplicate check (hasActiveProfile
+        // is false) but still owns the (personId, program) row — creating a
+        // second profile would hit P2002 and surface a misleading
+        // "already associated" error. Reuse and re-activate the profile.
+        const existingProfile = await findProgramProfileForReuse(
+          personId,
+          MAHAD_PROGRAM,
+          tx
+        )
+        if (existingProfile) {
+          return enrichExistingProfile(
+            tx,
+            existingProfile,
+            input,
+            normalizedEmail,
+            normalizedPhone
+          )
+        }
 
         const contactUpdates: Prisma.PersonUpdateInput = {}
         if (normalizedEmail !== null && !dupResult.existingPerson.email)

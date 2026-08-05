@@ -8,6 +8,7 @@ const {
   mockFindPersonByPhoneExcluding,
   mockProgramProfileCreate,
   mockProgramProfileFindUnique,
+  mockProgramProfileFindForReuse,
   mockProgramProfileUpdate,
   mockEnrollmentCreate,
   mockTransaction,
@@ -20,6 +21,7 @@ const {
   mockFindPersonByPhoneExcluding: vi.fn(),
   mockProgramProfileCreate: vi.fn(),
   mockProgramProfileFindUnique: vi.fn(),
+  mockProgramProfileFindForReuse: vi.fn(),
   mockProgramProfileUpdate: vi.fn(),
   mockEnrollmentCreate: vi.fn(),
   mockTransaction: vi.fn(),
@@ -52,6 +54,8 @@ vi.mock('@/lib/db/queries/program-profile', () => ({
     mockProgramProfileCreate(...args),
   findProgramProfileForMahadInvite: (...args: unknown[]) =>
     mockProgramProfileFindUnique(...args),
+  findProgramProfileForReuse: (...args: unknown[]) =>
+    mockProgramProfileFindForReuse(...args),
   updateProgramProfileFields: (...args: unknown[]) =>
     mockProgramProfileUpdate(...args),
   findContactlessMahadPersonsByName: (...args: unknown[]) =>
@@ -101,6 +105,7 @@ describe('registerMahadStudent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockProgramProfileFindForReuse.mockResolvedValue(null)
     mockPersonFindMany.mockResolvedValue([])
     mockPersonCreate.mockResolvedValue({
       id: 'person-1',
@@ -328,6 +333,132 @@ describe('registerMahadStudent', () => {
     )
   })
 
+  it('reuses and re-activates a withdrawn returnee profile instead of hitting P2002', async () => {
+    const existingPerson = {
+      id: 'returnee-person',
+      name: 'Ahmed Mohamed',
+      email: 'ahmed@example.com',
+      phone: '6125551234',
+      dateOfBirth: new Date('2000-01-15'),
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+    mockProgramProfileFindForReuse.mockResolvedValue({
+      id: 'profile-withdrawn',
+      status: 'WITHDRAWN',
+      gradeLevel: null,
+      schoolName: null,
+      graduationStatus: null,
+      paymentFrequency: null,
+      billingType: null,
+      paymentNotes: null,
+      person: {
+        id: 'returnee-person',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: new Date('2000-01-15'),
+      },
+      enrollments: [],
+    })
+    mockProgramProfileUpdate.mockResolvedValue({ id: 'profile-withdrawn' })
+
+    const result = await registerMahadStudent(baseInput)
+
+    expect(result).toEqual({ profileId: 'profile-withdrawn' })
+    expect(mockProgramProfileCreate).not.toHaveBeenCalled()
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith(
+      'profile-withdrawn',
+      expect.objectContaining({ status: 'REGISTERED' }),
+      mockTx
+    )
+    expect(mockEnrollmentCreate).toHaveBeenCalledWith(
+      'profile-withdrawn',
+      undefined,
+      mockTx
+    )
+  })
+
+  it('preserves a non-withdrawn status when reusing an existing profile', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'returnee-person',
+        name: 'Ahmed Mohamed',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: new Date('2000-01-15'),
+      },
+      hasActiveProfile: false,
+    })
+    mockProgramProfileFindForReuse.mockResolvedValue({
+      id: 'profile-onleave',
+      status: 'ON_LEAVE',
+      gradeLevel: null,
+      schoolName: null,
+      graduationStatus: null,
+      paymentFrequency: null,
+      billingType: null,
+      paymentNotes: null,
+      person: {
+        id: 'returnee-person',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: new Date('2000-01-15'),
+      },
+      enrollments: [{ id: 'enrollment-1' }],
+    })
+
+    const result = await registerMahadStudent(baseInput)
+
+    expect(result).toEqual({ profileId: 'profile-onleave' })
+    expect(mockProgramProfileCreate).not.toHaveBeenCalled()
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockEnrollmentCreate).not.toHaveBeenCalled()
+  })
+
+  it('does not create an enrollment for a suspended profile with no open enrollment', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson: {
+        id: 'suspended-person',
+        name: 'Ahmed Mohamed',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: new Date('2000-01-15'),
+      },
+      hasActiveProfile: false,
+    })
+    mockProgramProfileFindForReuse.mockResolvedValue({
+      id: 'profile-suspended',
+      status: 'SUSPENDED',
+      gradeLevel: null,
+      schoolName: null,
+      graduationStatus: null,
+      paymentFrequency: null,
+      billingType: null,
+      paymentNotes: null,
+      person: {
+        id: 'suspended-person',
+        email: 'ahmed@example.com',
+        phone: '6125551234',
+        dateOfBirth: new Date('2000-01-15'),
+      },
+      enrollments: [],
+    })
+
+    const result = await registerMahadStudent(baseInput)
+
+    expect(result).toEqual({ profileId: 'profile-suspended' })
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockEnrollmentCreate).not.toHaveBeenCalled()
+  })
+
   it('includes billing fields in single programProfile.create', async () => {
     const input = {
       ...baseInput,
@@ -483,6 +614,7 @@ describe('invite enrichment path', () => {
   const inviteProfile = {
     id: 'profile-recovery-1',
     program: 'MAHAD_PROGRAM',
+    status: 'REGISTERED',
     gradeLevel: null,
     schoolName: null,
     graduationStatus: null,
@@ -773,6 +905,7 @@ describe('name fallback for contact-less recovery profiles', () => {
       {
         id: 'profile-recovery-2',
         program: 'MAHAD_PROGRAM',
+        status: 'REGISTERED',
         gradeLevel: null,
         schoolName: null,
         graduationStatus: null,
