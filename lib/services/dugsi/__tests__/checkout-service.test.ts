@@ -8,11 +8,13 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockPrismaFindMany,
+  mockAssignmentFindMany,
   mockStripeSessionCreate,
   mockLoggerInfo,
   mockLoggerWarn,
 } = vi.hoisted(() => ({
   mockPrismaFindMany: vi.fn(),
+  mockAssignmentFindMany: vi.fn(),
   mockStripeSessionCreate: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLoggerWarn: vi.fn(),
@@ -22,6 +24,9 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     programProfile: {
       findMany: (...args: unknown[]) => mockPrismaFindMany(...args),
+    },
+    billingAssignment: {
+      findMany: (...args: unknown[]) => mockAssignmentFindMany(...args),
     },
   },
 }))
@@ -62,9 +67,39 @@ import { createDugsiCheckoutSession } from '../checkout-service'
 describe('createDugsiCheckoutSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAssignmentFindMany.mockResolvedValue([])
     mockStripeSessionCreate.mockResolvedValue({
       id: 'sess_test123',
       url: 'https://checkout.stripe.com/test',
+    })
+  })
+
+  describe('existing subscription guard', () => {
+    it('rejects checkout when the family already has a live subscription', async () => {
+      mockAssignmentFindMany.mockResolvedValue([
+        {
+          subscriptionId: 'db_sub_1',
+          subscription: { id: 'db_sub_1', status: 'active' },
+        },
+      ])
+
+      await expect(
+        createDugsiCheckoutSession({ familyId: 'family-1' })
+      ).rejects.toMatchObject({ code: 'ACTIVE_SUBSCRIPTION' })
+      expect(mockStripeSessionCreate).not.toHaveBeenCalled()
+    })
+
+    it('rejects checkout when the family subscription is paused', async () => {
+      mockAssignmentFindMany.mockResolvedValue([
+        {
+          subscriptionId: 'db_sub_1',
+          subscription: { id: 'db_sub_1', status: 'paused' },
+        },
+      ])
+
+      await expect(
+        createDugsiCheckoutSession({ familyId: 'family-1' })
+      ).rejects.toMatchObject({ code: 'ACTIVE_SUBSCRIPTION' })
     })
   })
 

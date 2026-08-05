@@ -35,6 +35,23 @@ export const isActiveDugsiRegistration = (
   !!member.stripeSubscriptionIdDugsi &&
   member.subscriptionStatus === SubscriptionStatus.active
 
+// Mirrors CANCELABLE_SUBSCRIPTION_STATUSES on the server: statuses where the
+// checkout guard rejects a new payment link with 409. Wider than
+// isActiveDugsiRegistration so the UI never offers a link that must fail.
+const BLOCKING_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
+  SubscriptionStatus.active,
+  SubscriptionStatus.trialing,
+  SubscriptionStatus.past_due,
+  SubscriptionStatus.paused,
+]
+
+export const isBlockingDugsiRegistration = (
+  member: SubscriptionFields
+): boolean =>
+  !!member.stripeSubscriptionIdDugsi &&
+  !!member.subscriptionStatus &&
+  BLOCKING_SUBSCRIPTION_STATUSES.includes(member.subscriptionStatus)
+
 // Only canceled is treated as definitively churned. past_due/unpaid families
 // are still in Stripe's retry cycle and may recover — they always export.
 export const isChurnedDugsiRegistration = (
@@ -140,6 +157,7 @@ export function groupRegistrationsByFamily(
       members: sorted,
       hasPayment: sorted.some((m) => m.paymentMethodCaptured),
       hasSubscription: sorted.some(isActiveDugsiRegistration),
+      hasBlockingSubscription: sorted.some(isBlockingDugsiRegistration),
       hasChurned: sorted.some(isChurnedDugsiRegistration),
       parentEmail: sorted[0]?.parentEmail ?? null,
       parentPhone: sorted[0]?.parentPhone ?? null,

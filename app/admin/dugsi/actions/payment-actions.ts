@@ -39,7 +39,10 @@ const GenerateFamilyPaymentLinkSchema = z.object({
 })
 
 const BulkPaymentLinksSchema = z.object({
-  familyIds: z.array(z.string()).min(1, 'At least one family must be selected'),
+  familyIds: z
+    .array(z.string())
+    .min(1, 'At least one family must be selected')
+    .transform((ids) => [...new Set(ids)]),
 })
 
 const PaymentHistorySchema = z.object({

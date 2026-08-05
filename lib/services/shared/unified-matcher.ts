@@ -26,7 +26,7 @@ import {
   findProgramProfilesForPayerMatch,
 } from '@/lib/db/queries/program-profile'
 import { findActiveGuardianRelationshipsWithDugsiDependents } from '@/lib/db/queries/relationships'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import { CANCELABLE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger } from '@/lib/logger'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
@@ -252,7 +252,7 @@ export class UnifiedMatcher {
     const unlinkedProfiles = profiles.filter(
       (profile) =>
         !profile.assignments.some((a) =>
-          LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
+          CANCELABLE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
         )
     )
 
@@ -364,7 +364,7 @@ export class UnifiedMatcher {
     const unlinkedProfiles = profiles.filter(
       (profile) =>
         !profile.assignments.some((a) =>
-          LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
+          CANCELABLE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
         )
     )
 
@@ -494,7 +494,7 @@ export class UnifiedMatcher {
     const unlinkedProfiles = profiles.filter(
       (profile) =>
         !profile.assignments.some((a) =>
-          LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
+          CANCELABLE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
         )
     )
 

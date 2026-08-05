@@ -26,7 +26,7 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
 
   const eligibleFamilies = selectedFamilies.filter((f) => {
     const member = f.members[0]
-    return member?.familyReferenceId && !f.hasSubscription
+    return member?.familyReferenceId && !f.hasBlockingSubscription
   })
 
   const handleBulkGenerateLinks = async () => {

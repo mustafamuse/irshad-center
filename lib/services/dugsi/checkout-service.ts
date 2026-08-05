@@ -11,6 +11,7 @@
 import * as Sentry from '@sentry/nextjs'
 
 import { featureFlags } from '@/lib/config/feature-flags'
+import { findFamilyLiveSubscriptions } from '@/lib/db/queries/billing'
 import { findFamilyProfilesForCheckout } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
@@ -135,6 +136,20 @@ export async function createDugsiCheckoutSession(
     input.successUrl ?? `${appUrl}/dugsi/payment-complete?payment=success`
   const cancelUrl =
     input.cancelUrl ?? `${appUrl}/dugsi/payment-complete?payment=canceled`
+
+  // A family with a subscription Stripe can still bill (including paused,
+  // and a fully-withdrawn family's sub with cancel_at_period_end pending)
+  // must never get a second one — double-billing that every withdrawal and
+  // sync operation then rejects with 409 until manually consolidated
+  const liveSubscriptions = await findFamilyLiveSubscriptions(familyId)
+  if (liveSubscriptions.length > 0) {
+    throw new ActionError(
+      'This family already has a Stripe subscription. Use re-enroll or billing sync instead of a new payment link.',
+      ERROR_CODES.ACTIVE_SUBSCRIPTION,
+      undefined,
+      409
+    )
+  }
 
   // Get family profiles with guardian information
   const familyProfiles = await findFamilyProfilesForCheckout(familyId)
