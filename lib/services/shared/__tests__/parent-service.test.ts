@@ -8,6 +8,7 @@ const {
   mockFindGuardianRelationshipByRole,
   mockCreateGuardianRelationshipByRole,
   mockReactivateGuardianRelationshipWithEndDate,
+  mockFindPersonByEmailWithActiveDependents,
 } = vi.hoisted(() => ({
   mockUpdatePersonFields: vi.fn(),
   mockFindPersonByEmail: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockFindGuardianRelationshipByRole: vi.fn(),
   mockCreateGuardianRelationshipByRole: vi.fn(),
   mockReactivateGuardianRelationshipWithEndDate: vi.fn(),
+  mockFindPersonByEmailWithActiveDependents: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -29,7 +31,8 @@ vi.mock('@/lib/db/queries/person', () => ({
     mockFindPersonByEmailUnique(...args),
   createPerson: (...args: unknown[]) => mockCreatePerson(...args),
   findPersonByEmailWithProfiles: vi.fn(),
-  findPersonByEmailWithActiveDependents: vi.fn(),
+  findPersonByEmailWithActiveDependents: (...args: unknown[]) =>
+    mockFindPersonByEmailWithActiveDependents(...args),
 }))
 
 vi.mock('@/lib/db/queries/relationships', () => ({
@@ -54,7 +57,11 @@ vi.mock('@/lib/utils/contact-normalization', () => ({
 
 import { ActionError } from '@/lib/errors/action-error'
 
-import { updateGuardianInfo, addGuardianRelationship } from '../parent-service'
+import {
+  updateGuardianInfo,
+  addGuardianRelationship,
+  guardianHasActiveDugsiChildren,
+} from '../parent-service'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -330,5 +337,65 @@ describe('addGuardianRelationship', () => {
         phone: '612-555-1234',
       })
     ).rejects.toThrow('Guardian email is required')
+  })
+})
+
+describe('guardianHasActiveDugsiChildren', () => {
+  function guardianWithDependents(
+    profiles: { program: string; status: string }[][]
+  ) {
+    return {
+      id: 'guardian-1',
+      email: 'parent@example.com',
+      dependentRelationships: profiles.map((programProfiles, i) => ({
+        dependent: { id: `child-${i}`, programProfiles },
+      })),
+    }
+  }
+
+  it('returns false when no person matches the email', async () => {
+    mockFindPersonByEmailWithActiveDependents.mockResolvedValue(null)
+
+    await expect(
+      guardianHasActiveDugsiChildren('parent@example.com')
+    ).resolves.toBe(false)
+  })
+
+  it('returns false when all Dugsi children are withdrawn', async () => {
+    mockFindPersonByEmailWithActiveDependents.mockResolvedValue(
+      guardianWithDependents([
+        [{ program: 'DUGSI_PROGRAM', status: 'WITHDRAWN' }],
+        [{ program: 'DUGSI_PROGRAM', status: 'WITHDRAWN' }],
+      ])
+    )
+
+    await expect(
+      guardianHasActiveDugsiChildren('parent@example.com')
+    ).resolves.toBe(false)
+  })
+
+  it('returns true when at least one Dugsi child is not withdrawn', async () => {
+    mockFindPersonByEmailWithActiveDependents.mockResolvedValue(
+      guardianWithDependents([
+        [{ program: 'DUGSI_PROGRAM', status: 'WITHDRAWN' }],
+        [{ program: 'DUGSI_PROGRAM', status: 'ENROLLED' }],
+      ])
+    )
+
+    await expect(
+      guardianHasActiveDugsiChildren('parent@example.com')
+    ).resolves.toBe(true)
+  })
+
+  it('ignores non-Dugsi profiles', async () => {
+    mockFindPersonByEmailWithActiveDependents.mockResolvedValue(
+      guardianWithDependents([
+        [{ program: 'MAHAD_PROGRAM', status: 'ENROLLED' }],
+      ])
+    )
+
+    await expect(
+      guardianHasActiveDugsiChildren('parent@example.com')
+    ).resolves.toBe(false)
   })
 })

@@ -14,7 +14,7 @@ import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration
 import { emailSchema } from '@/lib/registration/schemas/registration-field-schemas'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { createFamilyRegistration } from '@/lib/services/registration-service'
-import { findGuardianByEmail } from '@/lib/services/shared/parent-service'
+import { guardianHasActiveDugsiChildren } from '@/lib/services/shared/parent-service'
 
 const logger = createActionLogger('dugsi-registration')
 
@@ -132,8 +132,7 @@ export async function checkParentEmailExists(email: string): Promise<boolean> {
   }
 
   try {
-    const existing = await findGuardianByEmail(parsed.data)
-    return existing !== null
+    return await guardianHasActiveDugsiChildren(parsed.data)
   } catch (error) {
     await logError(logger, error, 'Parent email existence check failed', {})
     return false

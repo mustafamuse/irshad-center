@@ -636,6 +636,121 @@ export async function createProgramProfileWithEnrollment(
 }
 
 /**
+ * Build the update payload for reusing an existing Dugsi profile during
+ * family registration.
+ *
+ * Uses !== undefined && !== null checks intentionally:
+ * - undefined: Field was not included in form submission (e.g., SHOW_GRADE_SCHOOL=false)
+ * - null: Field was explicitly cleared (we still skip to preserve existing data)
+ *
+ * This prevents overwriting existing demographic data with empty form fields
+ * when re-registering or updating a child's profile.
+ *
+ * A WITHDRAWN profile is reset to REGISTERED so a re-registering child
+ * becomes visible again to checkout, tier pricing, and billing metadata.
+ * All other statuses are preserved.
+ *
+ * Unlike reEnrollChild, no syncFamilyBillingRate call follows: the
+ * reactivated child joins a freshly generated familyReferenceId with no
+ * subscription yet (checkout happens after registration). If this payload
+ * is ever reused for a family with a live subscription, the billing sync
+ * dependency from reEnrollChild applies.
+ */
+export function buildDugsiProfileReuseUpdate(
+  existingStatus: EnrollmentStatus,
+  child: Pick<
+    z.infer<typeof childDataSchema>,
+    'gender' | 'gradeLevel' | 'shift' | 'schoolName' | 'healthInfo'
+  >,
+  familyReferenceId: string
+): Prisma.ProgramProfileUpdateInput {
+  return {
+    ...(child.gender !== undefined &&
+      child.gender !== null && { gender: child.gender }),
+    ...(child.gradeLevel !== undefined &&
+      child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
+    ...(child.shift !== undefined &&
+      child.shift !== null && { shift: child.shift }),
+    ...(child.schoolName !== undefined &&
+      child.schoolName !== null && { schoolName: child.schoolName }),
+    ...(child.healthInfo !== undefined &&
+      child.healthInfo !== null && { healthInfo: child.healthInfo }),
+    ...(existingStatus === 'WITHDRAWN' && { status: 'REGISTERED' as const }),
+    familyReferenceId,
+  }
+}
+
+/**
+ * Decide whether an existing Dugsi profile blocks registration under a new
+ * familyReferenceId.
+ *
+ * Every registration generates a fresh familyReferenceId, so a returnee
+ * family ALWAYS mismatches its old one. A WITHDRAWN child may therefore be
+ * reassigned — but only with guardian continuity as a second factor: the
+ * public form matches children by name + DOB, and both are exposed on the
+ * unauthenticated /dugsi/register/success page, so name + DOB alone must
+ * never be enough for a stranger to pull a withdrawn child into their own
+ * family.
+ */
+export function isBlockedFamilyReassignment(
+  existingProfile: {
+    familyReferenceId: string | null
+    status: EnrollmentStatus
+  },
+  familyReferenceId: string,
+  hasGuardianContinuity: boolean
+): boolean {
+  if (!existingProfile.familyReferenceId) return false
+  if (existingProfile.familyReferenceId === familyReferenceId) return false
+  return !(existingProfile.status === 'WITHDRAWN' && hasGuardianContinuity)
+}
+
+/**
+ * Compute which children a set of submitted guardians may reclaim from a
+ * different family. A child qualifies only when its existing profile is
+ * WITHDRAWN under another familyReferenceId AND at least one submitted
+ * guardian has an ACTIVE guardian relationship with the child. Inactive
+ * rows deliberately do not count: withdrawal never deactivates guardian
+ * relationships — only an explicit admin removal does — so an inactive row
+ * means an admin removed that guardian (custody/safeguarding), and they
+ * must not regain the child through the public form.
+ */
+async function findChildrenWithGuardianContinuity(
+  personIds: string[],
+  existingProfilesMap: Map<
+    string,
+    { familyReferenceId: string | null; status: EnrollmentStatus }
+  >,
+  guardianPersonIds: string[],
+  familyReferenceId: string,
+  client: DatabaseClient = prisma
+): Promise<Set<string>> {
+  const candidateIds = personIds.filter((personId) => {
+    const profile = existingProfilesMap.get(personId)
+    return (
+      !!profile?.familyReferenceId &&
+      profile.familyReferenceId !== familyReferenceId &&
+      profile.status === 'WITHDRAWN'
+    )
+  })
+  if (candidateIds.length === 0 || guardianPersonIds.length === 0) {
+    return new Set()
+  }
+  const relationships = await findGuardianRelationshipsForPairs(
+    candidateIds.flatMap((dependentPersonId) =>
+      guardianPersonIds.map((guardianPersonId) => ({
+        guardianPersonId,
+        dependentPersonId,
+      }))
+    ),
+    client
+  )
+  return new Set(
+    relationships.filter((rel) => rel.isActive).map((rel) => rel.dependentId)
+  )
+}
+
+/**
  * Create a family registration (Dugsi multi-child registration)
  *
  * Creates Person for parents and links via GuardianRelationship.
@@ -720,9 +835,25 @@ export async function createFamilyRegistration(data: unknown): Promise<{
   let currentPhase = 'init'
   try {
     // Phase 0: Pre-flight validation (before any writes)
-    // Catches family conflicts early to prevent orphaned data
+    // Catches family conflicts early to prevent orphaned data.
+    // Resolve already-existing parent Persons read-only first (same
+    // contact resolution findOrCreatePersonWithContact applies in Phase 1)
+    // so pre-flight can apply the guardian-continuity rule.
     currentPhase = 'validation'
-    await validateFamilyConflicts(children, familyReferenceId)
+    const [preflightParent1, preflightParent2] = await Promise.all([
+      findPersonByActiveContact(parent1Email, parent1Phone),
+      findPersonByActiveContact(parent2Email, parent2Phone),
+    ])
+    const submittedGuardianIds = [
+      preflightParent1?.id,
+      preflightParent2?.id,
+    ].filter((id): id is string => !!id)
+
+    await validateFamilyConflicts(
+      children,
+      familyReferenceId,
+      submittedGuardianIds
+    )
 
     // Phase 1: Find or create parents (parallel, each idempotent)
     currentPhase = 'parents'
@@ -837,6 +968,20 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     const allPersonIds = allChildPersons.map((p) => p.id)
     const existingProfilesMap = await findExistingDugsiProfiles(allPersonIds)
 
+    // Guardian-continuity second factor for reassigning withdrawn children
+    // (see isBlockedFamilyReassignment). Re-computed here after parent
+    // resolution as a race-safety net; Phase 0 already ran the same rule
+    // through the same helper + predicate.
+    const childrenWithGuardianContinuity =
+      await findChildrenWithGuardianContinuity(
+        allPersonIds,
+        existingProfilesMap,
+        [parent1Person.id, parent2Person?.id].filter(
+          (id): id is string => !!id
+        ),
+        familyReferenceId
+      )
+
     // Process each child's profile sequentially
     const childResults: Array<{
       id: string
@@ -854,22 +999,14 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       // Get profile from batch lookup
       const existingProfile = existingProfilesMap.get(childPerson.id)
 
-      /**
-       * Update existing profile - only update fields that are explicitly provided.
-       *
-       * Uses !== undefined && !== null checks intentionally:
-       * - undefined: Field was not included in form submission (e.g., SHOW_GRADE_SCHOOL=false)
-       * - null: Field was explicitly cleared (we still skip to preserve existing data)
-       *
-       * This prevents overwriting existing demographic data with empty form fields
-       * when re-registering or updating a child's profile.
-       */
       let profile
       if (existingProfile) {
-        // Prevent reassigning child to a different family
         if (
-          existingProfile.familyReferenceId &&
-          existingProfile.familyReferenceId !== familyReferenceId
+          isBlockedFamilyReassignment(
+            existingProfile,
+            familyReferenceId,
+            childrenWithGuardianContinuity.has(childPerson.id)
+          )
         ) {
           throw new ActionError(
             `Child ${childFullName} is already registered under a different family. ` +
@@ -877,20 +1014,31 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             ERROR_CODES.VALIDATION_ERROR
           )
         }
+        if (
+          existingProfile.familyReferenceId &&
+          existingProfile.familyReferenceId !== familyReferenceId
+        ) {
+          logger.info(
+            {
+              event: 'PROFILE_REACTIVATED',
+              profileId: existingProfile.id,
+              personId: childPerson.id,
+              previousStatus: existingProfile.status,
+              previousFamilyReferenceId: existingProfile.familyReferenceId,
+              familyReferenceId,
+            },
+            'Withdrawn Dugsi child reassigned to new family by an existing guardian via public registration'
+          )
+        }
 
-        profile = await updateProgramProfileFields(existingProfile.id, {
-          ...(child.gender !== undefined &&
-            child.gender !== null && { gender: child.gender }),
-          ...(child.gradeLevel !== undefined &&
-            child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
-          ...(child.shift !== undefined &&
-            child.shift !== null && { shift: child.shift }),
-          ...(child.schoolName !== undefined &&
-            child.schoolName !== null && { schoolName: child.schoolName }),
-          ...(child.healthInfo !== undefined &&
-            child.healthInfo !== null && { healthInfo: child.healthInfo }),
-          familyReferenceId,
-        })
+        profile = await updateProgramProfileFields(
+          existingProfile.id,
+          buildDugsiProfileReuseUpdate(
+            existingProfile.status,
+            child,
+            familyReferenceId
+          )
+        )
 
         // Track for batch enrollment check
         profilesToCheckEnrollments.push({
@@ -1426,11 +1574,18 @@ export async function findExistingDugsiProfiles(
  * This prevents orphaned data when a child is already registered
  * under a different family.
  *
+ * submittedGuardianIds are the ALREADY-EXISTING Person ids matching the
+ * submitted parent contacts (resolved read-only by the caller); they feed
+ * the guardian-continuity rule in isBlockedFamilyReassignment so returnee
+ * families pass pre-flight while strangers using a scraped name + DOB are
+ * rejected here, before any writes.
+ *
  * OPTIMIZATION: Uses batched lookups instead of per-child queries
  */
 async function validateFamilyConflicts(
   children: Array<z.infer<typeof childDataSchema>>,
   familyReferenceId: string,
+  submittedGuardianIds: string[],
   client: DatabaseClient = prisma
 ): Promise<void> {
   // Check for duplicate children within the same submission
@@ -1465,6 +1620,14 @@ async function validateFamilyConflicts(
     client
   )
 
+  const continuity = await findChildrenWithGuardianContinuity(
+    existingPersonIds,
+    existingProfilesMap,
+    submittedGuardianIds,
+    familyReferenceId,
+    client
+  )
+
   // Check for conflicts using the maps
   for (const child of children) {
     const childFullName = `${child.firstName} ${child.lastName}`
@@ -1475,8 +1638,12 @@ async function validateFamilyConflicts(
       const profile = existingProfilesMap.get(existingChild.id)
 
       if (
-        profile?.familyReferenceId &&
-        profile.familyReferenceId !== familyReferenceId
+        profile &&
+        isBlockedFamilyReassignment(
+          profile,
+          familyReferenceId,
+          continuity.has(existingChild.id)
+        )
       ) {
         throw new ActionError(
           `Child ${child.firstName} ${child.lastName} is already registered ` +

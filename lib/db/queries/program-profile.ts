@@ -786,6 +786,7 @@ export async function findProgramProfileForMahadInvite(
     select: {
       id: true,
       program: true,
+      status: true,
       gradeLevel: true,
       schoolName: true,
       graduationStatus: true,
@@ -836,6 +837,7 @@ export async function findContactlessMahadPersonsByName(
         select: {
           id: true,
           program: true,
+          status: true,
           gradeLevel: true,
           schoolName: true,
           graduationStatus: true,
@@ -850,6 +852,44 @@ export async function findContactlessMahadPersonsByName(
       },
     },
     take: 2,
+  })
+}
+
+/**
+ * Find a person's ProgramProfile for a program with the person contact
+ * fields and open enrollments needed to reuse the profile on
+ * re-registration (conservative merge + enrollment recreation).
+ * @param client - Optional database client (for transaction support)
+ */
+export async function findProgramProfileForReuse(
+  personId: string,
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findFirst({
+    where: { personId, program },
+    select: {
+      id: true,
+      status: true,
+      gradeLevel: true,
+      schoolName: true,
+      graduationStatus: true,
+      paymentFrequency: true,
+      billingType: true,
+      paymentNotes: true,
+      person: {
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          dateOfBirth: true,
+        },
+      },
+      enrollments: {
+        where: { endDate: null },
+        select: { id: true },
+      },
+    },
   })
 }
 
