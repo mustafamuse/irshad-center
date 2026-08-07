@@ -33,6 +33,7 @@ import { SubscriptionStatus } from '@prisma/client'
 import Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
+import { updateSubscriptionStatusOnly } from '@/lib/db/queries/billing'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { stripeServerClient } from '@/lib/stripe-mahad'
 import { deriveSubscriptionStatus } from '@/lib/utils/subscription-status'
@@ -141,10 +142,7 @@ async function main() {
     )
 
     if (apply) {
-      await prisma.subscription.update({
-        where: { id: row.id },
-        data: { status: expected },
-      })
+      await updateSubscriptionStatusOnly(row.id, expected)
     }
   }
 
