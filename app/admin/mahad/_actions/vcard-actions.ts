@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
 import { createServiceLogger } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
+import { StudentStatus } from '@/lib/types/student'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -20,9 +21,15 @@ const _generateMahadVCardContent = adminActionClient
   .schema(z.object({ batchId: z.string().uuid().optional() }))
   .action(async ({ parsedInput }): Promise<VCardResult> => {
     const { batchId } = parsedInput
-    const students = batchId
+    const allStudents = batchId
       ? await getStudentsByBatch(batchId)
       : await getStudents()
+
+    // getStudentsByBatch already excludes withdrawn; the all-students path
+    // does not, so filter here for parity between the two exports.
+    const students = allStudents.filter(
+      (student) => student.status !== StudentStatus.WITHDRAWN
+    )
 
     const contacts: VCardContact[] = []
     let skippedNoContact = 0

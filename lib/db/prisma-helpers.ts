@@ -51,6 +51,10 @@ export const programProfileFullInclude =
       },
     },
     assignments: {
+      // The mapper reads assignments[0] as "the active assignment"; without
+      // this filter a dead assignment can drive the family's billing fields
+      // and status badge (same filter as getProgramProfileById).
+      where: { isActive: true },
       include: {
         subscription: {
           include: {

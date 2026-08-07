@@ -184,7 +184,14 @@ export const dugsiClassInclude = {
     },
   },
   students: {
-    where: { isActive: true },
+    // programProfile.status filter: a Stripe-initiated withdrawal does not
+    // (yet) deactivate the class enrollment row, so isActive alone
+    // overcounts — this keeps the headcount consistent with
+    // getUnassignedDugsiStudents and getAvailableStudentsForClass.
+    where: {
+      isActive: true,
+      programProfile: { status: { in: ['REGISTERED', 'ENROLLED'] } },
+    },
   },
 } as const satisfies Prisma.DugsiClassInclude
 

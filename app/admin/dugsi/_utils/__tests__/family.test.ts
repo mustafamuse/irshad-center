@@ -14,7 +14,18 @@ import {
   getFamilyStatus,
   getPrimaryPayerPhone,
   getPrimaryPayerName,
+  isActiveDugsiEnrollment,
 } from '../family'
+
+describe('isActiveDugsiEnrollment', () => {
+  it('counts REGISTERED and ENROLLED as active, everything else not', () => {
+    expect(isActiveDugsiEnrollment({ status: 'REGISTERED' })).toBe(true)
+    expect(isActiveDugsiEnrollment({ status: 'ENROLLED' })).toBe(true)
+    expect(isActiveDugsiEnrollment({ status: 'WITHDRAWN' })).toBe(false)
+    expect(isActiveDugsiEnrollment({ status: 'ON_LEAVE' })).toBe(false)
+    expect(isActiveDugsiEnrollment({ status: 'COMPLETED' })).toBe(false)
+  })
+})
 
 describe('getFamilyKey', () => {
   it('should return familyReferenceId when present', () => {
@@ -62,6 +73,8 @@ describe('getFamilyStatus', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
+      activeMemberCount: 0,
+      hasActiveChildren: false,
       hasPayment: true,
       hasSubscription: false,
       hasBlockingSubscription: false,
@@ -77,6 +90,8 @@ describe('getFamilyStatus', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
+      activeMemberCount: 0,
+      hasActiveChildren: false,
       hasPayment: true,
       hasSubscription: true,
       hasBlockingSubscription: true,
@@ -92,6 +107,8 @@ describe('getFamilyStatus', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
+      activeMemberCount: 0,
+      hasActiveChildren: false,
       hasPayment: true,
       hasSubscription: false,
       hasBlockingSubscription: false,
@@ -107,6 +124,8 @@ describe('getFamilyStatus', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
+      activeMemberCount: 0,
+      hasActiveChildren: false,
       hasPayment: false,
       hasSubscription: false,
       hasBlockingSubscription: false,
@@ -122,6 +141,8 @@ describe('getFamilyStatus', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
+      activeMemberCount: 0,
+      hasActiveChildren: false,
       hasPayment: true,
       hasSubscription: true,
       hasBlockingSubscription: true,
@@ -135,6 +156,41 @@ describe('getFamilyStatus', () => {
 })
 
 describe('groupRegistrationsByFamily', () => {
+  it('computes activeMemberCount and hasActiveChildren excluding withdrawn children', () => {
+    const registrations: Partial<DugsiRegistration>[] = [
+      {
+        id: 'id-1',
+        familyReferenceId: 'family-1',
+        status: 'ENROLLED',
+        createdAt: new Date('2024-01-01'),
+      },
+      {
+        id: 'id-2',
+        familyReferenceId: 'family-1',
+        status: 'WITHDRAWN',
+        createdAt: new Date('2024-01-02'),
+      },
+      {
+        id: 'id-3',
+        familyReferenceId: 'family-2',
+        status: 'WITHDRAWN',
+        createdAt: new Date('2024-01-03'),
+      },
+    ]
+    const families = groupRegistrationsByFamily(
+      registrations as DugsiRegistration[]
+    )
+
+    const partial = families.find((f) => f.familyKey === 'family-1')!
+    expect(partial.members).toHaveLength(2)
+    expect(partial.activeMemberCount).toBe(1)
+    expect(partial.hasActiveChildren).toBe(true)
+
+    const fullyWithdrawn = families.find((f) => f.familyKey === 'family-2')!
+    expect(fullyWithdrawn.activeMemberCount).toBe(0)
+    expect(fullyWithdrawn.hasActiveChildren).toBe(false)
+  })
+
   it('should group registrations by familyReferenceId', () => {
     const registrations: Partial<DugsiRegistration>[] = [
       {
@@ -349,6 +405,8 @@ describe('getPrimaryPayerPhone', () => {
     familyOverrides: Partial<Family> = {}
   ): Family => ({
     familyKey: 'family-1',
+    activeMemberCount: 1,
+    hasActiveChildren: true,
     members: [
       {
         id: 'id-1',
@@ -504,6 +562,8 @@ describe('getPrimaryPayerPhone', () => {
       const family: Family = {
         familyKey: 'family-1',
         members: [],
+        activeMemberCount: 0,
+        hasActiveChildren: false,
         hasPayment: false,
         hasSubscription: false,
         hasBlockingSubscription: false,
@@ -540,6 +600,8 @@ describe('getPrimaryPayerName', () => {
     familyOverrides: Partial<Family> = {}
   ): Family => ({
     familyKey: 'family-1',
+    activeMemberCount: 1,
+    hasActiveChildren: true,
     members: [
       {
         id: 'id-1',
@@ -659,6 +721,8 @@ describe('getPrimaryPayerName', () => {
       const family: Family = {
         familyKey: 'family-1',
         members: [],
+        activeMemberCount: 0,
+        hasActiveChildren: false,
         hasPayment: false,
         hasSubscription: false,
         hasBlockingSubscription: false,

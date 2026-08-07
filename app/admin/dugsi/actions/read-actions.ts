@@ -21,6 +21,7 @@ import {
 
 import { DugsiRegistration } from '../_types'
 import {
+  isActiveDugsiEnrollment,
   isActiveDugsiRegistration,
   isChurnedDugsiRegistration,
 } from '../_utils/family'
@@ -95,11 +96,21 @@ const _generateDugsiVCardContent = adminActionClient
       let skippedNoContact = 0
       let skippedDuplicate = 0
       let skippedChurned = 0
+      let skippedWithdrawn = 0
 
-      for (const members of familyMap.values()) {
-        const hasSubscription = members.some(isActiveDugsiRegistration)
-        const hasChurned = members.some(isChurnedDugsiRegistration)
-        const hasRecoverable = members.some(
+      for (const allMembers of familyMap.values()) {
+        // Withdrawn children are not exported: a fully-withdrawn family is
+        // skipped, a partially-withdrawn one exports only active children.
+        // Subscription flags still consider all members (billing is
+        // family-level and may live on a withdrawn child's record).
+        const members = allMembers.filter(isActiveDugsiEnrollment)
+        if (members.length === 0) {
+          skippedWithdrawn++
+          continue
+        }
+        const hasSubscription = allMembers.some(isActiveDugsiRegistration)
+        const hasChurned = allMembers.some(isChurnedDugsiRegistration)
+        const hasRecoverable = allMembers.some(
           (m) =>
             !!m.stripeSubscriptionIdDugsi &&
             (m.subscriptionStatus === SubscriptionStatus.past_due ||
@@ -267,6 +278,7 @@ const _generateDugsiVCardContent = adminActionClient
           skippedNoContact,
           skippedDuplicate,
           skippedChurned,
+          skippedWithdrawn,
           totalFamilies: familyMap.size, // vCard grouping: phone-normalized, may differ from UI family count
           includeChurned,
           shift,
@@ -281,6 +293,7 @@ const _generateDugsiVCardContent = adminActionClient
         skippedNoContact,
         skippedDuplicate,
         skippedChurned,
+        skippedWithdrawn,
       }
     }
   )

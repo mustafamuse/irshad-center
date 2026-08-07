@@ -19,18 +19,19 @@ export function useFamilyGroups(registrations: DugsiRegistration[]): Family[] {
 }
 
 export function useFamilyStats(families: Family[]) {
-  return useMemo(
-    () => ({
-      all: families.length,
-      active: families.filter((f) => f.hasSubscription).length,
-      churned: families.filter((f) => f.hasChurned && !f.hasSubscription)
+  return useMemo(() => {
+    // Same fully-withdrawn exclusion as DugsiStats and filterFamiliesByTab
+    // — tab badges must agree with both the stat cards and the tab lists.
+    const current = families.filter((f) => f.hasActiveChildren)
+    return {
+      all: current.length,
+      active: current.filter((f) => f.hasSubscription).length,
+      churned: current.filter((f) => f.hasChurned && !f.hasSubscription).length,
+      needsAttention: current.filter((f) => !f.hasPayment && !f.hasChurned)
         .length,
-      needsAttention: families.filter((f) => !f.hasPayment && !f.hasChurned)
-        .length,
-      billingMismatch: families.filter(
+      billingMismatch: current.filter(
         (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
       ).length,
-    }),
-    [families]
-  )
+    }
+  }, [families])
 }

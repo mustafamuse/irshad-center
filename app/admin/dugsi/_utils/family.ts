@@ -29,6 +29,15 @@ type SubscriptionFields = Pick<
   'stripeSubscriptionIdDugsi' | 'subscriptionStatus'
 >
 
+// Enrollment-status counterpart to the subscription predicates below: a
+// withdrawn child stays in the registrations list (family detail and
+// re-enroll need it) but must not count toward stats, outreach buckets, or
+// exports. Mirrors the server-side REGISTERED/ENROLLED filters
+// (findFamilyProfilesForCheckout, getUnassignedDugsiStudents).
+export const isActiveDugsiEnrollment = (
+  member: Pick<DugsiRegistration, 'status'>
+): boolean => member.status === 'REGISTERED' || member.status === 'ENROLLED'
+
 export const isActiveDugsiRegistration = (
   member: SubscriptionFields
 ): boolean =>
@@ -164,9 +173,13 @@ export function groupRegistrationsByFamily(
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     )
 
+    const activeMembers = sorted.filter(isActiveDugsiEnrollment)
+
     return {
       familyKey: key,
       members: sorted,
+      activeMemberCount: activeMembers.length,
+      hasActiveChildren: activeMembers.length > 0,
       hasPayment: sorted.some((m) => m.paymentMethodCaptured),
       hasSubscription: sorted.some(isActiveDugsiRegistration),
       hasBlockingSubscription: sorted.some(isBlockingDugsiRegistration),

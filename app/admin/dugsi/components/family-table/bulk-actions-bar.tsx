@@ -26,7 +26,13 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
 
   const eligibleFamilies = selectedFamilies.filter((f) => {
     const member = f.members[0]
-    return member?.familyReferenceId && !f.hasBlockingSubscription
+    return (
+      member?.familyReferenceId &&
+      !f.hasBlockingSubscription &&
+      // Fully-withdrawn families would 404 server-side
+      // (findFamilyProfilesForCheckout filters withdrawn children)
+      f.hasActiveChildren
+    )
   })
 
   const handleBulkGenerateLinks = async () => {

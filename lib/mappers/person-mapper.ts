@@ -133,7 +133,7 @@ export function mapPersonToSearchResult(
     roleDetails.student = {
       programs: person.programProfiles.map((p) => ({
         program: p.program,
-        status: (p.enrollments[0]?.status || 'REGISTERED') as EnrollmentStatus,
+        status: (p.enrollments[0]?.status || p.status) as EnrollmentStatus,
       })),
     }
   }
