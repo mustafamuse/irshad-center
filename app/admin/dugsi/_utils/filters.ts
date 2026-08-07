@@ -178,15 +178,19 @@ export function filterFamiliesByTab(
   families: Family[],
   tab: TabValue
 ): Family[] {
+  // Fully-withdrawn families appear only under 'all'/'overview' (so the
+  // admin can still find and re-enroll them); every action-oriented bucket
+  // excludes them. Keep in lockstep with useFamilyStats and DugsiStats.
+  const current = families.filter((f) => f.hasActiveChildren)
   switch (tab) {
     case 'active':
-      return families.filter((f) => f.hasSubscription)
+      return current.filter((f) => f.hasSubscription)
     case 'churned':
-      return families.filter((f) => f.hasChurned && !f.hasSubscription)
+      return current.filter((f) => f.hasChurned && !f.hasSubscription)
     case 'needs-attention':
-      return families.filter((f) => !f.hasPayment && !f.hasChurned)
+      return current.filter((f) => !f.hasPayment && !f.hasChurned)
     case 'billing-mismatch':
-      return families.filter(
+      return current.filter(
         (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
       )
     case 'overview':

@@ -15,15 +15,24 @@ export interface VCardResult {
   skippedNoContact: number
   skippedDuplicate?: number // per contact attempt
   skippedChurned?: number // per family (not per contact)
+  skippedWithdrawn?: number // per family (all children withdrawn)
 }
 
 export function formatSkipSummary(
   result: Pick<
     VCardResult,
-    'skippedNoContact' | 'skippedDuplicate' | 'skippedChurned'
+    | 'skippedNoContact'
+    | 'skippedDuplicate'
+    | 'skippedChurned'
+    | 'skippedWithdrawn'
   >
 ): string {
-  const { skippedNoContact, skippedDuplicate, skippedChurned } = result
+  const {
+    skippedNoContact,
+    skippedDuplicate,
+    skippedChurned,
+    skippedWithdrawn,
+  } = result
   const parts = [
     skippedNoContact > 0 && `${skippedNoContact} no-contact`,
     skippedDuplicate !== undefined &&
@@ -32,6 +41,9 @@ export function formatSkipSummary(
     skippedChurned !== undefined &&
       skippedChurned > 0 &&
       `${skippedChurned} churned fam.`,
+    skippedWithdrawn !== undefined &&
+      skippedWithdrawn > 0 &&
+      `${skippedWithdrawn} withdrawn fam.`,
   ]
     .filter(Boolean)
     .join(', ')

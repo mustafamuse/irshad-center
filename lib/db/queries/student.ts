@@ -139,9 +139,12 @@ function transformToStudent(profile: ProfileWithRelations): MahadStudent {
     paymentFrequency: profile.paymentFrequency,
     billingType: profile.billingType,
     paymentNotes: profile.paymentNotes,
+    // The enrollments relation is pre-filtered to active rows, so a
+    // withdrawn student has no enrollment — fall back to the profile's own
+    // status, never a REGISTERED literal (it made withdrawn read as active).
     status: enrollment
       ? enrollmentStatusToStudentStatus(enrollment.status)
-      : StudentStatus.REGISTERED,
+      : enrollmentStatusToStudentStatus(profile.status),
     batchId: enrollment?.batchId || null,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,

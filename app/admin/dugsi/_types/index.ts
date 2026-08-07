@@ -80,6 +80,10 @@ export interface DugsiRegistration {
 export interface Family {
   familyKey: string
   members: DugsiRegistration[]
+  /** Members with status REGISTERED or ENROLLED (withdrawn excluded) */
+  activeMemberCount: number
+  /** False when every child in the family is withdrawn */
+  hasActiveChildren: boolean
   hasPayment: boolean
   hasSubscription: boolean
   hasBlockingSubscription: boolean

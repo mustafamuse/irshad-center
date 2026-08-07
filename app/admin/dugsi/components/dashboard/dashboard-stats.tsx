@@ -24,19 +24,28 @@ interface DugsiStatsProps {
 export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
   const families = groupRegistrationsByFamily(registrations)
 
-  const totalFamilies = families.length
-  const totalStudents = registrations.length
-  const payingFamilies = families.filter((f) => f.hasSubscription).length
-  const churnedFamilies = families.filter(
+  // Fully-withdrawn families are excluded from every stat: they are not
+  // outreach targets and must not deflate the paying rate or inflate the
+  // "No Payment" bucket. Withdrawn children likewise don't count as
+  // students. Must stay in lockstep with useFamilyStats/filterFamiliesByTab.
+  const currentFamilies = families.filter((f) => f.hasActiveChildren)
+
+  const totalFamilies = currentFamilies.length
+  const totalStudents = families.reduce(
+    (sum, f) => sum + f.activeMemberCount,
+    0
+  )
+  const payingFamilies = currentFamilies.filter((f) => f.hasSubscription).length
+  const churnedFamilies = currentFamilies.filter(
     (f) => f.hasChurned && !f.hasSubscription
   ).length
-  const noPaymentFamilies = families.filter(
+  const noPaymentFamilies = currentFamilies.filter(
     (f) => !f.hasPayment && !f.hasChurned
   ).length
   const payingRate =
     totalFamilies > 0 ? Math.round((payingFamilies / totalFamilies) * 100) : 0
 
-  const monthlyRevenue = families
+  const monthlyRevenue = currentFamilies
     .filter((f) => f.hasSubscription)
     .reduce((sum, family) => {
       const activeStudent = family.members.find(
@@ -50,7 +59,7 @@ export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
     currency: 'USD',
   }).format(monthlyRevenue / 100)
 
-  const revenueStats = families.reduce(
+  const revenueStats = currentFamilies.reduce(
     (acc, family) => {
       if (!family.hasSubscription) return acc
 

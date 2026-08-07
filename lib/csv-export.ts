@@ -97,7 +97,7 @@ export function generateFamiliesCSV(families: Family[]): string {
         payerPhone,
         otherParentName,
         otherParentPhone,
-        family.members.length.toString(),
+        family.activeMemberCount.toString(),
         subscriptionStatus,
         subscriptionAmount,
         getFamilyStatus(family),

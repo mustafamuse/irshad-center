@@ -126,7 +126,7 @@ export const lookupPersonAction = adminActionClient
         profiles: person.programProfiles.map((profile) => ({
           id: profile.id,
           program: profile.program,
-          status: profile.enrollments[0]?.status || 'REGISTERED',
+          status: profile.enrollments[0]?.status || profile.status,
           levelGroup: profile.gradeLevel ?? null,
           shift: profile.shift ?? null,
           teacherName:
@@ -143,7 +143,7 @@ export const lookupPersonAction = adminActionClient
           name: rel.dependent.name,
           programs: rel.dependent.programProfiles.map((profile) => ({
             program: profile.program,
-            status: profile.enrollments[0]?.status || 'REGISTERED',
+            status: profile.enrollments[0]?.status || profile.status,
           })),
         })),
       }
