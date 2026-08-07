@@ -210,6 +210,64 @@ export function isValidStripeId(id: unknown, prefix: string): id is string {
 }
 
 /**
+ * Extract the subscription ID an invoice belongs to, or null for a one-off.
+ *
+ * Basil moved invoice.subscription to
+ * invoice.parent.subscription_details.subscription. Webhook payloads render at
+ * the endpoint's configured API version, which may differ from the SDK pin, so
+ * read the current shape first and fall back to the legacy top-level field.
+ */
+export function extractInvoiceSubscriptionId(invoice: unknown): string | null {
+  if (!invoice || typeof invoice !== 'object') return null
+
+  const inv = invoice as Record<string, unknown>
+  const parent = inv.parent as Record<string, unknown> | null | undefined
+  const details = parent?.subscription_details as
+    | Record<string, unknown>
+    | null
+    | undefined
+
+  return (
+    toSubscriptionId(details?.subscription) ??
+    toSubscriptionId(inv.subscription)
+  )
+}
+
+function toSubscriptionId(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object') {
+    const id = (value as Record<string, unknown>).id
+    if (typeof id === 'string') return id
+  }
+  return null
+}
+
+/**
+ * Read current_period_start/end off the first subscription item.
+ *
+ * API version 2025-08-27.basil (pinned in lib/stripe-factory.ts) removed the
+ * top-level current_period_* fields and moved them onto each subscription
+ * item. Webhook payloads are rendered at whatever version the endpoint is
+ * configured for, which may lag the SDK pin, so both shapes must be read.
+ */
+function extractItemPeriodField(
+  sub: Record<string, unknown>,
+  field: 'start' | 'end'
+): number | null {
+  const items = sub.items
+  if (!items || typeof items !== 'object') return null
+
+  const data = (items as Record<string, unknown>).data
+  if (!Array.isArray(data) || data.length === 0) return null
+
+  const first = data[0]
+  if (!first || typeof first !== 'object') return null
+
+  const value = (first as Record<string, unknown>)[`current_period_${field}`]
+  return typeof value === 'number' ? value : null
+}
+
+/**
  * Safe extraction of subscription period end
  * Returns null instead of undefined for consistency with Prisma types
  */
@@ -217,7 +275,7 @@ export function extractPeriodEnd(subscription: unknown): Date | null {
   if (!subscription || typeof subscription !== 'object') return null
 
   const sub = subscription as Record<string, unknown>
-  const periodEnd = sub.current_period_end
+  const periodEnd = sub.current_period_end ?? extractItemPeriodField(sub, 'end')
 
   if (!periodEnd) return null
 
@@ -237,7 +295,8 @@ export function extractPeriodStart(subscription: unknown): Date | null {
   if (!subscription || typeof subscription !== 'object') return null
 
   const sub = subscription as Record<string, unknown>
-  const periodStart = sub.current_period_start
+  const periodStart =
+    sub.current_period_start ?? extractItemPeriodField(sub, 'start')
 
   if (!periodStart) return null
 

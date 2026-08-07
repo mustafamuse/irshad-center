@@ -48,6 +48,7 @@ import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
   extractCustomerId,
+  extractInvoiceSubscriptionId,
   extractPeriodDates,
   isValidSubscriptionStatus,
 } from '@/lib/utils/type-guards'
@@ -582,10 +583,15 @@ export async function handleSubscriptionUpdated(
   const periodDates = extractPeriodDates(subscription)
 
   // Update subscription
+  // currentPeriodEnd is the billing schedule and always reflects Stripe.
+  // paidUntil means "paid through" and must not: Stripe advances the period
+  // when it drafts the renewal invoice and fires this event with status
+  // past_due once the charge fails, so copying periodEnd here would mark an
+  // unpaid family covered — the same lie the invoice handler now refuses to
+  // tell. Settlement is owned solely by the invoice path.
   await updateSubscriptionStatusQuery(dbSubscription.id, status, {
     currentPeriodStart: periodDates.periodStart,
     currentPeriodEnd: periodDates.periodEnd,
-    paidUntil: periodDates.periodEnd,
   })
 
   if (accountType === 'MAHAD') {
@@ -662,28 +668,31 @@ export async function handleSubscriptionDeleted(
   }
 }
 
+/** Stripe events routed to handleInvoiceFinalized. */
+export type InvoiceLifecycleEvent =
+  | 'invoice.finalized'
+  | 'invoice.payment_succeeded'
+  | 'invoice.paid'
+
 /**
- * Handle invoice finalized event.
+ * Handle an invoice lifecycle event.
  *
- * Called when invoice.finalized event is received.
- * Updates subscription paid_until date.
+ * Registered for invoice.finalized, invoice.payment_succeeded and
+ * invoice.paid. Advances Subscription.paidUntil only when the invoice is
+ * actually settled and the subscription row is not already canceled, so
+ * finalization alone never marks a family paid through the next period.
  *
  * @param invoice - Stripe invoice object
- * @returns Updated subscription or null
+ * @param accountType - Which Stripe account the event came from
+ * @param sourceEvent - Event type that routed here; controls skip log level
+ * @returns Current subscription id and paidUntil, or null if not applicable
  */
 export async function handleInvoiceFinalized(
   invoice: Stripe.Invoice,
-  accountType: StripeAccountType
+  accountType: StripeAccountType,
+  sourceEvent: InvoiceLifecycleEvent = 'invoice.finalized'
 ): Promise<{ subscriptionId: string; paidUntil: Date | null } | null> {
-  // Extract subscription ID (may be expanded object or just the ID string)
-  // Type assertion needed because Stripe's Invoice type doesn't include expanded subscription
-  const invoiceData = invoice as Stripe.Invoice & {
-    subscription?: string | Stripe.Subscription
-  }
-  const subscriptionId =
-    typeof invoiceData.subscription === 'string'
-      ? invoiceData.subscription
-      : (invoiceData.subscription?.id ?? null)
+  const subscriptionId = extractInvoiceSubscriptionId(invoice)
 
   if (!subscriptionId) {
     // Not a subscription invoice
@@ -701,7 +710,49 @@ export async function handleInvoiceFinalized(
     return null
   }
 
-  // Update paid_until to the period_end of the invoice
+  // paidUntil means "paid through", so only a settled invoice may advance it.
+  // This handler serves both invoice.finalized (fires at invoice creation,
+  // before any charge) and invoice.payment_succeeded; without this gate the
+  // finalized event marks a family paid through the next period the moment
+  // Stripe drafts the bill, and a later failed payment never walks it back.
+  //
+  // A canceled subscription is terminal — Stripe redelivers for up to 3 days
+  // and does not guarantee ordering, so a late invoice event must not extend
+  // coverage on a row we already retired.
+  // amount_remaining === 0 is the version-proof settlement signal: it holds for
+  // every fully-settled invoice even where status lags, such as an invoice
+  // covered by several partial payments. status === 'paid' alone would be
+  // correct only for the single-charge subscriptions we bill today.
+  const settled = invoice.status === 'paid' || invoice.amount_remaining === 0
+
+  if (!settled || dbSubscription.status === 'canceled') {
+    const context = {
+      subscriptionId,
+      invoiceId: invoice.id,
+      invoiceStatus: invoice.status,
+      amountRemaining: invoice.amount_remaining,
+      subscriptionStatus: dbSubscription.status,
+      sourceEvent,
+    }
+
+    // An unsettled invoice.finalized is the expected case and fires for every
+    // family every month, as does a late event on a canceled row. A settlement
+    // event that arrives unsettled is not expected and would stall paidUntil
+    // silently, so that case alone warns.
+    if (!settled && sourceEvent !== 'invoice.finalized') {
+      logger.warn(
+        context,
+        'Settlement event did not advance paidUntil - investigate'
+      )
+    } else {
+      logger.info(context, 'Skipping paidUntil advance')
+    }
+    return {
+      subscriptionId: dbSubscription.id,
+      paidUntil: dbSubscription.paidUntil,
+    }
+  }
+
   const paidUntil = invoice.period_end
     ? new Date(invoice.period_end * 1000)
     : null

@@ -425,15 +425,22 @@ export async function withdrawChildren(
         )
       }
 
+      // Full withdrawal only sets cancel_at_period_end: Stripe still bills the
+      // remaining period at the current rate, so writing newRate (0) here would
+      // claim the family owes nothing while their card is charged. The row is
+      // retired by customer.subscription.deleted at period end. Partial
+      // withdrawals really did reprice in Stripe, so they sync immediately.
       try {
-        await updateSubscriptionAmount(subscription.id, newRate)
+        if (!allWithdrawn) {
+          await updateSubscriptionAmount(subscription.id, newRate)
+        }
       } catch (dbError) {
+        // Only reachable on the partial path: the full-withdrawal branch
+        // writes nothing, so there is no DB state to diverge from Stripe.
         const error = await handleBillingDivergence(
           logger,
           dbError,
-          allWithdrawn
-            ? 'Stripe cancel_at_period_end set'
-            : `Stripe updated to ${newRate} cents`,
+          `Stripe updated to ${newRate} cents`,
           {
             familyReferenceId,
             stripeSubscriptionId: subscription.stripeSubscriptionId,

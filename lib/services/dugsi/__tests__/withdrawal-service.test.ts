@@ -402,7 +402,21 @@ describe('withdrawChildren', () => {
       'sub_stripe123',
       expect.objectContaining({ cancel_at_period_end: true })
     )
-    expect(mockUpdateSubscriptionAmount).toHaveBeenCalledWith('db-sub-id', 0)
+    expect(mockUpdateSubscriptionAmount).not.toHaveBeenCalled()
+  })
+
+  it('should leave the subscription amount intact on full withdrawal — the final period still bills', async () => {
+    mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
+      createMockProfiles(2)
+    )
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
+
+    const result = await withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
+
+    expect(result.success).toBe(true)
+    expect(result.subscriptionCanceled).toBe(true)
+    expect(mockUpdateSubscriptionAmount).not.toHaveBeenCalled()
   })
 
   it('should dedupe repeated profileIds instead of failing with an empty missing list', async () => {
@@ -578,23 +592,19 @@ describe('withdrawChildren', () => {
     expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 
-  it('should treat post-cancel DB failure as divergence, not rollback', async () => {
+  it('should not enter the divergence path after cancel_at_period_end — nothing is written', async () => {
     mockFindFamilyProfilesForWithdrawal.mockResolvedValueOnce(
       createMockProfiles(2)
     )
     mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
     mockStripeSubscriptionUpdate.mockResolvedValueOnce({})
-    mockUpdateSubscriptionAmount.mockRejectedValueOnce(
-      new Error('DB connection lost')
-    )
-    mockHandleBillingDivergence.mockResolvedValueOnce(
-      'Stripe cancel_at_period_end set but DB update failed. Check logs for details.'
-    )
 
     const result = await withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
 
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
     expect(result.subscriptionCanceled).toBe(true)
+    expect(mockUpdateSubscriptionAmount).not.toHaveBeenCalled()
+    expect(mockHandleBillingDivergence).not.toHaveBeenCalled()
     expect(mockReactivateBillingAssignments).not.toHaveBeenCalled()
     expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })

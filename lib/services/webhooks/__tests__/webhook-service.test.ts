@@ -78,7 +78,8 @@ vi.mock('@/lib/utils/mahad-tuition', () => ({
   calculateMahadRate: vi.fn(),
 }))
 
-vi.mock('@/lib/utils/type-guards', () => ({
+vi.mock('@/lib/utils/type-guards', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/utils/type-guards')>()),
   extractCustomerId: mockExtractCustomerId,
   extractPeriodDates: vi.fn(() => ({
     periodStart: new Date(),
@@ -91,6 +92,7 @@ import { updateSubscriptionStatus } from '@/lib/db/queries/billing'
 import { logError } from '@/lib/logger'
 
 import {
+  handleInvoiceFinalized,
   handleSubscriptionCreated,
   handleSubscriptionUpdated,
 } from '../webhook-service'
@@ -365,6 +367,18 @@ describe('handleSubscriptionUpdated', () => {
     )
   })
 
+  it('does not advance paidUntil - settlement is owned by the invoice path', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
+
+    await handleSubscriptionUpdated(
+      createMockSubscription({ status: 'past_due' }),
+      'DUGSI'
+    )
+
+    const [, , data] = vi.mocked(updateSubscriptionStatus).mock.calls[0]
+    expect(data).not.toHaveProperty('paidUntil')
+  })
+
   it('does not mask non-active statuses when pause_collection is set', async () => {
     mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
 
@@ -375,5 +389,102 @@ describe('handleSubscriptionUpdated', () => {
     const result = await handleSubscriptionUpdated(subscription, 'DUGSI')
 
     expect(result.status).toBe('past_due')
+  })
+})
+
+describe('handleInvoiceFinalized', () => {
+  const PERIOD_END = 1780000000
+  const EXISTING_PAID_UNTIL = new Date('2026-03-01')
+
+  function createMockInvoice(
+    overrides: Partial<Stripe.Invoice> = {}
+  ): Stripe.Invoice {
+    return {
+      id: 'in_test_123',
+      object: 'invoice',
+      status: 'paid',
+      period_end: PERIOD_END,
+      subscription: 'sub_test_123',
+      ...overrides,
+    } as unknown as Stripe.Invoice
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSubscriptionByStripeId.mockResolvedValue({
+      id: 'db_sub_1',
+      status: 'active',
+      paidUntil: EXISTING_PAID_UNTIL,
+    })
+  })
+
+  it('advances paidUntil for a paid invoice', async () => {
+    const result = await handleInvoiceFinalized(createMockInvoice(), 'DUGSI')
+
+    expect(result?.paidUntil).toEqual(new Date(PERIOD_END * 1000))
+    expect(vi.mocked(updateSubscriptionStatus)).toHaveBeenCalledWith(
+      'db_sub_1',
+      'active',
+      { paidUntil: new Date(PERIOD_END * 1000) }
+    )
+  })
+
+  it('does not advance paidUntil for an open (unpaid) invoice', async () => {
+    const result = await handleInvoiceFinalized(
+      createMockInvoice({ status: 'open' }),
+      'DUGSI'
+    )
+
+    expect(result?.paidUntil).toEqual(EXISTING_PAID_UNTIL)
+    expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+  })
+
+  it('does not advance paidUntil for a draft invoice', async () => {
+    await handleInvoiceFinalized(
+      createMockInvoice({ status: 'draft' }),
+      'MAHAD'
+    )
+
+    expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+  })
+
+  it('does not advance paidUntil on a canceled subscription row', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue({
+      id: 'db_sub_1',
+      status: 'canceled',
+      paidUntil: EXISTING_PAID_UNTIL,
+    })
+
+    const result = await handleInvoiceFinalized(createMockInvoice(), 'DUGSI')
+
+    expect(result?.paidUntil).toEqual(EXISTING_PAID_UNTIL)
+    expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+  })
+
+  it('resolves the subscription from the basil parent shape', async () => {
+    const basilInvoice = {
+      id: 'in_basil',
+      object: 'invoice',
+      status: 'paid',
+      period_end: PERIOD_END,
+      parent: {
+        subscription_details: { subscription: 'sub_test_123' },
+      },
+    } as unknown as Stripe.Invoice
+
+    const result = await handleInvoiceFinalized(basilInvoice, 'DUGSI')
+
+    expect(mockGetSubscriptionByStripeId).toHaveBeenCalledWith('sub_test_123')
+    expect(result?.paidUntil).toEqual(new Date(PERIOD_END * 1000))
+  })
+
+  it('returns null when the invoice is not tied to a subscription', async () => {
+    const result = await handleInvoiceFinalized(
+      createMockInvoice({ subscription: null } as Partial<Stripe.Invoice>),
+      'DUGSI'
+    )
+
+    expect(result).toBeNull()
+    expect(mockGetSubscriptionByStripeId).not.toHaveBeenCalled()
   })
 })

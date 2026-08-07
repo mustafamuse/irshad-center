@@ -27,6 +27,7 @@ export const POST = createWebhookHandler({
       mahadEventHandlers['customer.subscription.deleted'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_SUCCEEDED]:
       mahadEventHandlers['invoice.payment_succeeded'],
+    [STRIPE_WEBHOOK_EVENTS.INVOICE_PAID]: mahadEventHandlers['invoice.paid'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED]:
       mahadEventHandlers['invoice.payment_failed'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_FINALIZED]:
