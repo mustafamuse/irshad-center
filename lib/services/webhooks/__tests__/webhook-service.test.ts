@@ -462,6 +462,18 @@ describe('handleInvoiceFinalized', () => {
     )
   })
 
+  it.each(['draft', 'void', 'uncollectible'] as const)(
+    'does not treat a $0 %s invoice as settled',
+    async (status) => {
+      await handleInvoiceFinalized(
+        createMockInvoice({ status, amount_remaining: 0 }),
+        'DUGSI'
+      )
+
+      expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+    }
+  )
+
   it('does not treat a fully-prorated $0 draft as settled', async () => {
     await handleInvoiceFinalized(
       createMockInvoice({ status: 'draft', amount_remaining: 0 }),

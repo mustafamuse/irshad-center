@@ -723,12 +723,15 @@ export async function handleInvoiceFinalized(
   // every fully-settled invoice even where status lags, such as an invoice
   // covered by several partial payments. status === 'paid' alone would be
   // correct only for the single-charge subscriptions we bill today.
-  // A draft is excluded outright: a fully-prorated $0 draft also has nothing
-  // remaining, and treating that as settled would advance paidUntil at draft
-  // time — exactly the bug this gate exists to prevent.
+  // Whitelist, not blacklist: nothing-remaining is also true of draft, void
+  // and uncollectible invoices, none of which mean anyone paid. A fully
+  // prorated $0 draft would otherwise advance paidUntil at draft time, which
+  // is the exact bug this gate exists to prevent. 'open' with nothing
+  // remaining is the one real lag case — an invoice settled by several
+  // partial payments, where status trails the balance.
   const settled =
-    invoice.status !== 'draft' &&
-    (invoice.status === 'paid' || invoice.amount_remaining === 0)
+    invoice.status === 'paid' ||
+    (invoice.status === 'open' && invoice.amount_remaining === 0)
 
   if (!settled || dbSubscription.status === 'canceled') {
     const context = {
