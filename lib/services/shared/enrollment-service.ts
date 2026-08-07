@@ -17,6 +17,7 @@ import {
   getBillingAssignmentsBySubscription,
   getSubscriptionByStripeId,
 } from '@/lib/db/queries/billing'
+import { deactivateClassEnrollmentsForProfiles } from '@/lib/db/queries/dugsi-class'
 import {
   getActiveEnrollment,
   updateEnrollmentStatus,
@@ -32,6 +33,7 @@ import { isValidStatusTransition } from '@/lib/types/enrollment'
 export interface EnrollmentUpdateResult {
   withdrawn: number
   profilesWithdrawn: number
+  classEnrollmentsDeactivated: number
 }
 
 /**
@@ -41,6 +43,9 @@ export interface EnrollmentUpdateResult {
  * For every still-active BillingAssignment on the canceled subscription:
  *   - sets the active Enrollment row to WITHDRAWN (both programs)
  *   - sets the ProgramProfile.status to WITHDRAWN (Dugsi only)
+ *   - deactivates the DugsiClassEnrollment row (Dugsi only), matching what
+ *     the admin withdrawal path does — otherwise the child stays on a class
+ *     roster and headcount while being withdrawn everywhere else
  *
  * Mahad keeps profile-level status untouched because students move between
  * cohorts; cohort lifecycle is tracked at the Enrollment row level. Dugsi
@@ -69,7 +74,10 @@ export async function handleSubscriptionCancellationEnrollments(
     const results: EnrollmentUpdateResult = {
       withdrawn: 0,
       profilesWithdrawn: 0,
+      classEnrollmentsDeactivated: 0,
     }
+
+    const withdrawnDugsiProfileIds: string[] = []
 
     // No per-iteration try/catch: any failure must propagate so the outer
     // $transaction rolls back. PostgreSQL aborts the txn on the first failed
@@ -117,7 +125,20 @@ export async function handleSubscriptionCancellationEnrollments(
           tx
         )
         results.profilesWithdrawn++
+        withdrawnDugsiProfileIds.push(assignment.programProfileId)
       }
+    }
+
+    // Mirrors the admin withdrawal path (withdrawal-service). Batched after
+    // the loop: updateMany is idempotent (isActive: true guard) so a webhook
+    // retry deactivates nothing a second time and cannot advance endDate.
+    if (withdrawnDugsiProfileIds.length > 0) {
+      const deactivated = await deactivateClassEnrollmentsForProfiles(
+        withdrawnDugsiProfileIds,
+        new Date(),
+        tx
+      )
+      results.classEnrollmentsDeactivated = deactivated.count
     }
 
     logger.info(
@@ -125,6 +146,7 @@ export async function handleSubscriptionCancellationEnrollments(
         stripeSubscriptionId,
         withdrawn: results.withdrawn,
         profilesWithdrawn: results.profilesWithdrawn,
+        classEnrollmentsDeactivated: results.classEnrollmentsDeactivated,
       },
       'Subscription cancellation cascade complete'
     )
