@@ -329,11 +329,30 @@ export async function enrollStudentInClass(
   programProfileId: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  await client.dugsiClassEnrollment.create({
-    data: {
+  // No-op guard mirrors bulkEnrollStudents: re-running this for a student
+  // already active in the target class must not restart their startDate.
+  const existing = await client.dugsiClassEnrollment.findUnique({
+    where: { programProfileId },
+    select: { classId: true, isActive: true },
+  })
+  if (existing?.isActive && existing.classId === classId) return
+
+  // Upsert, not create: a returning student still owns a deactivated
+  // DugsiClassEnrollment row from their withdrawal, and programProfileId is
+  // unique — a bare create would fail with P2002 and surface as a generic
+  // error every time an admin re-assigns a re-enrolled child.
+  await client.dugsiClassEnrollment.upsert({
+    where: { programProfileId },
+    create: {
       classId,
       programProfileId,
       isActive: true,
+    },
+    update: {
+      classId,
+      isActive: true,
+      startDate: new Date(),
+      endDate: null,
     },
   })
 }

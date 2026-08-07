@@ -190,22 +190,7 @@ const _enrollStudentInClassAction = adminActionClient
   .schema(EnrollStudentInClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, programProfileId } = parsedInput
-    try {
-      await enrollStudentInClass(classId, programProfileId)
-    } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        error.code === 'P2002'
-      ) {
-        throw new ActionError(
-          'This student is already enrolled in a class',
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
-      throw error
-    }
+    await enrollStudentInClass(classId, programProfileId)
     after(() => {
       revalidatePath('/admin/dugsi/classes')
     })

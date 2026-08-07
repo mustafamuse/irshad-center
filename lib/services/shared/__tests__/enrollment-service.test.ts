@@ -6,6 +6,7 @@ const {
   mockGetActiveEnrollment,
   mockUpdateEnrollmentStatus,
   mockUpdateProgramProfileStatus,
+  mockDeactivateClassEnrollmentsForProfiles,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockGetSubscriptionByStripeId: vi.fn(),
@@ -13,7 +14,13 @@ const {
   mockGetActiveEnrollment: vi.fn(),
   mockUpdateEnrollmentStatus: vi.fn(),
   mockUpdateProgramProfileStatus: vi.fn(),
+  mockDeactivateClassEnrollmentsForProfiles: vi.fn(),
   mockTransaction: vi.fn(),
+}))
+
+vi.mock('@/lib/db/queries/dugsi-class', () => ({
+  deactivateClassEnrollmentsForProfiles: (...args: unknown[]) =>
+    mockDeactivateClassEnrollmentsForProfiles(...args),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -81,6 +88,7 @@ describe('handleSubscriptionCancellationEnrollments', () => {
     })
     mockUpdateEnrollmentStatus.mockResolvedValue(undefined)
     mockUpdateProgramProfileStatus.mockResolvedValue(undefined)
+    mockDeactivateClassEnrollmentsForProfiles.mockResolvedValue({ count: 1 })
     mockTransaction.mockImplementation(
       async (fn: (tx: unknown) => Promise<unknown>) => fn({})
     )
@@ -215,5 +223,49 @@ describe('handleSubscriptionCancellationEnrollments', () => {
       handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
     ).rejects.toThrow('simulated DB failure')
     expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
+  })
+
+  it('deactivates the class enrollment for withdrawn Dugsi profiles', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({ profileId: 'p_dugsi_1', program: 'DUGSI_PROGRAM' }),
+      makeAssignment({ profileId: 'p_dugsi_2', program: 'DUGSI_PROGRAM' }),
+    ])
+    mockDeactivateClassEnrollmentsForProfiles.mockResolvedValue({ count: 2 })
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(mockDeactivateClassEnrollmentsForProfiles).toHaveBeenCalledWith(
+      ['p_dugsi_1', 'p_dugsi_2'],
+      expect.any(Date),
+      expect.anything()
+    )
+    expect(result.classEnrollmentsDeactivated).toBe(2)
+  })
+
+  it('does not touch class enrollments for Mahad profiles', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({ profileId: 'p_mahad', program: 'MAHAD_PROGRAM' }),
+    ])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(mockDeactivateClassEnrollmentsForProfiles).not.toHaveBeenCalled()
+    expect(result.classEnrollmentsDeactivated).toBe(0)
+  })
+
+  it('does not re-deactivate class enrollments for an already-withdrawn profile (retry safety)', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({
+        profileId: 'p_dugsi',
+        program: 'DUGSI_PROGRAM',
+        status: 'WITHDRAWN',
+      }),
+    ])
+
+    await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(mockDeactivateClassEnrollmentsForProfiles).not.toHaveBeenCalled()
   })
 })
