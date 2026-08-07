@@ -249,6 +249,9 @@ function toSubscriptionId(value: unknown): string | null {
  * top-level current_period_* fields and moved them onto each subscription
  * item. Webhook payloads are rendered at whatever version the endpoint is
  * configured for, which may lag the SDK pin, so both shapes must be read.
+ *
+ * Reads item [0] deliberately: every subscription this codebase creates has a
+ * single item, so all items share one period. Revisit if that stops holding.
  */
 function extractItemPeriodField(
   sub: Record<string, unknown>,

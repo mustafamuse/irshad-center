@@ -404,6 +404,7 @@ describe('handleInvoiceFinalized', () => {
       object: 'invoice',
       status: 'paid',
       period_end: PERIOD_END,
+      amount_remaining: 0,
       subscription: 'sub_test_123',
       ...overrides,
     } as unknown as Stripe.Invoice
@@ -431,7 +432,7 @@ describe('handleInvoiceFinalized', () => {
 
   it('does not advance paidUntil for an open (unpaid) invoice', async () => {
     const result = await handleInvoiceFinalized(
-      createMockInvoice({ status: 'open' }),
+      createMockInvoice({ status: 'open', amount_remaining: 16000 }),
       'DUGSI'
     )
 
@@ -441,8 +442,30 @@ describe('handleInvoiceFinalized', () => {
 
   it('does not advance paidUntil for a draft invoice', async () => {
     await handleInvoiceFinalized(
-      createMockInvoice({ status: 'draft' }),
+      createMockInvoice({ status: 'draft', amount_remaining: 16000 }),
       'MAHAD'
+    )
+
+    expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()
+  })
+
+  it('advances paidUntil for a settled invoice whose status lags (partial payments)', async () => {
+    await handleInvoiceFinalized(
+      createMockInvoice({ status: 'open', amount_remaining: 0 }),
+      'DUGSI'
+    )
+
+    expect(vi.mocked(updateSubscriptionStatus)).toHaveBeenCalledWith(
+      'db_sub_1',
+      'active',
+      { paidUntil: new Date(PERIOD_END * 1000) }
+    )
+  })
+
+  it('does not treat a fully-prorated $0 draft as settled', async () => {
+    await handleInvoiceFinalized(
+      createMockInvoice({ status: 'draft', amount_remaining: 0 }),
+      'DUGSI'
     )
 
     expect(vi.mocked(updateSubscriptionStatus)).not.toHaveBeenCalled()

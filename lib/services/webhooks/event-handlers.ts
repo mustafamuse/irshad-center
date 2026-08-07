@@ -291,9 +291,12 @@ export function createEventHandlers(accountType: StripeAccountType) {
 
     // invoice.paid covers strictly more than payment_succeeded: it also fires
     // for invoices marked paid out of band (cash/check recorded by an admin),
-    // which fire no payment_succeeded at all. Both route to the same paid-gated
-    // handler, and re-running it writes the same period_end, so the overlap is
-    // harmless. Requires 'invoice.paid' to be enabled on the Stripe endpoint.
+    // which fire no payment_succeeded at all. Both are distinct Stripe events
+    // with distinct IDs, so both run; the overlap is harmless only because
+    // handleInvoiceFinalized re-writes the same period_end. Do NOT copy this
+    // dual registration into donationEventHandlers, whose invoice handler
+    // creates a record per event and would double-count donations.
+    // Requires 'invoice.paid' to be enabled on the Stripe endpoint.
     'invoice.paid': (event: Stripe.Event) =>
       handleInvoicePaidEvent(event, accountType),
 
