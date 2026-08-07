@@ -15,6 +15,7 @@ import type Stripe from 'stripe'
 
 import { createServiceLogger, logWarning } from '@/lib/logger'
 import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
+import { extractInvoiceSubscriptionId } from '@/lib/utils/type-guards'
 
 import {
   handleOneTimeDonation,
@@ -203,7 +204,30 @@ async function handleInvoicePaymentSucceededEvent(
     'Processing invoice.payment_succeeded'
   )
 
-  await handleInvoiceFinalized(invoice, accountType)
+  await handleInvoiceFinalized(
+    invoice,
+    accountType,
+    'invoice.payment_succeeded'
+  )
+}
+
+/**
+ * Handle invoice.paid event
+ *
+ * Advances paidUntil, including for out-of-band payments
+ */
+async function handleInvoicePaidEvent(
+  event: Stripe.Event,
+  accountType: StripeAccountType
+): Promise<void> {
+  const invoice = extractEventData<Stripe.Invoice>(event)
+
+  logger.info(
+    { invoiceId: invoice.id, status: invoice.status },
+    'Processing invoice.paid'
+  )
+
+  await handleInvoiceFinalized(invoice, accountType, 'invoice.paid')
 }
 
 /**
@@ -216,14 +240,7 @@ async function handleInvoicePaymentFailedEvent(
 ): Promise<void> {
   const invoice = extractEventData<Stripe.Invoice>(event)
 
-  // Extract subscription ID (may be expanded object or string)
-  const invoiceData = invoice as Stripe.Invoice & {
-    subscription?: string | Stripe.Subscription
-  }
-  const subscriptionId =
-    typeof invoiceData.subscription === 'string'
-      ? invoiceData.subscription
-      : (invoiceData.subscription?.id ?? null)
+  const subscriptionId = extractInvoiceSubscriptionId(invoice)
 
   await logWarning(logger, 'Invoice payment failed', {
     invoiceId: invoice.id,
@@ -271,6 +288,17 @@ export function createEventHandlers(accountType: StripeAccountType) {
 
     'invoice.payment_succeeded': (event: Stripe.Event) =>
       handleInvoicePaymentSucceededEvent(event, accountType),
+
+    // invoice.paid covers strictly more than payment_succeeded: it also fires
+    // for invoices marked paid out of band (cash/check recorded by an admin),
+    // which fire no payment_succeeded at all. Both are distinct Stripe events
+    // with distinct IDs, so both run; the overlap is harmless only because
+    // handleInvoiceFinalized re-writes the same period_end. Do NOT copy this
+    // dual registration into donationEventHandlers, whose invoice handler
+    // creates a record per event and would double-count donations.
+    // Requires 'invoice.paid' to be enabled on the Stripe endpoint.
+    'invoice.paid': (event: Stripe.Event) =>
+      handleInvoicePaidEvent(event, accountType),
 
     'invoice.payment_failed': handleInvoicePaymentFailedEvent,
 

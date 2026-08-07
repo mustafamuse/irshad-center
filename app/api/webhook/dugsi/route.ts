@@ -29,6 +29,7 @@ export const POST = createWebhookHandler({
       dugsiEventHandlers['customer.subscription.deleted'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_SUCCEEDED]:
       dugsiEventHandlers['invoice.payment_succeeded'],
+    [STRIPE_WEBHOOK_EVENTS.INVOICE_PAID]: dugsiEventHandlers['invoice.paid'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED]:
       dugsiEventHandlers['invoice.payment_failed'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_FINALIZED]:
