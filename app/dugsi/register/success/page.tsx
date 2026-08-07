@@ -9,11 +9,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { createServiceLogger } from '@/lib/logger'
 import { getCachedDugsiRegistrations } from '@/lib/services/dugsi'
-import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 import messages from '@/messages/en.json'
 
 import { SearchableRegistrationsList } from './_components/searchable-registrations-list'
-import type { Family } from './_types'
+import { groupByFamily } from './_utils/group'
 
 const logger = createServiceLogger('dugsi-success')
 const MAX_RECENT_REGISTRATIONS = 50
@@ -24,76 +23,6 @@ export const metadata: Metadata = {
   title: 'Registration Success - Irshād Dugsi',
   description:
     'Your family has been successfully registered for the Dugsi program.',
-}
-
-function groupByFamily(
-  registrations: Awaited<ReturnType<typeof getCachedDugsiRegistrations>>
-): Family[] {
-  const familyMap = new Map<string, Family>()
-
-  for (const reg of registrations) {
-    // Use familyReferenceId as primary key for proper family grouping
-    // Fallback to parentEmail or id only if familyReferenceId is missing
-    const familyKey = reg.familyReferenceId || reg.parentEmail || reg.id
-
-    if (!familyMap.has(familyKey)) {
-      familyMap.set(familyKey, {
-        familyKey,
-        parent1Name:
-          reg.parentFirstName && reg.parentLastName
-            ? `${reg.parentFirstName} ${reg.parentLastName}`
-            : null,
-        parent1Email: reg.parentEmail,
-        parent1Phone: reg.parentPhone,
-        parent2Name:
-          reg.parent2FirstName && reg.parent2LastName
-            ? `${reg.parent2FirstName} ${reg.parent2LastName}`
-            : null,
-        parent2Email: reg.parent2Email,
-        parent2Phone: reg.parent2Phone,
-        children: [],
-        registeredAt: reg.createdAt,
-      })
-    } else {
-      // Update parent 2 info if it exists and wasn't set before
-      const family = familyMap.get(familyKey)
-      if (!family) {
-        logger.error(
-          { familyKey },
-          'Family not found in map during parent2 update'
-        )
-        continue
-      }
-      if (!family.parent2Name && reg.parent2FirstName && reg.parent2LastName) {
-        family.parent2Name = `${reg.parent2FirstName} ${reg.parent2LastName}`
-        family.parent2Email = reg.parent2Email
-        family.parent2Phone = reg.parent2Phone
-      }
-    }
-
-    const family = familyMap.get(familyKey)
-    if (!family) {
-      logger.error({ familyKey }, 'Family not found in map during child push')
-      continue
-    }
-    family.children.push({
-      id: reg.id,
-      name: reg.name,
-      gradeLevel: reg.gradeLevel ? formatGradeLevel(reg.gradeLevel) : null,
-      schoolName: reg.schoolName,
-      dateOfBirth: reg.dateOfBirth,
-      gender: reg.gender,
-      createdAt: reg.createdAt,
-    })
-
-    if (reg.createdAt > family.registeredAt) {
-      family.registeredAt = reg.createdAt
-    }
-  }
-
-  return Array.from(familyMap.values()).sort(
-    (a, b) => b.registeredAt.getTime() - a.registeredAt.getTime()
-  )
 }
 
 async function RegistrationsList({

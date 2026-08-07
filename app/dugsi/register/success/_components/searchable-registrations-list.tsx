@@ -9,12 +9,17 @@ import { Input } from '@/components/ui/input'
 import messages from '@/messages/en.json'
 
 import { FamilyCard, type Family } from './family-card'
+import { maskEmail, maskPhone } from '../_utils/mask'
 
 interface SearchableRegistrationsListProps {
   families: Family[]
   highlightFamilyId?: string
 }
 
+// The payload only carries masked contacts (no raw PII on this public
+// page), so contact search masks the QUERY with the same functions and
+// compares masked-to-masked: typing your full email or phone still finds
+// your family.
 function filterFamiliesBySearch(families: Family[], query: string): Family[] {
   if (!query.trim()) return families
 
@@ -24,38 +29,30 @@ function filterFamiliesBySearch(families: Family[], query: string): Family[] {
   const isPhoneSearch = searchDigits.length >= 4
 
   return families.filter((family) => {
-    // Search parent 1
     const parent1Name = family.parent1Name?.toLowerCase() || ''
-    const parent1Email = family.parent1Email?.toLowerCase() || ''
-    const parent1Phone = family.parent1Phone?.replace(/\D/g, '') || ''
-
-    // Search parent 2
     const parent2Name = family.parent2Name?.toLowerCase() || ''
-    const parent2Email = family.parent2Email?.toLowerCase() || ''
-    const parent2Phone = family.parent2Phone?.replace(/\D/g, '') || ''
 
-    // Email search
     if (isEmailSearch) {
+      const maskedQuery = maskEmail(normalizedQuery)
       return (
-        parent1Email.includes(normalizedQuery) ||
-        parent2Email.includes(normalizedQuery)
+        maskedQuery !== null &&
+        (family.parent1MaskedEmail === maskedQuery ||
+          family.parent2MaskedEmail === maskedQuery)
       )
     }
 
-    // Phone search (match last 4 digits)
     if (isPhoneSearch) {
-      const searchLast4 = searchDigits.slice(-4)
+      const maskedQuery = maskPhone(query)
       return (
-        parent1Phone.endsWith(searchLast4) || parent2Phone.endsWith(searchLast4)
+        maskedQuery !== null &&
+        (family.parent1MaskedPhone === maskedQuery ||
+          family.parent2MaskedPhone === maskedQuery)
       )
     }
 
-    // Name search (searches both parents)
     return (
       parent1Name.includes(normalizedQuery) ||
-      parent2Name.includes(normalizedQuery) ||
-      parent1Email.includes(normalizedQuery) ||
-      parent2Email.includes(normalizedQuery)
+      parent2Name.includes(normalizedQuery)
     )
   })
 }

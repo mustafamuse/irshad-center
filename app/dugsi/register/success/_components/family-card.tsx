@@ -31,32 +31,6 @@ function formatNameAsLastNameFirst(fullName: string): string {
   return `${lastName}, ${firstName}`
 }
 
-function calculateAgeInYrs(dateOfBirth: Date | null): string | null {
-  if (!dateOfBirth) return null
-
-  try {
-    const birthDate =
-      dateOfBirth instanceof Date ? dateOfBirth : new Date(dateOfBirth)
-
-    if (isNaN(birthDate.getTime())) return null
-
-    const today = new Date()
-    let age = today.getFullYear() - birthDate.getFullYear()
-    const monthDiff = today.getMonth() - birthDate.getMonth()
-
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birthDate.getDate())
-    ) {
-      age--
-    }
-
-    return `${age} yrs`
-  } catch {
-    return null
-  }
-}
-
 function getGenderEmoji(gender: Gender | null): string {
   switch (gender) {
     case 'MALE':
@@ -107,26 +81,16 @@ export function FamilyCard({ family, isHighlighted }: FamilyCardProps) {
                   </div>
                 )}
                 <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                  {family.parent1Email && (
+                  {family.parent1MaskedEmail && (
                     <span className="flex items-center gap-1">
                       <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                      <a
-                        href={`mailto:${family.parent1Email}`}
-                        className="hover:underline"
-                      >
-                        {family.parent1Email}
-                      </a>
+                      {family.parent1MaskedEmail}
                     </span>
                   )}
-                  {family.parent1Phone && (
+                  {family.parent1MaskedPhone && (
                     <span className="flex items-center gap-1">
                       <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                      <a
-                        href={`tel:${family.parent1Phone}`}
-                        className="hover:underline"
-                      >
-                        {family.parent1Phone}
-                      </a>
+                      {family.parent1MaskedPhone}
                     </span>
                   )}
                 </div>
@@ -138,26 +102,16 @@ export function FamilyCard({ family, isHighlighted }: FamilyCardProps) {
                     Parent 2: {family.parent2Name}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                    {family.parent2Email && (
+                    {family.parent2MaskedEmail && (
                       <span className="flex items-center gap-1">
                         <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                        <a
-                          href={`mailto:${family.parent2Email}`}
-                          className="hover:underline"
-                        >
-                          {family.parent2Email}
-                        </a>
+                        {family.parent2MaskedEmail}
                       </span>
                     )}
-                    {family.parent2Phone && (
+                    {family.parent2MaskedPhone && (
                       <span className="flex items-center gap-1">
                         <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                        <a
-                          href={`tel:${family.parent2Phone}`}
-                          className="hover:underline"
-                        >
-                          {family.parent2Phone}
-                        </a>
+                        {family.parent2MaskedPhone}
                       </span>
                     )}
                   </div>
@@ -180,7 +134,7 @@ export function FamilyCard({ family, isHighlighted }: FamilyCardProps) {
       <CardContent>
         <div className="space-y-2">
           {family.children.map((child) => {
-            const age = calculateAgeInYrs(child.dateOfBirth)
+            const age = child.ageYears !== null ? `${child.ageYears} yrs` : null
             const genderEmoji = getGenderEmoji(child.gender)
             const formattedName = formatNameAsLastNameFirst(child.name)
 
