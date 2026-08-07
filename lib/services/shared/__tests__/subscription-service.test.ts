@@ -94,3 +94,29 @@ describe('createSubscriptionFromStripe', () => {
     )
   })
 })
+
+describe('createSubscription upsert semantics', () => {
+  it('never writes paidUntil on the conflict branch', async () => {
+    const { createSubscription } = await vi.importActual<
+      typeof import('@/lib/db/queries/billing')
+    >('@/lib/db/queries/billing')
+
+    const upsert = vi.fn().mockResolvedValue({ id: 'db_sub_1' })
+    await createSubscription(
+      {
+        billingAccountId: 'ba_1',
+        stripeAccountType: 'DUGSI',
+        stripeSubscriptionId: 'sub_test_123',
+        stripeCustomerId: 'cus_test_123',
+        status: 'active',
+        amount: 16000,
+        paidUntil: new Date('2026-09-01'),
+      },
+      { subscription: { upsert } } as never
+    )
+
+    const [args] = upsert.mock.calls[0]
+    expect(args.create).toHaveProperty('paidUntil')
+    expect(args.update).not.toHaveProperty('paidUntil')
+  })
+})

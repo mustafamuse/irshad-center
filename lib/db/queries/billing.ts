@@ -363,7 +363,10 @@ export async function createSubscription(
       amount: data.amount,
       currentPeriodStart: data.currentPeriodStart,
       currentPeriodEnd: data.currentPeriodEnd,
-      paidUntil: data.paidUntil,
+      // paidUntil deliberately absent. Every caller computes it for an insert,
+      // but a row that already exists may have been settled by the invoice
+      // webhook in the window since the caller's existence check — writing the
+      // insert-time value here would erase a genuinely paid period.
     },
     include: {
       billingAccount: {
