@@ -435,10 +435,11 @@ export async function linkSubscriptionToProfile(
       )
     } else {
       // Update existing subscription status
+      // paidUntil deliberately omitted: linking an existing row must not
+      // assert payment. See resolveInitialPaidUntil.
       await updateSubscriptionStatus(subscriptionId, subscription.status, {
         currentPeriodStart: validationResult.currentPeriodStart,
         currentPeriodEnd: validationResult.currentPeriodEnd,
-        paidUntil: validationResult.currentPeriodEnd,
       })
     }
 

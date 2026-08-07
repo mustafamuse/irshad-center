@@ -363,7 +363,10 @@ export async function createSubscription(
       amount: data.amount,
       currentPeriodStart: data.currentPeriodStart,
       currentPeriodEnd: data.currentPeriodEnd,
-      paidUntil: data.paidUntil,
+      // paidUntil deliberately absent. Every caller computes it for an insert,
+      // but a row that already exists may have been settled by the invoice
+      // webhook in the window since the caller's existence check — writing the
+      // insert-time value here would erase a genuinely paid period.
     },
     include: {
       billingAccount: {
@@ -719,7 +722,9 @@ export async function updateSubscriptionForConsolidation(
     amount: number
     currentPeriodStart: Date | null
     currentPeriodEnd: Date | null
-    paidUntil: Date | null
+    // Optional so consolidation can leave a stored paidUntil untouched:
+    // settlement belongs to the invoice webhook, not to a re-link.
+    paidUntil?: Date | null
   },
   client: DatabaseClient = prisma
 ) {

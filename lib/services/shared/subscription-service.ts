@@ -24,6 +24,7 @@ import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
+import { resolveInitialPaidUntil } from '@/lib/utils/subscription-status'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('subscription-service')
@@ -181,10 +182,11 @@ export async function syncSubscriptionFromStripe(
 
   if (currentStatus !== newStatus) {
     // Update status
+    // paidUntil deliberately omitted: this row already exists, so settlement
+    // is the invoice webhook's to advance. See resolveInitialPaidUntil.
     await updateSubscriptionStatusQuery(dbSubscription.id, newStatus, {
       currentPeriodStart: stripeData.currentPeriodStart,
       currentPeriodEnd: stripeData.currentPeriodEnd,
-      paidUntil: stripeData.currentPeriodEnd,
     })
 
     return {
@@ -248,7 +250,10 @@ export async function createSubscriptionFromStripe(
     interval,
     currentPeriodStart: periodDates.periodStart,
     currentPeriodEnd: periodDates.periodEnd,
-    paidUntil: periodDates.periodEnd,
+    paidUntil: resolveInitialPaidUntil(
+      stripeSubscription.status as SubscriptionStatus,
+      periodDates.periodEnd
+    ),
   })
 }
 
