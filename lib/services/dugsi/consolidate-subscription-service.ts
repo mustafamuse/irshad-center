@@ -17,6 +17,7 @@ import { SubscriptionStatus } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import Stripe from 'stripe'
 
+
 import { BULK_ENROLLMENT_TIMEOUT_MS } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
@@ -37,6 +38,7 @@ import {
   formatRateDisplay,
   getRateTierDescription,
 } from '@/lib/utils/dugsi-tuition'
+import { resolveInitialPaidUntil } from '@/lib/utils/subscription-status'
 import {
   extractPeriodDates,
   isValidSubscriptionStatus,
@@ -359,7 +361,10 @@ export async function consolidateStripeSubscription(
                     interval,
                     currentPeriodStart: periodDates.periodStart,
                     currentPeriodEnd: periodDates.periodEnd,
-                    paidUntil: periodDates.periodEnd,
+                    paidUntil: resolveInitialPaidUntil(
+                      status,
+                      periodDates.periodEnd
+                    ),
                   },
                   tx
                 )
@@ -388,7 +393,6 @@ export async function consolidateStripeSubscription(
                     amount,
                     currentPeriodStart: periodDates.periodStart,
                     currentPeriodEnd: periodDates.periodEnd,
-                    paidUntil: periodDates.periodEnd,
                   },
                   tx
                 )

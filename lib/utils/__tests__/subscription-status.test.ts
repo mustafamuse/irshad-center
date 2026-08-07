@@ -6,7 +6,10 @@
 
 import { describe, it, expect } from 'vitest'
 
-import { formatPeriodRange } from '../subscription-status'
+import {
+  formatPeriodRange,
+  resolveInitialPaidUntil,
+} from '../subscription-status'
 
 describe('formatPeriodRange', () => {
   it('should format period range as "Jan 1 - Jan 31"', () => {
@@ -73,5 +76,32 @@ describe('formatPeriodRange', () => {
     const result = formatPeriodRange(start, end)
     expect(result).toContain('Dec')
     expect(result).toContain('Jan')
+  })
+})
+
+describe('resolveInitialPaidUntil', () => {
+  const periodEnd = new Date('2026-09-01')
+
+  it('sets paidUntil for an active subscription — the first invoice is paid', () => {
+    expect(resolveInitialPaidUntil('active', periodEnd)).toEqual(periodEnd)
+  })
+
+  it.each([
+    'incomplete',
+    'incomplete_expired',
+    'past_due',
+    'unpaid',
+    'canceled',
+    'paused',
+  ] as const)('does not set paidUntil for %s — money is owed', (status) => {
+    expect(resolveInitialPaidUntil(status, periodEnd)).toBeNull()
+  })
+
+  it('does not set paidUntil while trialing — access without payment', () => {
+    expect(resolveInitialPaidUntil('trialing', periodEnd)).toBeNull()
+  })
+
+  it('returns null when the period end is unknown', () => {
+    expect(resolveInitialPaidUntil('active', null)).toBeNull()
   })
 })

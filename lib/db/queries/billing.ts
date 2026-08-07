@@ -719,7 +719,9 @@ export async function updateSubscriptionForConsolidation(
     amount: number
     currentPeriodStart: Date | null
     currentPeriodEnd: Date | null
-    paidUntil: Date | null
+    // Optional so consolidation can leave a stored paidUntil untouched:
+    // settlement belongs to the invoice webhook, not to a re-link.
+    paidUntil?: Date | null
   },
   client: DatabaseClient = prisma
 ) {
