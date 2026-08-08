@@ -7,19 +7,23 @@
  * their class enrollments stay active. They keep occupying roster spots and
  * appear on attendance sheets for a family that left.
  *
- * This runs handleSubscriptionCancellationEnrollments, the exact cascade the
- * webhook would have run, so the end state is the one the system produces
- * normally rather than a hand-repaired approximation. That function is
- * transactional and idempotent (it skips already-WITHDRAWN profiles and guards
- * class deactivation on isActive), so a second run is a no-op.
+ * This replays what handleSubscriptionDeleted does: cascade enrollments and
+ * profiles to WITHDRAWN, then unlink the subscription so its BillingAssignment
+ * rows go inactive — in one transaction, in that order. Order matters: the
+ * cascade reads still-active assignments, so unlinking first would make it
+ * find nothing and silently withdraw nobody.
  *
- * Deliberately NOT done here, matching the webhook: BillingAssignment rows are
- * left active. Leaving them is the normal post-cancellation state in this
- * system, and deviating would produce a shape no other code path creates.
+ * Running only the cascade is not a partial fix, it is a different bug:
+ * isActive on BillingAssignment is read throughout the billing query layer, so
+ * a withdrawn family would keep showing up as an active billing assignment —
+ * a state no other code path produces.
  *
- * Guard: refuses to touch a subscription that is not already canceled in the
- * DB. Reconcile status first (scripts/reconcile-subscription-status.ts) so
- * Stripe is the thing deciding who gets withdrawn, never this script.
+ * Both steps are idempotent (the cascade skips already-WITHDRAWN profiles;
+ * deactivation is guarded on isActive), so a second run is a no-op.
+ *
+ * The subscription's own status is NOT set here. The guard below requires it
+ * to be canceled already, which is the reconciler's job — that keeps Stripe,
+ * not this script, as the thing that decides who gets withdrawn.
  *
  * Usage:
  *   set -a && source .env.local && set +a && NODE_ENV=production bunx tsx \
@@ -28,6 +32,7 @@
  */
 
 import { prisma } from '@/lib/db'
+import { unlinkSubscription } from '@/lib/services/shared/billing-service'
 import { handleSubscriptionCancellationEnrollments } from '@/lib/services/shared/enrollment-service'
 
 import { runScript } from './lib/run-script'
@@ -51,6 +56,7 @@ async function main() {
   const subscription = await prisma.subscription.findFirst({
     where: { stripeSubscriptionId },
     select: {
+      id: true,
       status: true,
       amount: true,
       assignments: {
@@ -84,6 +90,8 @@ async function main() {
     )
   }
 
+  const subscriptionRowId = subscription.id
+
   const profiles = subscription.assignments
     .map((a) => a.programProfile)
     .filter((p) => p !== null)
@@ -108,16 +116,24 @@ async function main() {
     return
   }
 
-  const result = await handleSubscriptionCancellationEnrollments(
-    stripeSubscriptionId,
-    'Subscription canceled in Stripe; cascade replayed manually'
-  )
+  // Same order as handleSubscriptionDeleted: the cascade reads still-active
+  // assignments, so it MUST run before unlinkSubscription deactivates them.
+  const { result, unlinked } = await prisma.$transaction(async (tx) => {
+    const cascade = await handleSubscriptionCancellationEnrollments(
+      stripeSubscriptionId,
+      'Subscription canceled in Stripe; cascade replayed manually',
+      tx
+    )
+    const count = await unlinkSubscription(subscriptionRowId, tx)
+    return { result: cascade, unlinked: count }
+  })
 
   console.log(`\nenrollments withdrawn        : ${result.withdrawn}`)
   console.log(`profiles withdrawn           : ${result.profilesWithdrawn}`)
   console.log(
     `class enrollments deactivated: ${result.classEnrollmentsDeactivated}`
   )
+  console.log(`billing assignments unlinked : ${unlinked}`)
 }
 
 runScript(main, { cleanup: () => prisma.$disconnect() })
