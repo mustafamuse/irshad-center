@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  deriveSubscriptionStatus,
   formatPeriodRange,
   resolveInitialPaidUntil,
 } from '../subscription-status'
@@ -104,4 +105,37 @@ describe('resolveInitialPaidUntil', () => {
   it('returns null when the period end is unknown', () => {
     expect(resolveInitialPaidUntil('active', null)).toBeNull()
   })
+})
+
+describe('deriveSubscriptionStatus', () => {
+  const PAUSE = { behavior: 'mark_uncollectible' as const, resumes_at: null }
+
+  it('maps a paused-collection Dugsi subscription to paused', () => {
+    // Stripe leaves status 'active' while collection is paused, so the raw
+    // status alone would present a non-paying family as paying.
+    expect(deriveSubscriptionStatus('active', 'DUGSI', PAUSE)).toBe('paused')
+  })
+
+  it('leaves an unpaused Dugsi subscription active', () => {
+    expect(deriveSubscriptionStatus('active', 'DUGSI', null)).toBe('active')
+  })
+
+  it('does not map Mahad, which has no pause UI', () => {
+    expect(deriveSubscriptionStatus('active', 'MAHAD', PAUSE)).toBe('active')
+  })
+
+  it('only rewrites active — a paused past_due still owes money', () => {
+    // past_due means a charge failed. Reporting it as merely 'paused' would
+    // hide a collection problem behind an administrative one.
+    expect(deriveSubscriptionStatus('past_due', 'DUGSI', PAUSE)).toBe(
+      'past_due'
+    )
+  })
+
+  it.each(['canceled', 'unpaid', 'trialing', 'incomplete'] as const)(
+    'passes %s through unchanged',
+    (status) => {
+      expect(deriveSubscriptionStatus(status, 'DUGSI', PAUSE)).toBe(status)
+    }
+  )
 })

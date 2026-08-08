@@ -1,6 +1,34 @@
-import { SubscriptionStatus } from '@prisma/client'
+import { SubscriptionStatus, StripeAccountType } from '@prisma/client'
 
 import { formatDate } from './formatters'
+
+/**
+ * Map a Stripe subscription status onto the status we persist.
+ *
+ * Stripe keeps status 'active' while pause_collection is set, so the raw status
+ * cannot distinguish a paying family from one whose invoices are being voided
+ * or marked uncollectible. The admin pause writes 'paused' to the DB, and
+ * without this mapping the webhook fired by that same Stripe update reverts it
+ * to 'active' — hiding the Resume button and stranding the family paused in
+ * Stripe.
+ *
+ * Dugsi-only: Mahad has no pause UI, and its consumers would render a persisted
+ * 'paused' as a payment problem.
+ *
+ * This is the single definition of that rule. The subscription webhook and the
+ * status reconciler both call it, so a reconcile run can never disagree with
+ * what the next webhook would write — which is what turns a fixed row back into
+ * a divergent one.
+ */
+export function deriveSubscriptionStatus(
+  rawStatus: SubscriptionStatus,
+  accountType: StripeAccountType,
+  pauseCollection: unknown
+): SubscriptionStatus {
+  return accountType === 'DUGSI' && pauseCollection && rawStatus === 'active'
+    ? 'paused'
+    : rawStatus
+}
 
 /**
  * Get the display label for a subscription status

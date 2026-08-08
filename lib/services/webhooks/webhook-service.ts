@@ -46,6 +46,7 @@ import { handleSubscriptionCancellationEnrollments } from '@/lib/services/shared
 import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
+import { deriveSubscriptionStatus } from '@/lib/utils/subscription-status'
 import {
   extractCustomerId,
   extractInvoiceSubscriptionId,
@@ -566,18 +567,11 @@ export async function handleSubscriptionUpdated(
     throw new Error(`Invalid subscription status: ${rawStatus}`)
   }
 
-  // Stripe keeps status 'active' while pause_collection is set — the admin
-  // pause writes 'paused' to the DB, and without this mapping the webhook
-  // fired by that same Stripe update immediately reverts it to 'active',
-  // hiding the Resume button and stranding the family paused in Stripe.
-  // Dugsi-only: Mahad has no pause UI, and its consumers would render a
-  // persisted 'paused' as a payment problem
-  const status: SubscriptionStatus =
-    accountType === 'DUGSI' &&
-    subscription.pause_collection &&
-    rawStatus === 'active'
-      ? 'paused'
-      : rawStatus
+  const status: SubscriptionStatus = deriveSubscriptionStatus(
+    rawStatus,
+    accountType,
+    subscription.pause_collection
+  )
 
   // Extract period dates
   const periodDates = extractPeriodDates(subscription)
